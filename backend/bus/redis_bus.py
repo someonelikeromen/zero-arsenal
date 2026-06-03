@@ -26,6 +26,20 @@ from .interface import IEventBus
 logger = logging.getLogger(__name__)
 
 
+def _bus_event_from_payload(data: dict) -> BusEvent:
+    """从 Redis 载荷 dict 还原 BusEvent（type 为字符串，保留 id/timestamp）。"""
+    kwargs = {
+        "type": data.get("type", EventType.SESSION_STARTED),
+        "session_id": data.get("session_id", ""),
+        "data": data.get("data", {}),
+    }
+    if data.get("id"):
+        kwargs["id"] = data["id"]
+    if data.get("timestamp") is not None:
+        kwargs["timestamp"] = float(data["timestamp"])
+    return BusEvent(**kwargs)
+
+
 class RedisEventBus(IEventBus):
     """
     基于 Redis Pub/Sub 的多进程/多节点事件总线。
@@ -34,9 +48,10 @@ class RedisEventBus(IEventBus):
       - publish()  → redis.publish(channel=session_id, message=json)
       - subscribe() → redis.subscribe(channel=session_id) → asyncio.Queue
       - event_log  → Redis ZSET（score=timestamp）替代 SQLite event_log 表
-      - 断点续传   → ZRANGEBYSCORE(session_id:events, last_ts, +inf)
+      - 断点续传   → ZSET 成员内嵌 id/timestamp，按 SSE id 定位锚点 score 后续传
 
-    注意：此实现桩未填充，需要部署 Redis 后激活。
+    已实现 publish/subscribe/get_events_after_from_db；需部署 Redis 后由
+    __init__.py 在 REDIS_URL 存在时自动启用，未连接则降级为进程内队列。
     """
 
     def __init__(self, redis_url: str = "redis://localhost:6379") -> None:
@@ -73,17 +88,21 @@ class RedisEventBus(IEventBus):
         同时写入 ZSET（session:{session_id}:events）供断线重连重放。
         Redis 不可用时降级为进程内队列。
         """
-        import time
         await self._ensure_connected()
+        # B09-1：EventType 是普通字符串常量类，event.type 已是 str，禁止当 Enum 取 .value
+        # C7-05：member 内嵌 id 与 timestamp，供断线续传按 SSE id 精确定位锚点
         event_json = json.dumps({
-            "type": event.type.value if hasattr(event.type, "value") else str(event.type),
+            "type": str(event.type),
             "session_id": event.session_id,
             "data": event.data,
+            "id": event.id,
+            "timestamp": event.timestamp,
         }, ensure_ascii=False)
 
         if self._redis is not None:
             try:
-                score = time.time()
+                # 用事件自身 timestamp 作为 ZSET score，与 SSE id/timestamp 锚定一致
+                score = event.timestamp
                 zset_key = f"session:{event.session_id}:events"
                 # 写入 ZSET 供重放，保留最近 200 条（通过 ZREMRANGEBYRANK 裁剪）
                 await self._redis.zadd(zset_key, {event_json: score})
@@ -138,11 +157,7 @@ class RedisEventBus(IEventBus):
                     try:
                         raw = message["data"]
                         data = json.loads(raw)
-                        bus_event = BusEvent(
-                            type=EventType(data["type"]) if "type" in data else EventType.SESSION_STARTED,
-                            session_id=data.get("session_id", ""),
-                            data=data.get("data", {}),
-                        )
+                        bus_event = _bus_event_from_payload(data)
                         try:
                             q.put_nowait(bus_event)
                         except asyncio.QueueFull:
@@ -171,10 +186,12 @@ class RedisEventBus(IEventBus):
         self, session_id: str, last_event_id: str, limit: int = 50
     ) -> list[BusEvent]:
         """
-        从 Redis ZSET 取出 last_event_id（时间戳）之后的事件，用于 SSE 断线重连时历史重放。
+        从 Redis ZSET 取出 last_event_id 之后的事件，用于 SSE 断线重连历史重放。
 
-        last_event_id 格式：浮点时间戳字符串（如 "1717340000.123"）；
-        若为空或无法解析，返回最近 limit 条。
+        last_event_id 可为：
+          - SSE 事件 id（UUID）：在 ZSET 成员中按内嵌 id 定位其 score（C7-05/缺陷2）；
+          - 浮点时间戳字符串：直接作为 min_score；
+          - 空：返回最近 limit 条。
         """
         if self._redis is None:
             await self._ensure_connected()
@@ -183,31 +200,37 @@ class RedisEventBus(IEventBus):
             return []
 
         try:
-            import time
-            try:
-                min_score = float(last_event_id) if last_event_id else "-inf"
-            except (ValueError, TypeError):
-                min_score = time.time() - 3600  # 回溯 1h
-
             zset_key = f"session:{session_id}:events"
-            raw_items: list[str] = await self._redis.zrangebyscore(
-                zset_key,
-                min_score,
-                "+inf",
-                start=0,
-                num=limit,
+            # ZSET 已裁剪至 ≤200 条，全量取出 + 分数，按锚点过滤
+            raw_with_scores = await self._redis.zrange(
+                zset_key, 0, -1, withscores=True
             )
-            events: list[BusEvent] = []
-            for raw in raw_items:
+            parsed: list[tuple[dict, float]] = []
+            for member, score in raw_with_scores:
                 try:
-                    d = json.loads(raw)
-                    events.append(BusEvent(
-                        type=EventType(d["type"]),
-                        session_id=d.get("session_id", session_id),
-                        data=d.get("data", {}),
-                    ))
+                    parsed.append((json.loads(member), float(score)))
                 except Exception:
-                    pass
+                    continue
+
+            # 确定锚点 score
+            anchor_score: float | None = None
+            if last_event_id:
+                try:
+                    anchor_score = float(last_event_id)  # 时间戳形式
+                except (ValueError, TypeError):
+                    for d, score in parsed:           # UUID 形式：按内嵌 id 定位
+                        if d.get("id") == last_event_id:
+                            anchor_score = score
+                            break
+
+            events: list[BusEvent] = []
+            for d, score in parsed:
+                if anchor_score is not None and score <= anchor_score:
+                    continue
+                d.setdefault("session_id", session_id)
+                events.append(_bus_event_from_payload(d))
+                if len(events) >= limit:
+                    break
             return events
         except Exception as e:
             logger.warning("[RedisEventBus] get_events_after_from_db 失败: %s", e)

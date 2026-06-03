@@ -12,13 +12,10 @@ import logging
 import random
 from datetime import datetime
 
-from ..hook_protocol import BaseHook
-from ..registry import hook_registry
-
 logger = logging.getLogger(__name__)
 
 
-class InfiniteArsenalHook(BaseHook):
+class InfiniteArsenalHook:
     """
     无限武库武器损耗/锻造消耗钩子。
     管理角色库存中武器的耐久度随战斗使用自然损耗。
@@ -166,7 +163,3 @@ class InfiniteArsenalHook(BaseHook):
         except Exception as e:
             logger.warning("[InfiniteArsenalHook] chapter_end 武库汇总失败: %s", e)
         return ctx
-
-
-def register_hooks() -> None:
-    hook_registry.register(InfiniteArsenalHook())

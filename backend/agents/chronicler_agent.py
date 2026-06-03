@@ -29,17 +29,28 @@ CONSOLIDATE_SYSTEM = """\
 """
 
 
+async def _last_consolidated_boundary_ts(db, session_id: str) -> float:
+    """返回最后一个已固化章节 end_message 的 created_at 时间戳（无则 0）。"""
+    row = await (await db.execute(
+        "SELECT m.created_at AS ts FROM chapters c "
+        "JOIN messages m ON m.id = c.end_message_id "
+        "WHERE c.session_id=? AND c.is_consolidated=1 AND c.end_message_id IS NOT NULL "
+        "ORDER BY m.created_at DESC LIMIT 1",
+        (session_id,)
+    )).fetchone()
+    return float(row["ts"]) if row and row["ts"] is not None else 0.0
+
+
 async def should_consolidate(session_id: str) -> bool:
-    """检查当前未固化章节的消息数是否达到阈值。"""
+    """检查「上次固化边界之后」累积的消息数是否达到阈值（NEW-C2-03）。"""
     try:
         from ..db import get_db
         async with get_db() as db:
+            boundary_ts = await _last_consolidated_boundary_ts(db, session_id)
             row = await db.execute(
-                "SELECT COUNT(*) as cnt FROM messages m "
-                "WHERE m.session_id=? AND m.id NOT IN ("
-                "  SELECT start_message_id FROM chapters WHERE session_id=? AND is_consolidated=1 AND start_message_id IS NOT NULL"
-                ")",
-                (session_id, session_id)
+                "SELECT COUNT(*) as cnt FROM messages "
+                "WHERE session_id=? AND created_at > ?",
+                (session_id, boundary_ts)
             )
             cnt = (await row.fetchone())["cnt"]
         return cnt >= CHAPTER_TURN_THRESHOLD
@@ -137,8 +148,31 @@ async def chronicler_agent_node(ctx: TurnContext) -> TurnContext:
 
     logger.info(f"Consolidating chapter for session {ctx.session_id[:8]}")
 
-    # 取自上次固化后的所有 narrative Parts
-    narrative_texts = await _get_recent_narratives(ctx.session_id)
+    # 计算本章消息边界（上次固化之后的窗口）
+    boundary_ts = 0.0
+    start_message_id: str | None = None
+    end_message_id: str | None = None
+    try:
+        from ..db import get_db
+        async with get_db() as db:
+            boundary_ts = await _last_consolidated_boundary_ts(db, ctx.session_id)
+            start_row = await (await db.execute(
+                "SELECT id FROM messages WHERE session_id=? AND created_at>? "
+                "ORDER BY created_at ASC LIMIT 1",
+                (ctx.session_id, boundary_ts)
+            )).fetchone()
+            end_row = await (await db.execute(
+                "SELECT id FROM messages WHERE session_id=? AND created_at>? "
+                "ORDER BY created_at DESC LIMIT 1",
+                (ctx.session_id, boundary_ts)
+            )).fetchone()
+            start_message_id = start_row["id"] if start_row else None
+            end_message_id = end_row["id"] if end_row else None
+    except Exception as e:
+        logger.warning(f"[chronicler] boundary calc failed: {e}")
+
+    # 取本章窗口（上次固化之后）的 narrative Parts（NEW-C2-04：按边界过滤，避免跨章重叠）
+    narrative_texts = await _get_recent_narratives(ctx.session_id, after_ts=boundary_ts)
     if not narrative_texts:
         return ctx
 
@@ -184,16 +218,20 @@ async def chronicler_agent_node(ctx: TurnContext) -> TurnContext:
                 chapter_id = existing["id"]
                 await db.execute(
                     "UPDATE chapters SET is_consolidated=1, summary=?, updated_at=?, "
-                    "branch_label=?, chapter_index=?, parent_chapter_id=? WHERE id=?",
-                    (summary, now, branch_label, chapter_index, parent_chapter_id, chapter_id)
+                    "branch_label=?, chapter_index=?, parent_chapter_id=?, "
+                    "start_message_id=?, end_message_id=? WHERE id=?",
+                    (summary, now, branch_label, chapter_index, parent_chapter_id,
+                     start_message_id, end_message_id, chapter_id)
                 )
             else:
                 await db.execute(
                     "INSERT INTO chapters (id, session_id, is_consolidated, summary, "
-                    "branch_label, chapter_index, parent_chapter_id, created_at, updated_at) "
-                    "VALUES (?, ?, 1, ?, ?, ?, ?, ?, ?)",
+                    "branch_label, chapter_index, parent_chapter_id, "
+                    "start_message_id, end_message_id, created_at, updated_at) "
+                    "VALUES (?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?)",
                     (chapter_id, ctx.session_id, summary,
-                     branch_label, chapter_index, parent_chapter_id, now, now)
+                     branch_label, chapter_index, parent_chapter_id,
+                     start_message_id, end_message_id, now, now)
                 )
 
             # 写入记忆条目（semantic 层）
@@ -266,15 +304,19 @@ async def chronicler_agent_node(ctx: TurnContext) -> TurnContext:
     return ctx
 
 
-async def _get_recent_narratives(session_id: str, limit: int = 20) -> list[str]:
+async def _get_recent_narratives(
+    session_id: str, limit: int = 50, after_ts: float = 0.0
+) -> list[str]:
+    """取未固化窗口（created_at > after_ts）内的 narrative Parts，按时间升序拼接。"""
     try:
         from ..db import get_db
         async with get_db() as db:
             rows = await db.execute(
                 "SELECT content FROM message_parts "
                 "WHERE session_id=? AND type='narrative' AND status='done' "
-                "ORDER BY created_at DESC LIMIT ?",
-                (session_id, limit)
+                "AND created_at > ? "
+                "ORDER BY created_at ASC LIMIT ?",
+                (session_id, after_ts, limit)
             )
             return [json.loads(r["content"]).get("text", "") for r in await rows.fetchall()]
     except Exception:

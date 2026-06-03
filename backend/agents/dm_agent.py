@@ -257,10 +257,18 @@ async def _dm_impl(ctx: TurnContext) -> TurnContext:
         if end_idx > 0:
             raw = raw[:end_idx]
         result = json.loads(raw)
-        raw_verdict = result.get("verdict", "pass")
+        raw_verdict = result.get("verdict")
         # 兼容旧版 allow/block 和新版 pass/reject/modify
         _verdict_map = {"allow": "pass", "block": "reject"}
-        ctx.dm_verdict = _verdict_map.get(raw_verdict, raw_verdict)
+        mapped_verdict = _verdict_map.get(raw_verdict, raw_verdict)
+        # NEW-C1-01 fail-closed：verdict 缺失或不在白名单内一律视为 reject
+        _DM_VERDICTS = {"pass", "reject", "modify", "needs_roll"}
+        if mapped_verdict not in _DM_VERDICTS:
+            logger.warning(
+                "[dm_agent] verdict 缺失/未知值 %r，fail-closed 视为 reject", raw_verdict
+            )
+            mapped_verdict = "reject"
+        ctx.dm_verdict = mapped_verdict
         ctx.dm_note = result.get("dm_note", "")
 
         # modify：DM 改写行动，写入 ctx.modified_action

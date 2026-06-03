@@ -32,6 +32,9 @@ active_tools:
   - check_skill_trigger
   - query_character_summary
   - generate_action_options
+  - read_chapter
+  - style_check
+  - purity_check
 
 permissions:
   - pattern: "read_*"
@@ -47,6 +50,11 @@ permissions:
   - pattern: "check_*"
     action: allow
   - pattern: "generate_action_options"
+    action: allow
+  # review 专用审校工具（只读，NEW-B10-01）
+  - pattern: "style_check"
+    action: allow
+  - pattern: "purity_check"
     action: allow
   # 所有写操作拒绝（严格只读）
   - pattern: "*"

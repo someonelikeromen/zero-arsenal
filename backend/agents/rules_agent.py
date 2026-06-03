@@ -183,7 +183,14 @@ async def _rules_agent_impl(ctx: TurnContext) -> TurnContext:
             raw = json_match.group(0)
 
         result = json.loads(raw)
-        verdict = result.get("verdict", "pass")
+        # NEW-C1-01 fail-closed：verdict 缺失或不在白名单内一律视为 block
+        _RULES_VERDICTS = {"pass", "block", "hard_block", "needs_check"}
+        verdict = result.get("verdict")
+        if verdict not in _RULES_VERDICTS:
+            logger.warning(
+                "[rules_agent] verdict 缺失/未知值 %r，fail-closed 视为 block", verdict
+            )
+            verdict = "block"
 
         # needs_check：先 roll 骰，再决定最终裁决
         if verdict == "needs_check":

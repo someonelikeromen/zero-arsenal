@@ -5,8 +5,11 @@ LiteLLM 封装层 — 统一 LLM 调用接口。
 from __future__ import annotations
 import os
 import json
+import logging
 from typing import AsyncIterator, Callable, Awaitable, Optional
 import litellm
+
+logger = logging.getLogger(__name__)
 
 # 自动从 .env 加载（若 python-dotenv 可用）
 def _load_env() -> None:

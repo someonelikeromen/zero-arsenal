@@ -8,13 +8,10 @@ import json
 import logging
 import random
 
-from ..hook_protocol import BaseHook, HookEvent
-from ..registry import hook_registry
-
 logger = logging.getLogger(__name__)
 
 
-class GundamSeedHook(BaseHook):
+class GundamSeedHook:
     """
     Gundam SEED 机动战士战斗钩子。
     骰子结果后自动更新 MS 状态，PS 装甲耗尽时触发警报。
@@ -118,7 +115,3 @@ class GundamSeedHook(BaseHook):
                 "setting": "血色情人节后，战争全面爆发",
         })
         return ctx
-
-
-def register_hooks() -> None:
-    hook_registry.register(GundamSeedHook())

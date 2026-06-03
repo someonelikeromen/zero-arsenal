@@ -306,6 +306,20 @@ CREATE TABLE IF NOT EXISTS prompt_templates (
     updated_at REAL NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_prompt_templates_agent ON prompt_templates(agent);
+
+-- ── GraphRAG 记忆节点三套存储同步状态（memory/extractor.py 写入补偿）──────────
+CREATE TABLE IF NOT EXISTS node_sync_status (
+    novel_id        TEXT NOT NULL,
+    node_id         TEXT NOT NULL,
+    sqlite_written  INTEGER NOT NULL DEFAULT 0,
+    graph_written   INTEGER NOT NULL DEFAULT 0,
+    vector_written  INTEGER NOT NULL DEFAULT 0,
+    synced          INTEGER NOT NULL DEFAULT 0,   -- 1=三套存储均落地
+    retry_count     INTEGER NOT NULL DEFAULT 0,
+    updated_at      REAL,
+    PRIMARY KEY (novel_id, node_id)
+);
+CREATE INDEX IF NOT EXISTS idx_node_sync_pending ON node_sync_status(novel_id, synced);
 """
 
 # ── 迁移补丁（ALTER TABLE 兼容已存在数据库）─────────────────────────────────

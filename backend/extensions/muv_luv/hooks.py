@@ -8,13 +8,10 @@ import json
 import logging
 import random
 
-from ..hook_protocol import BaseHook, HookEvent
-from ..registry import hook_registry
-
 logger = logging.getLogger(__name__)
 
 
-class MuvLuvHook(BaseHook):
+class MuvLuvHook:
     """
     MUV-LUV TSF 战斗钩子。
     骰子结果出来后，根据成败自动计算 TSF 损伤和 BETA 威胁响应。
@@ -121,7 +118,3 @@ class MuvLuvHook(BaseHook):
         except Exception as e:
             logger.warning("[MuvLuvHook] chapter_end TSF 摘要失败: %s", e)
         return ctx
-
-
-def register_hooks() -> None:
-    hook_registry.register(MuvLuvHook())

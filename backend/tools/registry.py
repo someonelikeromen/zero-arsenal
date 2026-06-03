@@ -172,7 +172,7 @@ class ToolRegistry:
 
         权限流程（设计文档 07 §3 + 10 §2）：
           deny  → 直接拒绝，不执行
-          ask   → 发布 permission.ask 事件，等待前端确认（超时 60s 默认允许）
+          ask   → 发布 permission.ask 事件，等待前端确认（超时视为 deny，fail-closed）
           allow → 直接执行
         """
         tool = self._tools.get(name)
@@ -237,8 +237,13 @@ class ToolRegistry:
             if profile:
                 action = profile.resolve(tool.name)
                 return action.value  # PermissionAction.allow/ask/deny → str
-        except Exception:
-            pass
+        except Exception as e:
+            # D-16 fail-closed：profile 解析异常时不回落到工具默认（可能是 allow），
+            # 一律降级为 ask 交人确认（无前端时 ask 超时 → deny）。
+            logger.warning(
+                "[registry] _resolve_permission 异常，fail-closed 降级为 ask: %s", e
+            )
+            return "ask"
         return tool.permission_required
 
     async def _wait_for_permission(
@@ -251,7 +256,8 @@ class ToolRegistry:
     ) -> bool:
         """
         委托 ask_handler.check_permission_and_ask 完成 ask 交互。
-        超时后默认允许（fail-open）以避免卡死 Agent。
+        超时/异常视为 deny（fail-closed）：ask_handler 的 PendingAsk.wait()
+        超时返回 deny，本函数异常分支亦 return False。
         """
         try:
             from ..agents.ask_handler import check_permission_and_ask

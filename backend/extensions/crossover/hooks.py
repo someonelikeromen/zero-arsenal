@@ -8,13 +8,10 @@ import json
 import logging
 import random
 
-from ..hook_protocol import BaseHook
-from ..registry import hook_registry
-
 logger = logging.getLogger(__name__)
 
 
-class CrossoverHook(BaseHook):
+class CrossoverHook:
     """
     综漫无限流跨界事件钩子。
     - on_turn_end: 有概率触发随机跨界事件
@@ -102,7 +99,3 @@ class CrossoverHook(BaseHook):
             "rules": "综漫无限流规则适用",
         })
         return ctx
-
-
-def register_hooks() -> None:
-    hook_registry.register(CrossoverHook())

@@ -28,6 +28,55 @@ def _uid() -> str:
     return str(uuid.uuid4())
 
 
+def _get_db_cm():
+    """获取数据库异步上下文管理器（兼容 db.queries / backend.db.queries 两种导入路径）。"""
+    try:
+        from db.queries import get_db
+    except ImportError:  # pragma: no cover - 包前缀导入回退
+        from backend.db.queries import get_db  # type: ignore[no-redef]
+    return get_db
+
+
+async def _upsert_node_sync(novel_id: str, node_id: str, **flags) -> None:
+    """写入/更新 node_sync_status 行（aiosqlite，UPSERT 语义）。"""
+    get_db = _get_db_cm()
+    cols = {"sqlite_written", "graph_written", "vector_written", "synced", "retry_count"}
+    set_parts = [f"{k}=excluded.{k}" for k in flags if k in cols]
+    set_parts.append("updated_at=excluded.updated_at")
+    now = datetime.now(timezone.utc).timestamp()
+    insert_cols = ["novel_id", "node_id", "updated_at"] + [k for k in flags if k in cols]
+    placeholders = ", ".join("?" for _ in insert_cols)
+    values = [novel_id, node_id, now] + [int(flags[k]) for k in flags if k in cols]
+    async with get_db() as db:
+        await db.execute(
+            f"INSERT INTO node_sync_status ({', '.join(insert_cols)}) VALUES ({placeholders}) "
+            f"ON CONFLICT(novel_id, node_id) DO UPDATE SET {', '.join(set_parts)}",
+            values,
+        )
+        await db.commit()
+
+
+async def _mark_node_synced(novel_id: str, node_id: str) -> None:
+    get_db = _get_db_cm()
+    now = datetime.now(timezone.utc).timestamp()
+    async with get_db() as db:
+        await db.execute(
+            "UPDATE node_sync_status SET synced=1, updated_at=? WHERE novel_id=? AND node_id=?",
+            (now, novel_id, node_id),
+        )
+        await db.commit()
+
+
+async def _bump_retry(novel_id: str, node_id: str) -> None:
+    get_db = _get_db_cm()
+    async with get_db() as db:
+        await db.execute(
+            "UPDATE node_sync_status SET retry_count=retry_count+1 WHERE novel_id=? AND node_id=?",
+            (novel_id, node_id),
+        )
+        await db.commit()
+
+
 # ════════════════════════════════════════════════════════════════════════════
 # 提取 Prompt 模板
 # ════════════════════════════════════════════════════════════════════════════
@@ -308,16 +357,14 @@ class MemoryExtractor:
         from memory.graph import graph_manager
         from memory.vector import vector_manager
         from utils.llm_client import get_embedding_client
-        from db.queries import get_db
 
-        db = get_db()
         created_ids: list[str] = []
 
         # Step A: 写入图（NetworkX）
         for node in nodes:
             try:
                 await graph_manager.add_node(node.novel_id, node)
-                await db.upsert_node_sync(novel_id, node.node_id, sqlite_written=1, graph_written=1)
+                await _upsert_node_sync(novel_id, node.node_id, sqlite_written=1, graph_written=1)
                 created_ids.append(node.node_id)
             except Exception as e:
                 logger.error(f"[Extractor] 图写入失败 {node.node_id[:8]}: {e}")
@@ -330,17 +377,14 @@ class MemoryExtractor:
                 embeddings = await emb_client.embed_batch(texts)
                 await vector_manager.upsert_batch(novel_id, nodes, embeddings)
                 for node in nodes:
-                    await db.upsert_node_sync(novel_id, node.node_id, vector_written=1)
-                    await db.mark_node_synced(novel_id, node.node_id)
+                    await _upsert_node_sync(novel_id, node.node_id, vector_written=1)
+                    await _mark_node_synced(novel_id, node.node_id)
                 logger.info(f"[Extractor] 向量写入: {len(nodes)} 个节点")
             except Exception as e:
                 logger.error(f"[Extractor] 向量写入失败: {e}")
                 # 标记 retry（后台补偿任务会重试）
                 for node in nodes:
-                    await db._exec(
-                        "UPDATE node_sync_status SET retry_count=retry_count+1 WHERE novel_id=? AND node_id=?",
-                        (novel_id, node.node_id),
-                    )
+                    await _bump_retry(novel_id, node.node_id)
 
         # Step C: 处理关系边
         await self._persist_edges(novel_id, nodes, raw_nodes)
@@ -418,11 +462,13 @@ class MemoryExtractor:
         raw_nodes: list[dict],
     ) -> None:
         """
-        对本轮提取的情感关系边，同步更新 npc_profiles.initial_affinity
-        （仅当 affinity 字段明确存在时才更新，避免覆盖无关 NPC）
+        对本轮提取的情感关系边，同步更新 session_npc_states.affinity
+        （仅当 affinity 字段明确存在时才更新，避免覆盖无关 NPC）。
+        本仓 NPC 好感度存于 session_npc_states（按 session_id+npc_id），
+        npc_profiles 仅存静态档案。novel_id 在本仓即 session_id。
         """
-        from db.queries import get_db
-        db = get_db()
+        get_db = _get_db_cm()
+        now = datetime.now(timezone.utc).timestamp()
 
         for raw in raw_nodes:
             for rel in raw.get("relations", []):
@@ -433,16 +479,23 @@ class MemoryExtractor:
                 if not target_name:
                     continue
                 try:
-                    # 查找是否有对应的 NPC 档案
-                    npc = await db._fetchone(
-                        "SELECT name FROM npc_profiles WHERE novel_id=? AND name=?",
-                        (novel_id, target_name),
-                    )
-                    if npc:
-                        await db._exec(
-                            "UPDATE npc_profiles SET initial_affinity=? WHERE novel_id=? AND name=?",
-                            (affinity, novel_id, target_name),
+                    async with get_db() as db:
+                        npc = await (await db.execute(
+                            "SELECT id FROM npc_profiles WHERE session_id=? AND name=?",
+                            (novel_id, target_name),
+                        )).fetchone()
+                        if not npc:
+                            continue
+                        npc_id = npc["id"]
+                        await db.execute(
+                            "INSERT INTO session_npc_states "
+                            "(id, session_id, npc_id, state_json, updated_at, affinity) "
+                            "VALUES (?, ?, ?, '{}', ?, ?) "
+                            "ON CONFLICT(session_id, npc_id) DO UPDATE SET "
+                            "affinity=excluded.affinity, updated_at=excluded.updated_at",
+                            (_uid(), novel_id, npc_id, now, float(affinity)),
                         )
+                        await db.commit()
                 except Exception as e:
                     logger.warning(f"[Extractor] NPC affinity 更新失败 {target_name}: {e}")
 

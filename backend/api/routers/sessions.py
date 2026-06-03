@@ -466,13 +466,18 @@ async def fork_session(session_id: str, req: ForkRequest):
 
         old_to_new_msg: dict[str, str] = {}
         for msg in msg_rows:
+            msg = dict(msg)  # aiosqlite.Row 无 .get()，转 dict 以安全取列
             new_msg_id = str(uuid.uuid4())
             old_to_new_msg[msg["id"]] = new_msg_id
             await db.execute(
-                "INSERT INTO messages (id, session_id, role, turn_index, status, created_at, updated_at) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO messages (id, session_id, role, turn_index, status, "
+                "phase, content, message_type, created_at, updated_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (new_msg_id, branch_id, msg["role"],
-                 msg["turn_index"], msg["status"], msg["created_at"], now)
+                 msg["turn_index"], msg["status"],
+                 msg.get("phase", ""), msg.get("content", ""),
+                 msg.get("message_type", "player_action"),
+                 msg["created_at"], now)
             )
 
         for old_msg_id, new_msg_id in old_to_new_msg.items():
@@ -480,15 +485,18 @@ async def fork_session(session_id: str, req: ForkRequest):
                 "SELECT * FROM message_parts WHERE message_id=?", (old_msg_id,)
             )).fetchall()
             for p in part_rows:
+                p = dict(p)  # aiosqlite.Row 无 .get()，转 dict
                 ptype = p.get("type", "narrative")
                 pcontent = p.get("content", "{}")
                 await db.execute(
                     "INSERT OR IGNORE INTO message_parts "
-                    "(id, message_id, session_id, type, content, status, agent, created_at, updated_at) "
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    "(id, message_id, session_id, type, content, status, agent, "
+                    "sort_order, metadata, created_at, updated_at) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     (str(uuid.uuid4()), new_msg_id, branch_id,
-                     ptype, pcontent, p["status"], p.get("agent", ""),
-                     p["created_at"], now)
+                     ptype, pcontent, p.get("status", "done"), p.get("agent", ""),
+                     p.get("sort_order", 0), p.get("metadata", "{}"),
+                     p.get("created_at", now), now)
                 )
 
         char_data_json: Optional[str] = None
@@ -526,6 +534,7 @@ async def fork_session(session_id: str, req: ForkRequest):
             "SELECT * FROM npc_profiles WHERE session_id=?", (session_id,)
         )).fetchall()
         for npc in npc_rows:
+            npc = dict(npc)  # aiosqlite.Row 无 .get()，转 dict
             await db.execute(
                 "INSERT OR IGNORE INTO npc_profiles "
                 "(id, session_id, key, name, profile_json, world_key, created_at, updated_at) "
@@ -1017,12 +1026,12 @@ async def rollback_to_chapter(session_id: str, chapter_id: str,
                 orig = dict(orig_row)
                 branch_title = f"{orig.get('title', session_id)}_branch_{new_branch_id[:8]}"
                 await branch_db.execute(
-                    "INSERT INTO sessions (id, title, world_plugin, agent_profile, current_mode, "
-                    "created_at, updated_at, status, forked_from) "
+                    "INSERT INTO sessions (id, title, world_plugin, agent_profile, mode, "
+                    "created_at, updated_at, status, branch_of) "
                     "VALUES (?,?,?,?,?,?,?,?,?)",
                     (new_branch_id, branch_title,
                      orig.get("world_plugin", ""), orig.get("agent_profile", "play"),
-                     "play", branch_now, branch_now, "active", session_id)
+                     orig.get("mode", "play"), branch_now, branch_now, "active", session_id)
                 )
                 # 复制角色卡
                 char_row = await (await branch_db.execute(

@@ -107,7 +107,7 @@ PLAY_PROFILE = AgentProfile(
         ToolPermission("add_memory", PermissionAction.ALLOW),
         # 角色状态写入：允许（叙事流程需要）
         ToolPermission("update_character_state", PermissionAction.ALLOW),
-        # 危险写入操作：ask 确认（在 play 模式下静默询问，60s 超时自动允许）
+        # 危险写入操作：ask 确认（在 play 模式下静默询问，60s 超时视为 deny，fail-closed）
         ToolPermission("delete_*", PermissionAction.ASK),
         ToolPermission("reset_*",  PermissionAction.ASK),
         # 其余：允许（play 模式尽量不打扰）
@@ -177,6 +177,9 @@ REVIEW_PROFILE = AgentProfile(
         ToolPermission("query_*",      PermissionAction.ALLOW),
         ToolPermission("check_*",      PermissionAction.ALLOW),
         ToolPermission("generate_action_options", PermissionAction.ALLOW),  # review 允许看选项
+        # review 专用审校工具（只读，NEW-B10-01：此前落入 * → DENY 被误拒）
+        ToolPermission("style_check",  PermissionAction.ALLOW),
+        ToolPermission("purity_check", PermissionAction.ALLOW),
         # 所有写操作拒绝（严格只读）
         ToolPermission("*",            PermissionAction.DENY),
     ],

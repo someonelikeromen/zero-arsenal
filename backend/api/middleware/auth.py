@@ -15,6 +15,7 @@ Bearer Token 校验中间件。
 """
 from __future__ import annotations
 
+import hmac
 import logging
 import os
 from typing import Awaitable, Callable
@@ -38,29 +39,39 @@ class AuthMiddleware(BaseHTTPMiddleware):
             logger.warning(
                 "\n"
                 "╔══════════════════════════════════════════════════════════════╗\n"
-                "║  ⚠️  ZERO_ARSENAL_API_TOKEN 未设置，API 处于完全开放状态！   ║\n"
-                "║  生产部署时请设置环境变量 ZERO_ARSENAL_API_TOKEN=<secret>    ║\n"
+                "║  ⚠️  ZERO_ARSENAL_API_TOKEN 未设置（fail-closed）：           ║\n"
+                "║  仅放行本地回环（127.0.0.1/::1）的 /api 请求，远程一律 403。 ║\n"
+                "║  生产部署请设置环境变量 ZERO_ARSENAL_API_TOKEN=<secret>      ║\n"
                 "╚══════════════════════════════════════════════════════════════╝"
             )
+
+    @staticmethod
+    def _is_loopback(request: Request) -> bool:
+        client_host = request.client.host if request.client else ""
+        return client_host in ("127.0.0.1", "::1", "localhost")
 
     async def dispatch(
         self,
         request: Request,
         call_next: Callable[[Request], Awaitable[Response]],
     ) -> Response:
-        # token 未配置 → 开发模式，直接放行
-        if not self._token:
-            return await call_next(request)
-
         path = request.url.path
 
-        # 跳过文档 / 健康检查路径
-        if any(path.startswith(skip) for skip in _SKIP_PREFIXES):
+        # 跳过文档 / 健康检查路径，且仅拦截 /api/*
+        if any(path.startswith(skip) for skip in _SKIP_PREFIXES) or not path.startswith("/api"):
             return await call_next(request)
 
-        # 只拦截 /api/* 路径
-        if not path.startswith("/api"):
-            return await call_next(request)
+        # token 未配置 → fail-closed：仅放行本地回环请求，远程拒绝（D4）
+        if not self._token:
+            if self._is_loopback(request):
+                return await call_next(request)
+            return JSONResponse(
+                status_code=403,
+                content={
+                    "error": "forbidden",
+                    "message": "API token not configured; remote access denied (fail-closed)",
+                },
+            )
 
         auth_header = request.headers.get("Authorization", "")
         if not auth_header.startswith("Bearer "):
@@ -71,7 +82,8 @@ class AuthMiddleware(BaseHTTPMiddleware):
             )
 
         provided_token = auth_header.removeprefix("Bearer ").strip()
-        if provided_token != self._token:
+        # 常量时间比较，避免计时侧信道（NEW-C7-03）
+        if not hmac.compare_digest(provided_token, self._token):
             return JSONResponse(
                 status_code=403,
                 content={"error": "forbidden", "message": "Invalid API token"},

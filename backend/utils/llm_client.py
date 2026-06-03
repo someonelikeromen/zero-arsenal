@@ -108,6 +108,21 @@ class _EmbeddingClient:
             logger.warning(f"[EmbeddingClient] embed 失败: {e}")
             return []
 
+    async def embed_batch(self, texts: list[str]) -> list[list[float]]:
+        """批量将文本转换为 embedding 向量。不可用时返回等长空向量列表。"""
+        self._load()
+        if self._unavailable or self._model is None or not texts:
+            return [[] for _ in texts]
+        try:
+            import asyncio
+            loop = asyncio.get_event_loop()
+            # SentenceTransformer.encode 接受 list[str] 返回 ndarray[N, D]
+            embeddings = await loop.run_in_executor(None, self._model.encode, texts)
+            return [e.tolist() for e in embeddings]
+        except Exception as e:
+            logger.warning(f"[EmbeddingClient] embed_batch 失败: {e}")
+            return [[] for _ in texts]
+
 
 _llm_client_instance: _LLMClient | None = None
 _emb_client_instance: _EmbeddingClient | None = None
