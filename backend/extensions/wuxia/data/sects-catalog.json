@@ -1,0 +1,77 @@
+{
+  "_comment": "武侠世界 — 门派目录。玩家加入门派后继承对应的传承功法与门规。",
+  "version": "1.0",
+  "sects": [
+    {
+      "id": "shaolin",
+      "name": "少林寺",
+      "type": "佛门正宗",
+      "location": "嵩山",
+      "reputation": 100,
+      "alignment": "正义",
+      "entry_requirement": "悟性 ≥ 3，接受佛门戒律",
+      "signature_skills": ["大力金刚掌", "罗汉拳", "易筋经（内功）"],
+      "forbidden": ["开荤", "娶妻", "欺压弱小"],
+      "description": "天下武功出少林。以内功深厚著称，平均习武者境界高于江湖均值。",
+      "qi_bonus": 20,
+      "reputation_bonus": 10
+    },
+    {
+      "id": "wudang",
+      "name": "武当派",
+      "type": "道门正宗",
+      "location": "武当山",
+      "reputation": 95,
+      "alignment": "正义",
+      "entry_requirement": "内力资质 ≥ 3，拜师考核",
+      "signature_skills": ["太极拳", "太极剑", "纯阳无极功（内功）"],
+      "forbidden": ["滥杀无辜", "以武欺弱"],
+      "description": "以柔克刚，道法自然。太极功夫天下第一，以剑法著称。",
+      "qi_bonus": 15,
+      "reputation_bonus": 8
+    },
+    {
+      "id": "beggar_sect",
+      "name": "丐帮",
+      "type": "江湖大帮",
+      "location": "全国各地",
+      "reputation": 80,
+      "alignment": "中立",
+      "entry_requirement": "无特殊要求，需宣誓效忠帮主",
+      "signature_skills": ["降龙十八掌", "打狗棒法"],
+      "forbidden": ["出卖兄弟", "欺压穷人"],
+      "description": "天下第一大帮，情报网络覆盖全国。帮主持打狗棒，掌降龙十八掌。",
+      "qi_bonus": 5,
+      "reputation_bonus": 5,
+      "intel_bonus": 20
+    },
+    {
+      "id": "demon_cult",
+      "name": "魔教（日月神教）",
+      "type": "邪道大宗",
+      "location": "黑木崖",
+      "reputation": -30,
+      "alignment": "混乱邪恶",
+      "entry_requirement": "通过魔教入门考核，服从教主",
+      "signature_skills": ["葵花宝典（残缺版）", "吸星大法"],
+      "forbidden": ["背叛教主"],
+      "description": "行事不受道德约束，力量增长极快，但容易走火入魔。正派大敌。",
+      "qi_bonus": 30,
+      "reputation_bonus": -20
+    },
+    {
+      "id": "no_sect",
+      "name": "无门无派",
+      "type": "散修",
+      "location": "江湖各处",
+      "reputation": 0,
+      "alignment": "中立",
+      "entry_requirement": "无",
+      "signature_skills": [],
+      "forbidden": [],
+      "description": "自由散修，无门规束缚，但失去门派传承加成和背景庇护。",
+      "qi_bonus": 0,
+      "reputation_bonus": 0
+    }
+  ]
+}

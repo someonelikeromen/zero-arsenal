@@ -1,0 +1,15 @@
+{
+  "id": "infinite_arsenal",
+  "display_name": "无限武库",
+  "version": "1.0.0",
+  "description": "无限武库世界插件：主神空间抽卡体系、Anti-Feat 星级评定、战斗奖励结算、跨界物品融合。",
+  "type": "world_plugin",
+  "min_engine_version": "0.1.0",
+  "author": "built-in",
+  "tags": ["gacha", "battle-rewards", "anti-feat", "crossover"],
+  "entry_points": {
+    "plugin": "plugin.py",
+    "tools": "tools.py",
+    "agents": "agents.py"
+  }
+}

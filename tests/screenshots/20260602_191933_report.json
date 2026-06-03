@@ -1,0 +1,29 @@
+{
+  "timestamp": "20260602_191933",
+  "backend": "http://127.0.0.1:8000",
+  "frontend": "http://localhost:5174",
+  "session_id": null,
+  "results": [
+    {
+      "msg": "GET /health → 200 {'status': 'ok'}",
+      "ok": true,
+      "ts": "2026-06-02T19:19:33.228642"
+    },
+    {
+      "msg": "GET /api/sessions → 8 个会话",
+      "ok": true,
+      "ts": "2026-06-02T19:19:33.248306"
+    },
+    {
+      "msg": "API Smoke 测试失败: ",
+      "ok": false,
+      "ts": "2026-06-02T19:19:33.250685"
+    }
+  ],
+  "screenshots": [],
+  "summary": {
+    "total": 3,
+    "passed": 2,
+    "failed": 1
+  }
+}

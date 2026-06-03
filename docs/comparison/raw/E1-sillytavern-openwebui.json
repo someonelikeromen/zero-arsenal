@@ -1,0 +1,283 @@
+[
+  {
+    "project_id": "B1",
+    "project_name": "SillyTavern",
+    "D03_ia": {
+      "layout_pattern": "右侧弹出式抽屉布局（Drawer-based）。顶部固定导航栏含功能图标（角色/聊天/扩展/设置等），点击后右侧滑出对应面板，聊天区占据中央全部空间",
+      "nav_structure": "扁平图标工具栏 + 侧滑面板，无传统多级菜单",
+      "info_classification": "按功能分区：角色库、聊天历史、世界信息(Lorebook)、扩展、设置、人设(Persona)",
+      "nav_depth_max": 3
+    },
+    "D04_onboarding": {
+      "first_launch": "显示 Welcome Screen，中央有聊天输入框 + 最近3条对话列表。若无角色，自动创建默认 'Assistant' 角色，可立即输入开始临时对话（Temporary Chat，不保存历史）",
+      "empty_states": "角色列表为空时无专属引导，仅显示 'Create New Character' 和 'Import' 按钮。对话区为空时显示 Welcome Screen，有 Temporary Chat 快捷按钮",
+      "guided_flow": "无正式新手向导，官方定位是'拥抱陡峭学习曲线'，依赖社区文档。CharCardStudio 扩展提供 AI 对话式引导创建体验（三阶段：Ideation→Building→Lorebook）",
+      "steps_to_first_use": 2
+    },
+    "D05_customization": {
+      "theme_depth": "深度极高。内置主题颜色全面定制（10+颜色项），Chat Width/Font Scale/Blur/Shadow 等滑块，3种聊天样式，Visual Novel 模式，20+界面 Toggle",
+      "css_customization": "完整自定义 CSS 注入编辑器（Expand 模式），可与主题绑定保存。社区有专用 CSS Snippets 扩展",
+      "import_formats": [
+        "PNG（内嵌Base64元数据，V2/V3 spec）",
+        "JSON（TavernAI格式）",
+        "URL外部导入"
+      ],
+      "export_formats": [
+        "PNG",
+        "JSON"
+      ]
+    },
+    "D07_streaming": {
+      "streaming_ux": "Token 逐字渲染，StreamingProcessor 类原地更新消息 DOM，支持流式 TTS 同步播放",
+      "interrupt_retry": "Stop 按钮（红色 LED 状态，AbortController 中断，保留已生成内容）。Swipe 左右滑动切换多个备选回复。消息级 Retry/Edit 按钮。SwipePregen 扩展支持后台批量预生成（进度条+中断按钮）",
+      "loading_state": "生成中锁定输入框；消息气泡内 LED 指示灯（脉冲绿=生成中，实心绿=完成，实心红=已中止）；打字动画"
+    },
+    "D09_dev_experience": {
+      "plugin_system": "Extensions 系统：通过 'Download Extensions & Assets' 安装，基于 JS 注入，可 hook 生成前后事件，支持 ST-Script 脚本引擎",
+      "dev_docs": "官方文档覆盖核心概念，扩展开发文档较稀疏，社区驱动补充"
+    },
+    "D13_ux_gaps": {
+      "character_creation_flow": {
+        "steps": 3,
+        "form_type": "单页滚动表单，Advanced Definitions 默认折叠（渐进披露）",
+        "has_tooltips": false,
+        "has_templates": false,
+        "import_ux": "点击 Import 按钮 → 文件选择器选 PNG/JSON；PNG 直接解析嵌入的 Base64 元数据；无原生拖拽；无字段映射预览界面",
+        "strengths": [
+          "只有角色名是必填项，极低的最小可行门槛",
+          "支持多套首次问候语（Alternative Greetings，可 swipe）",
+          "PNG 格式将角色数据和头像绑定为单文件",
+          "Advanced Definitions 折叠隐藏高级字段",
+          "CharCardStudio 扩展提供完整 AI 对话式引导创建体验（Welcome Screen 三个快捷入口：Pitch/Surprise Me/Improve Existing）"
+        ],
+        "what_zero_arsenal_can_learn": [
+          "【最低门槛原则】创建 NPC 时只强制'角色名'一个字段，其余全部可选，用户可先建后补",
+          "【Advanced 折叠】将 psyche_model_json、战斗能力等高级字段默认折叠，仅暴露名称/简介/首条消息三个核心字段",
+          "【多套开场白】会话中支持多个 First Message 变体，用户 swipe 切换不同剧情开场",
+          "【单文件导出】导出 NPC 时将头像+JSON 数据打包成一个 PNG 文件"
+        ]
+      },
+      "session_start_flow": {
+        "steps": 2,
+        "has_scene_setup": false,
+        "description": "从角色列表点击角色头像 → 直接进入聊天界面，First Message 自动显示。无场景设置向导，场景通过角色卡 Scenario 字段预设",
+        "what_zero_arsenal_can_learn": [
+          "【一键开始】点击 NPC/世界组合即开始会话，无中间步骤",
+          "【First Message 自动触发】会话创建后 NPC 的 First Message 自动发出，消除空白页焦虑",
+          "【临时会话模式】提供不记录历史的草稿模式，适合调试和探索"
+        ]
+      },
+      "lorebook_ux": {
+        "description": "通过 NPC 面板的 Globe 图标绑定 Lorebook 到角色。每条目有 Key（触发词）+ Content（注入内容）+ 注释字段。V3 spec 支持 18+ 元数据字段（Timed Effects/Inclusion Groups 等）。无分类树，通过 Tags 和搜索过滤。新手无内置引导说明，学习曲线陡",
+        "what_zero_arsenal_can_learn": [
+          "【触发关键词可视化】在条目列表展示关键词标签，一目了然触发时机",
+          "【条目独立开关】每条 Lorebook 条目有独立启用/禁用切换，方便调试",
+          "【绑定关系显示】在 NPC 卡片上显示已绑定的世界信息文件名，给视觉标记"
+        ]
+      },
+      "empty_states": [
+        {
+          "location": "欢迎页（无聊天时）",
+          "content": "Temporary Chat 按钮 + 最近对话列表 + 助手头像",
+          "quality": "良好"
+        },
+        {
+          "location": "角色列表为空",
+          "content": "仅显示功能按钮，无引导文案",
+          "quality": "缺失"
+        },
+        {
+          "location": "世界信息列表为空",
+          "content": "无特殊引导",
+          "quality": "缺失"
+        }
+      ],
+      "toast_notifications": {
+        "description": "完整 Toast 系统，6种位置可配置（Top Center 为默认）。操作成功/失败颜色区分。生成状态通过消息气泡内嵌 LED 指示灯呈现，而非全局 spinner——不打断阅读流",
+        "what_zero_arsenal_can_learn": [
+          "【消息气泡内嵌 LED 点】在叙事流生成消息右下角添加脉冲/实心绿/实心红 LED 点，比全局 spinner 更贴近内容",
+          "【Toast 位置可配置】在 zero-arsenal 设置中允许用户选择通知位置"
+        ]
+      },
+      "settings_hierarchy": {
+        "description": "User Settings 面板按章节分组。'Zen Sliders'（简化参数控件）和 'Mad Lab Mode'（解锁所有参数上限）提供新手/专家模式一键切换。Quick Settings 图标栏常驻顶部栏用于高频操作（模型选择、连接状态等）",
+        "what_zero_arsenal_can_learn": [
+          "【双模式切换】设置顶部提供'简洁/专家'模式开关，简洁模式隐藏 Agent 调参、提示词注入等高级选项",
+          "【顶部快捷栏】Session 界面顶部固定 Quick Settings（模型、温度等最常用参数），避免每次去设置页"
+        ]
+      },
+      "best_ux_patterns": [
+        {
+          "pattern": "最低必填门槛（Minimal Required Fields）",
+          "description": "创建实体时只有'名称'是必填项，其余全部可选可后填，用户可以'先建后补'，极大降低上手门槛",
+          "priority_for_zero_arsenal": "高",
+          "implementation_effort": "小"
+        },
+        {
+          "pattern": "渐进披露（Progressive Disclosure）",
+          "description": "Advanced Definitions 默认折叠，高级字段对新手不可见；Mad Lab Mode 一键解锁专家参数",
+          "priority_for_zero_arsenal": "高",
+          "implementation_effort": "小"
+        },
+        {
+          "pattern": "First Message 自动触发",
+          "description": "进入会话时 NPC 主动发送第一条消息，消除空白页的'我该说什么'焦虑感",
+          "priority_for_zero_arsenal": "高",
+          "implementation_effort": "小"
+        },
+        {
+          "pattern": "消息级 Swipe 多备选",
+          "description": "每条 AI 回复有左右滑动按钮，可在多个备选回复间切换而不丢失任何一个",
+          "priority_for_zero_arsenal": "高",
+          "implementation_effort": "中"
+        },
+        {
+          "pattern": "内嵌 LED 状态指示器",
+          "description": "生成状态用消息气泡内嵌 LED 点（脉冲/实心绿/实心红）而非全局 spinner，不打断阅读流",
+          "priority_for_zero_arsenal": "中",
+          "implementation_effort": "小"
+        },
+        {
+          "pattern": "临时聊天模式（Temporary Chat）",
+          "description": "不保存历史的快速对话入口，适合调试和探索，不污染正式记录",
+          "priority_for_zero_arsenal": "中",
+          "implementation_effort": "小"
+        },
+        {
+          "pattern": "PNG 单文件角色卡",
+          "description": "角色头像+元数据 Base64 嵌入同一 PNG，跨平台分享无需额外文件，数据和视觉合一",
+          "priority_for_zero_arsenal": "中",
+          "implementation_effort": "大"
+        }
+      ]
+    }
+  },
+  {
+    "project_id": "B2",
+    "project_name": "Open WebUI",
+    "D03_ia": {
+      "layout_pattern": "三列布局：左侧固定侧边栏（会话历史+导航）＋中央聊天区＋右侧可选参数面板。顶部 Model Selector 始终可见",
+      "nav_structure": "左侧 Sidebar：聊天历史列表（文件夹/标签组织）+ Workspace 区（Models/Knowledge/Prompts/Tools）。Admin Panel 独立入口（管理员专属）",
+      "info_classification": "双层配置架构：Admin Settings（全局实例）vs User Settings（个人偏好）。工作区（创作资产）与聊天区（日常对话）明确分离",
+      "nav_depth_max": 3
+    },
+    "D04_onboarding": {
+      "first_launch": "首次访问显示注册页，第一个注册账号自动成为管理员。完成注册后直接进入聊天界面（无 Setup Wizard）。若 Ollama/OpenAI 后端已连接可立即对话；否则顶部 Banner 提示配置模型",
+      "empty_states": "聊天列表为空时显示大号 'New Chat' 按钮+简洁说明。Knowledge 库为空时显示带图标的引导卡片'Add your first document'。模型未配置时顶部 Banner 警告提示",
+      "guided_flow": "无正式 Wizard，但首页有'Getting Started'五章节嵌入文档（Plugins/Context/Task Models/RAG/Tool Calling）。首次登录有模型连接引导 Banner",
+      "steps_to_first_use": 3
+    },
+    "D05_customization": {
+      "theme_depth": "浅色/深色主题切换，主题色可定制，界面密度切换（Default/Tight）",
+      "css_customization": "面向普通用户不支持全局自定义 CSS。管理员可通过环境变量和 Custom Branding 修改",
+      "import_formats": [
+        "PDF",
+        "DOCX",
+        "TXT",
+        "MD",
+        "CSV",
+        "JSON",
+        "代码文件"
+      ],
+      "export_formats": [
+        "聊天记录 JSON",
+        "聊天统计数据"
+      ]
+    },
+    "D07_streaming": {
+      "streaming_ux": "Token 逐字渲染，Svelte 响应式更新。多模型并排比较时各列独立流式渲染。连接短暂中断时抑制误报通知（只在真实断开时才提示'已重连'）",
+      "interrupt_retry": "Stop 按钮（方块图标，AbortController）。Regenerate 按钮在最后一条 AI 消息下方。Edit 用户消息后自动重新生成。消息树支持分支导航（Branch Navigation：在同一位置的多个版本间切换）",
+      "loading_state": "输入框 loading 状态；消息气泡内打字光标动画；聊天历史损坏时自动修复重建消息树（不白屏）"
+    },
+    "D09_dev_experience": {
+      "plugin_system": "三类：Functions（内置 Python，管理员 UI 直接上传代码，无需重启）、Pipelines（外部 Python 服务）、Tools（可被模型调用的函数）。Valves/UserValves（Pydantic BaseModel）在管理 UI 中自动渲染为可配置表单",
+      "dev_docs": "官方文档完善（docs.openwebui.com），有 Getting Started、Pipelines、Events 专项章节，示例代码库含多类模板"
+    },
+    "D13_ux_gaps": {
+      "first_use_flow": {
+        "steps": 3,
+        "has_wizard": false,
+        "description": "① 访问URL → ② 注册账号 → ③ 顶部选择模型 → ④ 发送消息。若后端未配置，步骤③显示空下拉框，用户需去 Admin Settings→Connections 配置，体验有断层",
+        "what_zero_arsenal_can_learn": [
+          "【首次运行检测】检测到 novel_system.db 为空时，显示'快速开始'引导（选世界→创主角→开始第一章）",
+          "【单用户无账号概念】本地单用户场景下省略账号/权限，直接进入创作界面"
+        ]
+      },
+      "conversation_management": {
+        "description": "新对话：左上角铅笔图标或 Ctrl+Shift+O。历史侧边栏按时间分组（Today/Yesterday/Last 7 days）。文件夹可携带系统提示词+知识库（变为项目工作区）。标签+全文搜索（搜索标题和内容）。固定置顶/归档/克隆/分支操作。可固定常用模型到侧边栏",
+        "what_zero_arsenal_can_learn": [
+          "【会话文件夹即弧段工作区】zero-arsenal 的章节可组织进'弧段文件夹'，文件夹自带世界背景+角色组合预设",
+          "【章节全文搜索】在章节树提供搜索（标题+摘要），方便跳转",
+          "【分支导航】叙事流支持'备选分支'切换，类似消息树的 Branch Navigation"
+        ]
+      },
+      "rag_ux": {
+        "description": "文档上传：聊天框回形针图标（一次性）或 Workspace→Knowledge（持久知识库）。添加知识库：填写名称+描述+可见性→保存→拖拽上传文件（进度条反馈，10-30秒向量化）。使用：聊天时输入 # 调用知识库或单文件。RAG 模型快捷方式：可将知识库绑定到模型预设",
+        "what_zero_arsenal_can_learn": [
+          "【# 触发知识库】在输入框支持 # 快速调用 Lorebook 或 NPC 档案片段注入当前对话",
+          "【文档处理进度可见】上传 lore 文档时显示'向量化中'进度条，而非沉默等待"
+        ]
+      },
+      "pipeline_dev": {
+        "steps": 4,
+        "has_templates": true,
+        "description": "① Admin Panel→Pipelines 上传 Python 文件（或启动独立 pipelines 服务）→ ② 自动扫描 /pipelines 目录加载 → ③ Valves 类字段自动渲染为 UI 表单 → ④ 实时生效无需重启。调试：print() 输出到服务器日志",
+        "what_zero_arsenal_can_learn": [
+          "【Valves 自动 UI】扩展插件配置项（如 crossover 积分倍率）通过 Pydantic 模型自动渲染为 Hub→设置表单，无需手写前端",
+          "【热加载扩展】在 Hub 的'扩展'标签页支持不重启服务器地加载/卸载扩展"
+        ]
+      },
+      "settings_hierarchy": {
+        "description": "双层架构：Admin Settings（建筑控制室，决定功能可用性）vs User Settings（个人房间调温器，调整个人偏好）。功能两步启用：管理员先在 Admin 侧启用，用户再在 User 侧选择使用。两层各有独立入口，不混淆",
+        "what_zero_arsenal_can_learn": [
+          "【双层设置架构】Hub 设置拆分为'作品级设置'（世界规则/Agent配置）和'个人偏好'（界面主题/快捷键），避免压倒用户",
+          "【功能两步启用】扩展功能先由'作品管理员'启用，再由写手自主开启，防止误操作"
+        ]
+      },
+      "best_ux_patterns": [
+        {
+          "pattern": "双层设置架构（Admin/User 分离）",
+          "description": "全局配置和个人偏好完全分离，Admin 决定'能用什么'，User 决定'我用什么'，两者互不越界",
+          "priority_for_zero_arsenal": "高",
+          "implementation_effort": "中"
+        },
+        {
+          "pattern": "文件夹即项目工作区",
+          "description": "文件夹不仅是容器，还携带系统提示词+知识库，新建文件夹下的对话自动继承上下文",
+          "priority_for_zero_arsenal": "高",
+          "implementation_effort": "中"
+        },
+        {
+          "pattern": "# 号快速调用知识库",
+          "description": "输入 # 弹出文档/知识库选择器，选中后内容注入当前对话，无需离开聊天界面",
+          "priority_for_zero_arsenal": "高",
+          "implementation_effort": "小"
+        },
+        {
+          "pattern": "Valves 配置自动渲染 UI",
+          "description": "Python Pydantic 类字段自动变为管理界面表单，支持 password 格式、enum 下拉等，无需手写前端配置页",
+          "priority_for_zero_arsenal": "中",
+          "implementation_effort": "中"
+        },
+        {
+          "pattern": "消息分支导航（Branch Navigation）",
+          "description": "在同一位置保存多条分支回复，可前后切换；失败重试不丢失原回复，形成非线性对话树",
+          "priority_for_zero_arsenal": "高",
+          "implementation_effort": "中"
+        },
+        {
+          "pattern": "固定模型到侧边栏（Pinned Models）",
+          "description": "常用模型/预设固定到侧边栏，点击直接开始该配置的新对话，降低每次选择的摩擦",
+          "priority_for_zero_arsenal": "中",
+          "implementation_effort": "小"
+        },
+        {
+          "pattern": "知识库绑定模型预设",
+          "description": "将 RAG 知识库和特定模型绑定为一个命名预设，用户选预设即一键完成所有配置",
+          "priority_for_zero_arsenal": "中",
+          "implementation_effort": "大"
+        }
+      ]
+    }
+  }
+]

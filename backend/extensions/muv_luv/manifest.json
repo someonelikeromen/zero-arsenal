@@ -1,0 +1,21 @@
+{
+  "id": "muv_luv",
+  "name": "MUV-LUV Alternative",
+  "version": "0.1.0",
+  "description": "近未来架空地球，BETA 外星生命体入侵，战术步兵驾驶战术机（TSF）迎击。时间线 1998-2001。",
+  "author": "zero-arsenal",
+  "world_keys": ["muv_luv", "muv_luv_alternative"],
+  "provides": {
+    "world_plugin": true,
+    "tools": false,
+    "agents": false,
+    "hooks": false
+  },
+  "requires": [],
+  "settings": {
+    "timeline_year": 1998,
+    "faction_default": "日本帝国軍",
+    "combat_system": "tsf_vs_beta",
+    "dice_system": "d10_pool"
+  }
+}

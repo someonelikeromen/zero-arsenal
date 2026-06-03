@@ -1,0 +1,79 @@
+---
+description: 后端 Agent 节点与 API 端点编码规范——agent_span、tool_loop、SSE 事件、错误隔离。
+globs: backend/**/*.py
+alwaysApply: false
+---
+
+# 后端 Agent / API 编码规范
+
+## Agent 节点模板
+
+每个 Agent 文件遵循：
+
+```python
+# 1. 公开入口：{name}_agent_node(state: AgentState) -> AgentState
+async def dm_agent_node(state: AgentState) -> AgentState:
+    ctx = TurnContext.from_state(state)
+    async with agent_span(ctx, "dm"):         # 自动发 agent.started / agent.ended SSE
+        result = await _dm_impl(ctx)
+    return {**state, **result}
+
+# 2. 内部实现：_xxx_impl
+async def _dm_impl(ctx: TurnContext) -> dict:
+    cfg = get_agent_config("dm")
+    result_text, tool_history = await run_tool_loop(
+        messages=..., system_prompt=...,
+        tools=DM_TOOLS, agent_config=cfg, ctx=ctx,
+    )
+    return {"dm_decision": ..., "dm_verdict": ...}
+```
+
+关键约束：
+- 用 `agent_span` 包裹，自动发 SSE 并捕获异常
+- `tool_loop` 最大迭代 `max_iterations=5`（默认），超出自动停止
+- **不在 Agent 节点里直接 `await db`**，改用 `get_db()` async context manager
+
+## LangGraph 图路由
+
+```python
+# graph.py 中的条件路由
+def _route_after_dm(state):
+    if state.get("dm_verdict") == "block":
+        return END          # 短路，不继续执行
+    return "narrator"       # 正常流转
+```
+
+- `dm_verdict == "block"` → 立即 END，不进叙事层
+- 并行层用 `asyncio.gather`，所有异常必须 `return_exceptions=True` 后逐个检查
+
+## SSE 事件命名规范
+
+| 事件 | 触发时机 |
+|------|---------|
+| `agent.started` / `agent.ended` | `agent_span` 自动发出 |
+| `agent.error` | `agent_span` 捕获到异常 |
+| `part.created` / `part.done` | `MessagePart` 写入时 |
+| `part.error` | Part 处理失败 |
+| `chapter.consolidated` | `chronicler_agent` 固化章节后 |
+| `session.done` | 本轮全部 Agent 完成 |
+
+## API 端点规范
+
+```python
+# 长耗时操作返回 202，后台 BackgroundTasks 执行
+@router.post("/sessions/{session_id}/message", status_code=202)
+async def send_message(session_id: str, req: SendMessageRequest, bg: BackgroundTasks):
+    bg.add_task(_run_graph, session_id, req.content)
+    return {"accepted": True}
+
+# SSE 端点：同时读 Header 和 query param（原生 EventSource 不支持自定义 Header）
+async def session_events(session_id: str, request: Request,
+    last_event_id: Optional[str] = Header(None, alias="Last-Event-ID")):
+    last_event_id = last_event_id or request.query_params.get("last_event_id")
+```
+
+## 错误隔离原则
+
+- `VarAgent` 等非关键 Agent：`try/except Exception` 包裹整个节点，失败后继续 pipeline
+- 关键 Agent（DM/Rules）：失败时写 `agent.error` 事件，返回默认安全状态
+- 永远不吞掉异常不日志：`logger.exception("...")`

@@ -1,0 +1,102 @@
+{
+  "timestamp": "20260602_202601",
+  "world_plugin": "infinite_arsenal",
+  "session_id": "0abb218c-b583-4e23-b0f4-92f1d8e71c70",
+  "results": [
+    {
+      "msg": "创建会话 id=0abb218c... world_plugin=infinite_arsenal",
+      "ok": true
+    },
+    {
+      "msg": "角色卡 meta.battle_points=0 meta.highest_tier=凡品 meta.weapon_mastery=10",
+      "ok": true
+    },
+    {
+      "msg": "初始武器 starter_sword 存在=True",
+      "ok": true
+    },
+    {
+      "msg": "POST /message → 202 message_id=08fd1bec...",
+      "ok": true
+    },
+    {
+      "msg": "session.idle → agents=['dm', 'npc', 'world', 'narrator', 'style', 'var', 'chronicler', 'chronicler']",
+      "ok": true
+    },
+    {
+      "msg": "叙事: 373字 | 首100字: 铁剑出鞘的瞬间，剑身传来一阵微弱的震颤——那是你体内那点可怜的武器共鸣在响应。黑甲蜥蜴伏在碎石堆上，鳞片缝隙间渗着暗绿色的黏液，它瞳孔收缩成一条竖线，粗糙的尾巴在地面扫出沙沙声响。  你踏前一步，剑尖",
+      "ok": true
+    },
+    {
+      "msg": "管线通过（373字，8个agents，21.5s）",
+      "ok": true
+    },
+    {
+      "msg": "角色库存 inventory=1件 weapons=1件",
+      "ok": true
+    },
+    {
+      "msg": "首件物品: 铁质长剑 tier=凡品",
+      "ok": true
+    },
+    {
+      "msg": "骰子 pool=5 → net=1 rolls=[6, 3, 1, 10, 6] verdict=success",
+      "ok": true
+    },
+    {
+      "msg": "GET /world-archives → 200 数量=2",
+      "ok": true
+    },
+    {
+      "msg": "GET /memory?query=长剑 → 200 记忆数=3",
+      "ok": true
+    },
+    {
+      "msg": "GET /chapters → 200 章节数=1",
+      "ok": true
+    },
+    {
+      "msg": "截图: 20260602_202601_ia_01_homepage.png",
+      "ok": true
+    },
+    {
+      "msg": "首页含 infinite_arsenal 选项=True",
+      "ok": true
+    },
+    {
+      "msg": "截图: 20260602_202601_ia_02_session.png",
+      "ok": true
+    },
+    {
+      "msg": "叙事内容可见=True",
+      "ok": true
+    },
+    {
+      "msg": "属性/骰子面板可见=True",
+      "ok": true
+    },
+    {
+      "msg": "输入框填充截图: 20260602_202601_ia_03_input.png",
+      "ok": true
+    },
+    {
+      "msg": "最终截图: 20260602_202601_ia_99_final.png",
+      "ok": true
+    },
+    {
+      "msg": "浏览器 UI 测试完成",
+      "ok": true
+    }
+  ],
+  "screenshots": [
+    "20260602_202601_ia_01_homepage.png",
+    "20260602_202601_ia_02_session.png",
+    "20260602_202601_ia_03_input.png",
+    "20260602_202601_ia_99_final.png"
+  ],
+  "summary": {
+    "total": 21,
+    "passed": 21,
+    "failed": 0
+  }
+}

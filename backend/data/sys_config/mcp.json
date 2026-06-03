@@ -1,0 +1,28 @@
+{
+  "version": "1.0",
+  "servers": [
+    {
+      "name": "filesystem",
+      "url": "http://127.0.0.1:9001/mcp",
+      "tools": ["read_file", "list_dir"],
+      "enabled": false,
+      "description": "本地文件系统读取（沙盒模式）"
+    },
+    {
+      "name": "web_search",
+      "url": "http://127.0.0.1:9002/mcp",
+      "tools": ["search", "fetch_url"],
+      "enabled": false,
+      "description": "网页搜索（离线模式时禁用）"
+    },
+    {
+      "name": "lore_db",
+      "url": "http://127.0.0.1:9003/mcp",
+      "tools": ["query_lore", "add_lore"],
+      "enabled": false,
+      "description": "世界观百科数据库（需要单独部署）"
+    }
+  ],
+  "auto_register": false,
+  "timeout_seconds": 10
+}

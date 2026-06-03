@@ -1,0 +1,169 @@
+{
+  "projects": [
+    {
+      "project_id": "A2",
+      "project_name": "ai-vn-game-system",
+      "D01_architecture": {
+        "layer_clarity": "4/5 — server.js极薄；core/content/engine/features/routes五层边界清晰；shop.js单文件过大(4600+行)",
+        "coupling": "中 — 路由层依赖注入统一；商城/NPC逻辑与DOM同文件；各HTML页共享UIFeedback",
+        "test_coverage": "无正式tests/目录；tools/test-*.js手工脚本；后端统一try/catch→res.status(500).json",
+        "scale": {"files_total_approx": 167, "key_frontend_pages": ["public/index.html", "public/hub.html", "public/shop.html", "public/character.html", "public/preset.html", "public/settings.html"]}
+      },
+      "D06_completeness": {
+        "session_management": "✓ — 左侧存档列表、新建/删除/加载；sessionLock防并发",
+        "dice_engine": "✗ — 无TRPG掷骰；gachaEngine仅加权rollTier抽卡",
+        "shop_gacha": "✓ — shop四Tab（商品/抽卡/兑换项生成/世界生成）；购物车批量兑换；积分/徽章显示",
+        "streaming_ui": "✓ — gameLoop SSE；app.js流式渲染；可停止生成",
+        "settings_ui": "✓ — 独立settings.html；侧栏分panel（接口/多阶段/外观/其他）",
+        "character_creator": "✓ — character.html三模式（问卷/背景/档案库）+右侧可编辑档案",
+        "preset_selector": "△ — preset.html是ST预设编辑器(171条)，含「文风-*」条目但无面向玩家的文风选择器；38个writing-styles未挂前端UI"
+      },
+      "D13_ux_gaps": {
+        "key_clarification": "主界面是index.html(/)，hub.html是配置控制台；不存在presets.html，对应preset.html（ST预设编辑器）；角色创建是character.html",
+        "wizard_flows": [
+          {
+            "feature": "新游戏三步向导（index.html modal-new-game）",
+            "steps": ["Step1选主角(档案库卡片/可不绑定)+本土/穿越者+穿越方式", "Step2选初始世界(多选checkbox/随机/内联生成SSE)", "Step3存档名+摘要+可选首条输入→POST /sessions→init→自动发送[游戏开始]"],
+            "wizard_steps_indicator": true,
+            "strengths": ["完整onboarding", "可跳过角色/世界", "世界多选+继承身份toggle", "自动开局"],
+            "portable_to_zero_arsenal": "Session创建Modal直接复用三步结构；首屏CTA链到「体检/配API→新游戏」"
+          },
+          {
+            "feature": "角色创建（character.html）",
+            "form_type": "非线性多模式（非固定步进）",
+            "modes": ["问卷模式：类型选择+穿越方式预设+动态问题生成", "背景模式：大textarea+性别/年龄/姓名偏好", "档案库：列表载入/删除"],
+            "preview": "左输入/右预览双栏；字段级AI重生成；底部选择存档应用",
+            "strengths": ["hint-text随角色类型动态更新", "档案库空状态+加载骨架", "字段级AI重生成", "UIFeedback统一"],
+            "portable_to_zero_arsenal": "移植「左输入/右预览」双栏+三模式Tab+hint-text模式；档案库用renderEmpty+skeleton"
+          }
+        ],
+        "empty_states": [
+          {
+            "location": "index.html主区（无选中存档）",
+            "implementation": "#welcome-screen：图标+标题+说明+「建议先去控制台」+按钮「开始新游戏」「打开控制台」",
+            "portable": "Hub Sessions Tab复用welcome+双CTA模式"
+          },
+          {
+            "location": "hub.html",
+            "implementation": "始终显示healthList（主接口Key/模型等badge）+配置表单+四链接入口卡片",
+            "portable": "作为zero-arsenal「首次运行检查」独立路由或Modal"
+          },
+          {
+            "location": "shop.html itemsGrid",
+            "implementation": "#emptyState：图标🏪+「商城尚无兑换项」+引导去「兑换项生成」Tab"
+          }
+        ],
+        "contextual_help": [
+          {
+            "location": "character.html / new-game modal",
+            "implementation": "hint-text随角色类型/穿越方式动态更新(NG_TYPE_HINTS, NG_TRAVERSAL_HINTS)；panel-intro说明问卷/背景用途",
+            "portable": "抽取为useHint(charType,traversalMethod)hook+内联HelpTip组件"
+          },
+          {
+            "location": "settings.html panel-api",
+            "implementation": "st-info「推荐流程」块：先主接口测试再商城",
+            "portable": "LLM配置页顶部固定InfoBanner"
+          },
+          {
+            "location": "preset.html tab-phases",
+            "implementation": "阶段图例（紫/蓝/绿点）说明阶段1/3/4职责",
+            "portable": "多Agent流水线说明可复用phase-dot图例UI"
+          }
+        ],
+        "templates_presets": [
+          {
+            "feature": "preset.html文风编辑器（实为ST预设编辑器）",
+            "implementation": "扁平列表171条；每行拖拽柄+启停toggle+名称+编辑；无文风分类/搜索/预览",
+            "portable": "不要直接移植扁平列表；新建文风选择器画廊（从writing-styles注册表读metadata）"
+          }
+        ],
+        "feedback_transparency": [
+          {
+            "mechanism": "UIFeedback.toast（ui-feedback.js）",
+            "coverage": "全站栈；app/settings/hub/preset/character已接入；类型success/error/info",
+            "file": "public/ui-feedback.js, ui-feedback.css"
+          },
+          {
+            "mechanism": "UIFeedback.confirmDanger",
+            "coverage": "删存档、删角色、删prompt/regex/worldbook、购物车批量兑换、商店兑换/穿越、丢弃gacha、未完成问卷"
+          },
+          {
+            "mechanism": "积分/余额透明",
+            "coverage": "shop header显示「积分|徽章」；商品卡pricePoints；gachaBalPoints"
+          }
+        ],
+        "best_ux_patterns": [
+          {"pattern": "全站UIFeedback层（toast+confirmDanger+renderEmpty+renderLoadingLines）", "file": "public/ui-feedback.js", "priority": "高"},
+          {"pattern": "新游戏三步向导", "file": "public/index.html+app.js", "priority": "高"},
+          {"pattern": "控制台开局体检（healthList实时反映配置状态）", "file": "public/hub.html+hub.js", "priority": "高"},
+          {"pattern": "商城兑换确认+prefill回游戏", "file": "public/shop.js", "priority": "中"},
+          {"pattern": "hint-text动态上下文（角色类型/穿越方式切换即时更新）", "file": "public/character.js", "priority": "中"},
+          {"pattern": "welcome-screen双CTA", "file": "public/index.html", "priority": "中"}
+        ]
+      },
+      "notable_findings": [
+        "主界面是index.html(/)，hub.html是配置控制台",
+        "不存在presets.html；38个文风埋在preset.json内需编辑器启停，非用户向选择器",
+        "shop.js体量极大(4600+行)，维护风险高",
+        "ARCHITECTURE.md详尽(2026-03-18)，适合作为zero-arsenal迁移的功能对照表",
+        "无自动化测试套件"
+      ]
+    },
+    {
+      "project_id": "A3",
+      "project_name": "ai-vn-system-backend",
+      "D01_architecture": {
+        "layer_clarity": "4/5 — FastAPI api/agents/memory/db分层清楚；前端组件化但业务集中在Modal",
+        "test_coverage": "backend/tests/含9个pytest文件（db/utils/agents/api/exchange等）；frontend无Jest；public/test.html手工API测试UI",
+        "scale": {"files_total_approx": 134, "backend_py_modules_approx": 55, "frontend_components": 8}
+      },
+      "D13_ux_gaps": {
+        "wizard_flows": [
+          {
+            "feature": "ProtagonistGeneratorModal",
+            "phases": ["mode(quick/background/quiz)", "config(本土/穿越、穿越方式、姓名/性别/年龄/起始积分)", "quiz", "generating", "preview"],
+            "quick_templates": "QUICK_TEMPLATES六卡片（普通人/学者/军事/随机等）",
+            "strengths": "React状态清晰；quick模板降低冷启动摩擦",
+            "portable": "已是React组件，最接近zero-arsenal栈；合并QUICK_TEMPLATES+game-system hint文案即可"
+          },
+          {
+            "feature": "NovelPickerModal",
+            "implementation": "list视图：列表+删除(confirm)+归档；create视图：title/worldType/schema/heroName；支持AI生成主角",
+            "portable": "Sessions/Worlds选择Modal参考此模式"
+          }
+        ],
+        "empty_states": [
+          {"location": "CenterPanel WelcomeScreen", "implementation": "📜图标+标题「零度叙事系统」+说明+5个能力badge（零度写作/物理细节/世界推演/四层记忆/数值结算）", "portable": "写作页空状态可直接复用badge教育模式"},
+          {"location": "RightPanel无protagonist", "implementation": "居中👤「请先选择小说并初始化主角」；header显示「✨生成主角」紫色按钮", "portable": "属性面板锁定态+CTA"}
+        ],
+        "contextual_help": [
+          {"location": "输入框状态placeholder", "implementation": "按状态变化：未选书/未初始化主角/streaming/正常—四种placeholder", "portable": "输入框状态机placeholder直接复用"},
+          {"location": "Header badge", "implementation": "后端在线/离线/检测中；当前world_key"},
+          {"location": "LeftPanel STEP列表", "implementation": "五步工作流标签常驻；streaming时高亮currentStep", "portable": "Agent进度侧栏"}
+        ],
+        "feedback_transparency": [
+          {"mechanism": "grant-bar固定浮层", "description": "SSE system_grant→右下角最多3条grant-bar（积分/XP/击杀等）"},
+          {"mechanism": "RollbackModal二次确认", "description": "回滚快照先setConfirm(true)再执行"},
+          {"mechanism": "后端健康badge", "description": "api.health()→header绿/红badge"}
+        ],
+        "best_ux_patterns": [
+          {"pattern": "三栏TRPG布局+底栏输入（CSS Grid left|center|right）", "file": "frontend/src/App.css", "priority": "高"},
+          {"pattern": "SSE多路反馈（log/thought/novel_text/system_grant/error分流）", "file": "frontend/src/hooks/useGame.js", "priority": "高"},
+          {"pattern": "输入框状态placeholder（明确告知缺novel/protagonist/streaming原因）", "file": "frontend/src/App.jsx", "priority": "高"},
+          {"pattern": "ProtagonistGenerator quick模板六卡片", "file": "frontend/src/components/ProtagonistGeneratorModal.jsx", "priority": "中"},
+          {"pattern": "WelcomeScreen能力badge教育空状态", "file": "frontend/src/components/CenterPanel.jsx", "priority": "中"}
+        ]
+      }
+    }
+  ],
+  "priority_portables_to_zero_arsenal": [
+    {"priority": "高", "source": "A2", "pattern": "UIFeedback（toast/confirmDanger/empty/skeleton）"},
+    {"priority": "高", "source": "A2", "pattern": "新游戏三步向导+welcome双CTA"},
+    {"priority": "高", "source": "A2", "pattern": "hub开局体检healthList"},
+    {"priority": "高", "source": "A3", "pattern": "三栏布局+SSE日志/正文/grant分流"},
+    {"priority": "高", "source": "A3", "pattern": "输入框状态机placeholder"},
+    {"priority": "中", "source": "A2+A3", "pattern": "主角生成（A3 quick模板+A2 hint/双栏预览）"},
+    {"priority": "中", "source": "A2", "pattern": "商城兑换确认+prefill回写作页"},
+    {"priority": "新建", "source": "A2数据", "pattern": "文风选择器（不要移植扁平preset列表）"}
+  ]
+}

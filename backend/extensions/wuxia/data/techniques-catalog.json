@@ -1,0 +1,107 @@
+{
+  "_comment": "武侠世界 — 武功/内功目录。分内功心法与外功招式两类。",
+  "version": "1.0",
+  "inner_techniques": [
+    {
+      "id": "yi_jin_jing",
+      "name": "易筋经",
+      "sect": "shaolin",
+      "tier": 4,
+      "type": "内功",
+      "qi_growth_per_level": 8,
+      "max_level": 10,
+      "description": "少林至高内功，修炼至大成境界可脱胎换骨，号称天下内功第一。",
+      "side_effect": "修炼初期须破而后立，过程极为痛苦",
+      "requires": "悟性 ≥ 4，少林弟子"
+    },
+    {
+      "id": "chun_yang_gong",
+      "name": "纯阳无极功",
+      "sect": "wudang",
+      "tier": 3,
+      "type": "内功",
+      "qi_growth_per_level": 6,
+      "max_level": 9,
+      "description": "武当正宗内功，阴阳调和，修炼者气息极为绵长，适合以柔克刚。",
+      "side_effect": "无",
+      "requires": "武当弟子"
+    },
+    {
+      "id": "xing_xing_da_fa",
+      "name": "吸星大法",
+      "sect": "demon_cult",
+      "tier": 4,
+      "type": "内功（夺取型）",
+      "qi_growth_per_level": 15,
+      "max_level": 10,
+      "description": "可吸取他人内力为己用。修炼速度极快但多家内力混杂易走火入魔。",
+      "side_effect": "每次使用后有 20% 概率 qi 乱流，随机损失 1d6 内力",
+      "requires": "魔教成员或偷学"
+    },
+    {
+      "id": "basic_qi_gong",
+      "name": "基础引气诀",
+      "sect": "no_sect",
+      "tier": 1,
+      "type": "内功",
+      "qi_growth_per_level": 2,
+      "max_level": 5,
+      "description": "江湖通用入门内功心法，无任何门派限制，功效平平。",
+      "side_effect": "无",
+      "requires": "无"
+    }
+  ],
+  "outer_techniques": [
+    {
+      "id": "luohan_quan",
+      "name": "罗汉拳",
+      "sect": "shaolin",
+      "tier": 2,
+      "type": "拳法",
+      "damage_bonus": 10,
+      "description": "少林入门拳法，刚猛有力，是少林诸多高深武功的基础。",
+      "requires": "少林弟子"
+    },
+    {
+      "id": "taiji_quan",
+      "name": "太极拳",
+      "sect": "wudang",
+      "tier": 3,
+      "type": "拳法（化劲型）",
+      "damage_bonus": 0,
+      "defense_bonus": 20,
+      "description": "以守代攻，借力打力。面对力量差距 ≤ 2 级的敌人，可完全卸力。",
+      "requires": "武当弟子"
+    },
+    {
+      "id": "jiang_long_zhang",
+      "name": "降龙十八掌",
+      "sect": "beggar_sect",
+      "tier": 4,
+      "type": "掌法",
+      "damage_bonus": 35,
+      "description": "天下最刚猛掌法，每一掌都蕴含磅礴内力，范围打击。",
+      "requires": "丐帮帮主或内功 ≥ 6"
+    },
+    {
+      "id": "da_gou_bang",
+      "name": "打狗棒法",
+      "sect": "beggar_sect",
+      "tier": 3,
+      "type": "棍法",
+      "damage_bonus": 20,
+      "description": "丐帮绝学，以棍法配合步法，灵动多变。丐帮帮主的象征武器。",
+      "requires": "丐帮长老以上"
+    },
+    {
+      "id": "shui_hu_jian",
+      "name": "水乎剑法（基础）",
+      "sect": "no_sect",
+      "tier": 1,
+      "type": "剑法",
+      "damage_bonus": 5,
+      "description": "江湖通用基础剑法，招式简单，适合初学者入门。",
+      "requires": "无"
+    }
+  ]
+}

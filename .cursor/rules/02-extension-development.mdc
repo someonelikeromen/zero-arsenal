@@ -1,0 +1,113 @@
+---
+description: ZeroArsenal 扩展开发规范——tools.py / hooks.py / rules/*.md / plugin.py 的格式与发现机制。
+globs: backend/extensions/**
+alwaysApply: false
+---
+
+# 扩展开发规范
+
+## 扩展目录结构
+
+```
+backend/extensions/<world_name>/
+├── plugin.py          # WorldPlugin 子类（必须）
+├── tools.py           # 工具扩展，暴露 TOOLS: list[ToolDef]（可选）
+├── hooks.py           # Hook 实现，实现 ExtensionHooks Protocol（可选）
+├── rules/             # 规则 Markdown 文件（可选）
+│   └── *.md           # frontmatter: title/trigger/applicable_agents/priority/enabled
+└── skills/            # SKILL.md 技能文件（可选）
+```
+
+## tools.py 格式（必须）
+
+```python
+from ...tools.registry import ToolDef
+
+async def _my_tool(session_id: str, param: str) -> dict:
+    from ...db import get_db
+    async with get_db() as db:
+        ...
+    return {"result": ..., "ok": True}
+
+TOOLS: list[ToolDef] = [
+    ToolDef(
+        name="my_tool",                          # snake_case
+        description="工具的一句话描述（中文）",
+        parameters={
+            "type": "object",
+            "properties": {
+                "session_id": {"type": "string"},
+                "param": {"type": "string", "description": "参数说明"},
+            },
+            "required": ["session_id", "param"],
+        },
+        handler=_my_tool,
+        permission_required="allow",             # allow / ask / deny
+        tags=["read", "world_name"],             # 分类标签
+        group="world_name",                      # 扩展名作 group
+    ),
+]
+```
+
+`_discover_extension_tools()` 在启动时自动扫描所有 `extensions/*/tools.py` 并注册 `TOOLS` 列表。
+
+## hooks.py 格式
+
+实现以下任意方法即可被 `discover_and_register_hooks()` 自动注册：
+
+```python
+class MyWorldHooks:
+    async def on_roll_check(self, ctx: dict) -> dict:
+        """修改骰子检定参数（threshold/dice_pool等）。"""
+        ...
+        return ctx
+
+    async def before_tool_call(self, ctx: dict) -> dict:
+        """工具调用前拦截，ctx["allow"] = False 可取消调用。"""
+        ctx.setdefault("allow", True)
+        return ctx
+
+    async def after_tool_call(self, ctx: dict) -> dict:
+        """工具调用后处理结果。"""
+        return ctx
+```
+
+- 方法均为 `async`，接收并返回 `ctx: dict`
+- 不需要导入或继承基类，Protocol 是 `@runtime_checkable` 的鸭子类型
+
+## rules/*.md 格式
+
+```markdown
+---
+title: 规则名称
+trigger: always           # always / combat / exploration
+applicable_agents:
+  - rules
+  - dm
+priority: 60              # 数字越大越优先注入
+enabled: true
+---
+
+## 规则正文
+- 规则条目1
+- 规则条目2
+```
+
+`rule_registry.build_injection_block("rules")` 在 RulesAgent 和 DMAgent 的 system prompt 末尾自动注入。
+
+## plugin.py 格式
+
+```python
+from ..plugin import WorldPlugin, plugin_registry
+
+class MyWorldPlugin(WorldPlugin):
+    def on_session_init(self, state: dict) -> dict:
+        """初始化角色专属字段。"""
+        char = state.get("character_data", {})
+        char.setdefault("meta", {}).setdefault("world_plugin", "my_world")
+        return state
+
+    mcp_servers: list = []   # 若需要 MCP 工具，填写 server 配置
+
+plugin_registry.register(MyWorldPlugin())
+```

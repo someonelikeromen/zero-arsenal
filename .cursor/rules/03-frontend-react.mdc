@@ -1,0 +1,78 @@
+---
+description: ZeroArsenal 前端 React/TypeScript 规范——SSE 客户端、Zustand stores、MessagePart 渲染、ChapterTree。
+globs: frontend/src/**/*.{tsx,ts}
+alwaysApply: false
+---
+
+# 前端 React / TypeScript 规范
+
+## SSE 客户端规范
+
+```typescript
+// 前端 SSE 使用 query param 传 last_event_id（原生 EventSource 不支持自定义 Header）
+const url = `/sessions/${sessionId}/events?last_event_id=${lastId}`
+const es = new EventSource(url)
+
+// Last-Event-ID 持久化在 IndexedDB
+import { getLastSyncedEventId, setLastSyncedEventId } from '../lib/idb'
+```
+
+- 断线重连由 `sse.ts` 中的 `SSEClient` 处理，内部从 IndexedDB 读取 `last_event_id`
+- SSE 事件类型：`part.created / part.done / agent.started / agent.ended / chapter.consolidated / session.done`
+
+## MessagePart 可见性
+
+`_isVisible(part, mode)` 根据当前模式决定渲染哪些 Part 类型：
+
+| 模式 | 可见 Part |
+|------|-----------|
+| `play` | text, dice_result, var_diff, action_options |
+| `plan` | text, reasoning, tool_call, tool_result, dice_result, var_diff |
+| `review` | 全部类型 |
+
+`action_options` Part 在正文区隐藏（`hideActionOptions={true}`），由底部选项栏单独渲染。
+
+## ChapterTree 规范
+
+```typescript
+// Props
+interface Props {
+  sessionId: string
+  onFork?: (branchSessionId: string, branchLabel: string) => void
+  refreshKey?: number   // 外部递增触发 reload
+}
+
+// SessionPage 中收到 chapter.consolidated 时递增
+const [chapterRefreshKey, setChapterRefreshKey] = useState(0)
+// 在 SSE 处理里：
+setChapterRefreshKey(k => k + 1)
+```
+
+回溯按钮：已固化章节（`is_consolidated === 1`）且有 `end_message_id` 时，hover 显示 `↩`，点击调用 `api.revertToMessage`。
+
+## Zustand Store 分区
+
+| Store | 文件 | 职责 |
+|-------|------|------|
+| `useStoryStore` | `story.ts` | MessagePart 列表 + 流式 delta + IndexedDB 缓存 |
+| `useSessionStore` | `session.ts` | SSE 连接 + mode + pendingAsks |
+| `useCharacterStore` | `character.ts` | 角色卡 + applyPatch（dot-notation） |
+
+`addPart` 写入 streaming 状态时立即同步到 IndexedDB（避免刷新丢失流式内容）。
+
+## API 调用规范
+
+统一通过 `src/lib/api.ts` 的 `api` 对象调用，不直接 `fetch`：
+
+```typescript
+api.revertToMessage(sessionId, messageId)   // 回溯
+api.forkSession(sessionId, label)           // 分支
+api.resolveAsk(sessionId, askId, answer)    // 权限确认
+api.getDiceHistory(sessionId)               // 骰子历史
+```
+
+## TypeScript 注意事项
+
+- 避免 `Array.prototype.at(-1)`，改用 `arr[arr.length - 1]`（tsconfig 目标为 ES2019）
+- 组件 Props 接口定义在同文件顶部，不单独抽文件
+- 严格避免 `any`，用 `unknown` + 类型守卫

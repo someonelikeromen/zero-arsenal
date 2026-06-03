@@ -1,0 +1,75 @@
+{
+  "version": "1.0",
+  "generated_at": "2026-06-03T19:24:07.379342",
+  "extensions": [
+    {
+      "key": "crossover",
+      "path": "E:\\plu\\zero-arsenal\\backend\\extensions\\crossover",
+      "priority": 0,
+      "tier": "builtin",
+      "has_plugin": true,
+      "has_agents": false,
+      "has_tools": true,
+      "has_skills": true,
+      "has_prompts": false,
+      "display_name": "综漫无限流",
+      "description": "综漫无限流世界插件：SP 经济、徽章体系、跨界事件、10 维属性。",
+      "version": "1.0.0"
+    },
+    {
+      "key": "gundam_seed",
+      "path": "E:\\plu\\zero-arsenal\\backend\\extensions\\gundam_seed",
+      "priority": 0,
+      "tier": "builtin",
+      "has_plugin": true,
+      "has_agents": false,
+      "has_tools": true,
+      "has_skills": true,
+      "has_prompts": false,
+      "display_name": "Gundam SEED — 宇宙世纪 CE71",
+      "description": "GUNDAM SEED 世界插件：宇宙世纪 CE71，血色情人节后时代，协调者与自然人的冲突。",
+      "version": "0.1.0"
+    },
+    {
+      "key": "infinite_arsenal",
+      "path": "E:\\plu\\zero-arsenal\\backend\\extensions\\infinite_arsenal",
+      "priority": 0,
+      "tier": "builtin",
+      "has_plugin": true,
+      "has_agents": true,
+      "has_tools": true,
+      "has_skills": true,
+      "has_prompts": false,
+      "display_name": "无限武库",
+      "description": "无限武库世界插件：主神空间抽卡体系、Anti-Feat 星级评定、战斗奖励结算、跨界物品融合。",
+      "version": "1.0.0"
+    },
+    {
+      "key": "muv_luv",
+      "path": "E:\\plu\\zero-arsenal\\backend\\extensions\\muv_luv",
+      "priority": 0,
+      "tier": "builtin",
+      "has_plugin": true,
+      "has_agents": false,
+      "has_tools": true,
+      "has_skills": true,
+      "has_prompts": false,
+      "description": "近未来架空地球，BETA 外星生命体入侵，战术步兵驾驶战术机（TSF）迎击。时间线 1998-2001。",
+      "version": "0.1.0"
+    },
+    {
+      "key": "wuxia",
+      "path": "E:\\plu\\zero-arsenal\\backend\\extensions\\wuxia",
+      "priority": 0,
+      "tier": "builtin",
+      "has_plugin": true,
+      "has_agents": false,
+      "has_tools": true,
+      "has_skills": true,
+      "has_prompts": false,
+      "display_name": "武侠江湖",
+      "description": "武侠江湖世界插件：修炼体系（炼体/筑基/金丹...）、内力运转、切磋挑战、8 维属性。",
+      "version": "1.0.0"
+    }
+  ]
+}

@@ -1,0 +1,182 @@
+{
+  "timestamp": "20260602_200750",
+  "backend": "http://127.0.0.1:8000",
+  "frontend": "http://localhost:5174",
+  "session_id": "2e321b3b-b4a9-4212-8fd3-d047ae9f6775",
+  "results": [
+    {
+      "msg": "GET /health → 200 {'status': 'ok', 'memory': {'mode': 'full', 'available': True, 'reason': ''}}",
+      "ok": true,
+      "ts": "2026-06-02T20:07:50.929498"
+    },
+    {
+      "msg": "GET /api/sessions → 4 个会话",
+      "ok": true,
+      "ts": "2026-06-02T20:07:50.962551"
+    },
+    {
+      "msg": "GET /api/engine/extensions → {'extensions': [{'key': 'crossover', 'name': '综漫无限流', 'description': '玩家作为穿越者进入各种动漫/游戏世界完成主神任务，获得强化点数和技能', 'agent_profile': 'play'}, {'key': 'wuxia', 'name': '武侠江湖', 'description': '传统武侠世界，玩家扮演行走江湖的侠客，修炼内功、闯荡门派', 'agent_profile': 'play'}, {'key': 'infinite_arsenal', 'name': '无限武库', 'description': '高武世界，玩家收集各种武器、法器、神器，通过战斗和探索强化自身', 'agent_profile': 'play'}], 'count': 3}",
+      "ok": true,
+      "ts": "2026-06-02T20:07:50.965510"
+    },
+    {
+      "msg": "GET /api/system/info → tools=47 plugins=3 skills=43",
+      "ok": true,
+      "ts": "2026-06-02T20:07:50.986372"
+    },
+    {
+      "msg": "POST /api/sessions → 创建成功 id=2e321b3b...",
+      "ok": true,
+      "ts": "2026-06-02T20:07:51.023920"
+    },
+    {
+      "msg": "GET /api/sessions/{id} → E2E测试会话_20260602_200750",
+      "ok": true,
+      "ts": "2026-06-02T20:07:51.055880"
+    },
+    {
+      "msg": "GET /api/engine/skills → 200 数量=43",
+      "ok": true,
+      "ts": "2026-06-02T20:07:51.079351"
+    },
+    {
+      "msg": "GET /api/hooks → 200 数量=2",
+      "ok": true,
+      "ts": "2026-06-02T20:07:51.093982"
+    },
+    {
+      "msg": "POST /message → 202 message_id=95530a98... stream_url=/api/sessions/2e321b3b-b4a9-4212-8fd3-d047ae9f6775/events",
+      "ok": true,
+      "ts": "2026-06-02T20:07:51.128137"
+    },
+    {
+      "msg": "连接 SSE: http://127.0.0.1:8000/api/sessions/2e321b3b-b4a9-4212-8fd3-d047ae9f6775/events",
+      "ok": true,
+      "ts": "2026-06-02T20:07:51.128143"
+    },
+    {
+      "msg": "session.idle → agents=['dm', 'npc', 'world', 'narrator', 'style', 'var', 'chronicler', 'chronicler']",
+      "ok": true,
+      "ts": "2026-06-02T20:08:13.802096"
+    },
+    {
+      "msg": "叙事文本: 462 字 | 首100字: 驿站老板是个干瘦的中年人，正用一块脏布擦拭着柜台上的陶碗。他听到你的脚步声抬起头，目光在你身上扫了一圈——落在你衣角不属于这个时代的布料纹路上时，眼神微微一凝。  「外乡人？」他把抹布丢进水桶，从柜台",
+      "ok": true,
+      "ts": "2026-06-02T20:08:13.802280"
+    },
+    {
+      "msg": "真实LLM管线通过（462字叙事，8个agents，耗时22.7s）",
+      "ok": true,
+      "ts": "2026-06-02T20:08:13.802321"
+    },
+    {
+      "msg": "GET /api/agents/profiles → 200 数量=2",
+      "ok": true,
+      "ts": "2026-06-02T20:08:13.806369"
+    },
+    {
+      "msg": "GET /memory?query=驿站 → 200 记忆数=3",
+      "ok": true,
+      "ts": "2026-06-02T20:08:15.850764"
+    },
+    {
+      "msg": "GET /world-archives → 200 数量=2",
+      "ok": true,
+      "ts": "2026-06-02T20:08:15.883829"
+    },
+    {
+      "msg": "GET /chapters → 200",
+      "ok": true,
+      "ts": "2026-06-02T20:08:15.914950"
+    },
+    {
+      "msg": "GET /asks → 200",
+      "ok": true,
+      "ts": "2026-06-02T20:08:15.940349"
+    },
+    {
+      "msg": "GET /api/tools → 200 数量=?",
+      "ok": true,
+      "ts": "2026-06-02T20:08:15.955223"
+    },
+    {
+      "msg": "POST /api/engine/roll pool=4 → net=0 rolls=[5, 2, 6, 3] verdict=failure",
+      "ok": true,
+      "ts": "2026-06-02T20:08:17.975876"
+    },
+    {
+      "msg": "截图: 20260602_200750_01_homepage.png",
+      "ok": true,
+      "ts": "2026-06-02T20:08:19.708448"
+    },
+    {
+      "msg": "首页加载 → body含关键词=True",
+      "ok": true,
+      "ts": "2026-06-02T20:08:19.715298"
+    },
+    {
+      "msg": "首页会话链接数: 20",
+      "ok": true,
+      "ts": "2026-06-02T20:08:19.733809"
+    },
+    {
+      "msg": "截图: 20260602_200750_02_settings.png",
+      "ok": true,
+      "ts": "2026-06-02T20:08:20.368360"
+    },
+    {
+      "msg": "设置页加载 → 含配置关键词=True",
+      "ok": true,
+      "ts": "2026-06-02T20:08:20.371551"
+    },
+    {
+      "msg": "截图: 20260602_200750_03_session_initial.png",
+      "ok": true,
+      "ts": "2026-06-02T20:08:37.501478"
+    },
+    {
+      "msg": "会话页加载 → 含聊天关键词=True",
+      "ok": true,
+      "ts": "2026-06-02T20:08:37.506268"
+    },
+    {
+      "msg": "输入框填充成功 → 截图: 20260602_200750_04_input_filled.png",
+      "ok": true,
+      "ts": "2026-06-02T20:08:38.125428"
+    },
+    {
+      "msg": "点击发送后截图: 20260602_200750_05_after_send.png",
+      "ok": true,
+      "ts": "2026-06-02T20:08:39.774568"
+    },
+    {
+      "msg": "骰子操作截图: 20260602_200750_06_dice.png",
+      "ok": true,
+      "ts": "2026-06-02T20:08:40.922958"
+    },
+    {
+      "msg": "最终状态截图: 20260602_200750_99_final_state.png",
+      "ok": true,
+      "ts": "2026-06-02T20:08:41.010069"
+    },
+    {
+      "msg": "浏览器 UI 测试完成",
+      "ok": true,
+      "ts": "2026-06-02T20:08:41.141901"
+    }
+  ],
+  "screenshots": [
+    "20260602_200750_01_homepage.png",
+    "20260602_200750_02_settings.png",
+    "20260602_200750_03_session_initial.png",
+    "20260602_200750_04_input_filled.png",
+    "20260602_200750_05_after_send.png",
+    "20260602_200750_06_dice.png",
+    "20260602_200750_99_final_state.png"
+  ],
+  "summary": {
+    "total": 32,
+    "passed": 32,
+    "failed": 0
+  }
+}

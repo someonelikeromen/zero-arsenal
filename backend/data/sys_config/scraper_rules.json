@@ -1,0 +1,87 @@
+{
+  "_comment": "Web Scraper 站点规则配置。每条规则对应一个域名，支持自定义选择器和抓取策略。",
+  "_version": "1.0",
+  "rules": [
+    {
+      "domain": "wiki.biligame.com",
+      "alias": "BiliBili WIKI",
+      "engine": "httpx",
+      "content_selectors": ["#mw-content-text .mw-parser-output", "#mw-content-text", ".mw-parser-output"],
+      "wait_ms": 0,
+      "max_chars": 12000,
+      "enabled": true,
+      "notes": "高达/原神等游戏 WIKI，httpx 直达"
+    },
+    {
+      "domain": "zh.wikipedia.org",
+      "alias": "维基百科（中文）",
+      "engine": "playwright",
+      "content_selectors": ["#mw-content-text .mw-parser-output", "#mw-content-text"],
+      "wait_ms": 1500,
+      "max_chars": 12000,
+      "enabled": true,
+      "notes": "httpx 被 403，自动切 Playwright"
+    },
+    {
+      "domain": "en.wikipedia.org",
+      "alias": "Wikipedia (English)",
+      "engine": "playwright",
+      "content_selectors": ["#mw-content-text .mw-parser-output", "#mw-content-text"],
+      "wait_ms": 1500,
+      "max_chars": 12000,
+      "enabled": true,
+      "notes": "英文维基"
+    },
+    {
+      "domain": "gundam.fandom.com",
+      "alias": "Gundam Fandom Wiki",
+      "engine": "playwright",
+      "content_selectors": [".mw-parser-output", "#mw-content-text", "article"],
+      "wait_ms": 2000,
+      "max_chars": 10000,
+      "enabled": true,
+      "notes": "Fandom Wiki，Playwright 抓取"
+    },
+    {
+      "domain": "fandom.com",
+      "alias": "Fandom Wiki（通用）",
+      "engine": "playwright",
+      "content_selectors": [".mw-parser-output", "#mw-content-text", "article"],
+      "wait_ms": 2000,
+      "max_chars": 10000,
+      "enabled": true,
+      "notes": "所有 Fandom 子域通用规则"
+    },
+    {
+      "domain": "zh.moegirl.org.cn",
+      "alias": "萌娘百科",
+      "engine": "playwright",
+      "content_selectors": ["#mw-content-text .mw-parser-output", "#mw-content-text"],
+      "wait_ms": 3000,
+      "max_chars": 10000,
+      "enabled": false,
+      "notes": "当前封锁所有自动化访问（包括 Playwright），暂禁用"
+    },
+    {
+      "domain": "baike.baidu.com",
+      "alias": "百度百科",
+      "engine": "playwright",
+      "content_selectors": [".para", ".lemma-summary", "#lemmaContent"],
+      "wait_ms": 4000,
+      "max_chars": 8000,
+      "enabled": false,
+      "notes": "JS 滑块验证码，暂禁用"
+    }
+  ],
+  "_add_custom_site_example": {
+    "_tip": "复制以下模板，修改 domain/alias/selectors 即可添加新站点",
+    "domain": "your-wiki-site.com",
+    "alias": "我的自定义 Wiki",
+    "engine": "httpx",
+    "content_selectors": [".article-body", "main", "article", "body"],
+    "wait_ms": 1000,
+    "max_chars": 10000,
+    "enabled": true,
+    "notes": "自定义说明"
+  }
+}

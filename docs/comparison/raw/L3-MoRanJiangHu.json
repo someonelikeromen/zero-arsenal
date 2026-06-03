@@ -1,0 +1,109 @@
+{
+  "project_id": "A4",
+  "project_name": "MoRanJiangHu",
+  "D01_architecture": {
+    "layer_clarity": "3/5 — 有分层意图但核心状态集中在超大 useGame.ts(1200+行)+useGameState.ts；Zustand 渐进迁移中",
+    "coupling": "UI通过useGame()单入口；AI层分text/image/gameMaster；双轨状态：React useState + Zustand slice并存",
+    "test_coverage": "约100个Vitest文件，集中在hooks/useGame/工作流；无路由层测试；覆盖率偏关键工作流单元测试",
+    "state_management": "无独立stores/；主路径useGameState+zustandStore.ts(约1000行，标注渐进迁移)；双Toast实现",
+    "scale": {"files_estimate": 1447, "components": 250, "services": 45}
+  },
+  "D03_ia": {
+    "main_views": ["home（LandingPage）", "new_game（NewGameWizard五步向导）", "game（GameView三栏）"],
+    "nav_structure": "无react-router；App.tsx用state.view切换home|new_game|game",
+    "panel_organization": "桌面三栏：LeftPanel(属性/头像)|中间ChatList+InputArea|RightPanel(战斗/装备/背包等按钮网格)；设置20+个Tab",
+    "layout_pattern": "桌面三栏+顶栏+底栏世界大事ticker；移动单栏聊天+底部快捷菜单+safe-area；断点767px"
+  },
+  "D04_onboarding": {
+    "empty_states": "首页继续按钮无存档时grayscale+disabled；存档列表「暂无记录」；图库可复用空状态组件；ticker「江湖平静，暂无大事发生」",
+    "demo_data": "有预设数据：subEraDefaultPresets.ts（江湖游侠一键天赋/背景）、newGamePresets.ts（校园等开局方案）；默认世界名太古界",
+    "error_quality": "3/5 — 优：右下角toast+设置内pushNotice+API连接测试弹窗；缺：GitHub同步仍用window.confirm/alert"
+  },
+  "D05_customization": {
+    "theme_system": "styles/themes.ts 5+主题预设(ink/azure/ember/jade/violet)；CSS变量注入；时代主题实时预览",
+    "llm_providers": ["gemini", "claude", "openai", "deepseek", "zhipu", "openai_compatible（SiliconFlow/Together/Groq预设）", "grok"],
+    "advanced_params": "每配置多模型+temperature+协议覆盖；主剧情/规划/变量校准等分角色绑定不同config+model；图生文多后端"
+  },
+  "D06_completeness": {
+    "wuxia_world_generation": "✓ — 向导step0收集世界规模/武力/门派密度，AI生成",
+    "character_management": "✓ — 五步向导+CharacterModal；NpcManager；SocialModal",
+    "image_generation": "✓ — 多后端(novelai/comfyui/openai/sd)；ImageManagerModal；自动触发workflow",
+    "github_sync": "△ — services/githubSync.ts(938行)完整；UI有进度条；冲突为覆盖无合并；部分用window.confirm",
+    "mobile_capacitor": "△ — Capacitor 7壳+android工程；响应式靠CSS+Mobile*组件；无内置APK构建脚本",
+    "prompt_module_system": "✓ — PromptManager+utils/storyModule+prompts/runtime+moduleRegistry"
+  },
+  "D13_ux_gaps": {
+    "wizard_flows": [
+      {
+        "name": "新建游戏五步向导",
+        "steps": ["世界观", "角色基础", "天赋背景", "开局配置", "确认生成"],
+        "files": [
+          "components/features/NewGame/NewGameWizard.tsx",
+          "components/features/NewGame/useNewGameWizardState.ts",
+          "utils/openingConfig.ts"
+        ],
+        "details": "左侧步骤栏可跳转任意步；底部进度条+上一步/下一步；SectionCollapse折叠长列表；字段带hint；支持子纪元默认预设+自定义开局预设(localStorage)"
+      }
+    ],
+    "empty_states": [
+      {"context": "存档列表（桌面）", "jsx": "filteredSaves.length===0 → 文案.无记录文字", "file": "components/features/SaveLoad/SaveLoadModal.tsx"},
+      {"context": "存档列表（移动）", "jsx": "saves.length===0 → 「暂无存档」", "file": "components/features/SaveLoad/MobileSaveLoadModal.tsx"},
+      {"context": "图库（可复用）", "jsx": "export const 空状态 = ({title,desc}) => dashed border居中", "file": "components/features/Social/ImageManager/utils/imageManagerHelpers.tsx"},
+      {"context": "API配置列表", "jsx": "「还没有任何接口配置，请先点击上方新建配置」", "file": "components/features/Settings/ApiSettings.tsx"},
+      {"context": "世界大事ticker", "jsx": "「江湖平静，暂无大事发生...」", "file": "components/app/GameView.tsx"}
+    ],
+    "toast_notification": {
+      "exists": true,
+      "implementation": "自研右下角Toast；id=toast_时间戳；最多4条slice(-4)；4200ms自动消失；tone:info|success|error决定边框色；fixed bottom-4 right-4 z-[120]；可手动关闭",
+      "file_location": ["hooks/useGame/ui/notificationSystem.ts", "hooks/useGame/subsystems/zustandStore.ts", "components/app/GameView.tsx"],
+      "portable_to_zero_arsenal": "抽成独立<ToastStack>+useToast() hook；保留cap=4、autoDismiss=4200、tone三色；工作量：小"
+    },
+    "api_status_indicator": {
+      "exists": false,
+      "description": "TopBar不显示当前LLM模型或连接健康；仅Settings内ApiSettings「连接测试」模态展示latency；世界更新中按钮有pulse表示world evolution",
+      "portable_suggestion": "Hub TopBar增加「模型pill+上次探测时间」；工作量：中"
+    },
+    "collapse_panels": {
+      "component": "components/ui/SectionCollapse.tsx",
+      "behavior": "defaultOpen=false；标题+subtitle+count；max-height动画；用于NewGame长列表/Worldbook/NpcManager/NovelDecomposition等",
+      "settings_structure": "设置按Tab分域而非基础/高级折叠"
+    },
+    "danger_confirmation": {
+      "primary": "useConfirmSystem + InAppConfirmModal",
+      "files": ["hooks/useConfirmSystem.tsx", "components/ui/InAppConfirmModal.tsx"],
+      "api": "requestConfirm({title,message,confirmText,cancelText,danger}) => Promise<boolean>；根布局挂ConfirmModal",
+      "gap": "GitHubSyncButton仍用window.confirm/alert未统一"
+    },
+    "world_templates": {
+      "default_era": "ancient_eastern_wuxia，默认世界名太古界",
+      "sub_era_presets": "data/subEraDefaultPresets.ts — 江湖游侠等一键填充",
+      "start_presets": "data/newGamePresets.ts — 多时代（校园/转学生等）",
+      "custom": "utils/customNewGamePresets.ts — localStorage持久化用户自定义"
+    },
+    "session_start_flow": {
+      "steps": [
+        "1. LandingPage → 开始游戏",
+        "2. NewGameWizard五步（worldConfig+charData+openingConfig）",
+        "3. 最后一步生成 → handleGenerateWorld（AI世界生成+开局叙事）",
+        "4. view=game，sessionLifecycle初始化",
+        "5. 用户发送第一回合"
+      ]
+    },
+    "best_ux_patterns": [
+      {"pattern": "Promise式InAppConfirmModal", "file": "hooks/useConfirmSystem.tsx", "priority": "高", "effort_to_port": "小"},
+      {"pattern": "右下角Toast栈", "file": "hooks/useGame/ui/notificationSystem.ts", "priority": "高", "effort_to_port": "小"},
+      {"pattern": "SectionCollapse渐进披露", "file": "components/ui/SectionCollapse.tsx", "priority": "高", "effort_to_port": "小"},
+      {"pattern": "五步新局向导+子纪元预设", "file": "components/features/NewGame/NewGameWizard.tsx", "priority": "高", "effort_to_port": "大"},
+      {"pattern": "可复用空状态组件", "file": "components/features/Social/ImageManager/utils/imageManagerHelpers.tsx", "priority": "中", "effort_to_port": "小"},
+      {"pattern": "字段hint文案", "file": "components/features/NewGame/NewGameWizardContent.tsx", "priority": "中", "effort_to_port": "小"},
+      {"pattern": "moduleRegistry Modal系统", "file": "utils/moduleRegistry/", "priority": "中", "effort_to_port": "大"}
+    ]
+  },
+  "notable_findings": [
+    "无react-router；三视图+大量Modal构成IA",
+    "状态管理处于useGame→Zustand迁移中期，Toast有双实现",
+    "zero-arsenal CharacterCreator侧重角色模板+三模式；MRJH NewGameWizard侧重世界+开局一体化，二者互补",
+    "InAppConfirmModal+useConfirmSystem是高价值低成本移植项",
+    "Toast实现轻量自研，可直接参考移植"
+  ]
+}

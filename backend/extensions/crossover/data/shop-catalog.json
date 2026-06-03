@@ -1,0 +1,45 @@
+{
+  "_comment": "综漫无限流 — 主神商店目录。按 tier 分级，价格单位为主神点数（SP）。",
+  "version": "1.0",
+  "currency": "crossover_points",
+  "categories": [
+    {
+      "id": "enhancement",
+      "name": "身体强化",
+      "items": [
+        {"id": "body_basic",    "name": "基础强化包",        "tier": 1, "price": 200,   "description": "全属性 +1，HP +20"},
+        {"id": "body_advanced", "name": "精英强化包",        "tier": 2, "price": 800,   "description": "全属性 +2，HP +50"},
+        {"id": "body_elite",    "name": "超凡强化包",        "tier": 3, "price": 3000,  "description": "全属性 +4，HP +150"},
+        {"id": "qi_awakening",  "name": "气感觉醒",         "tier": 2, "price": 1500,  "description": "开启气感，可感应 qi 系能力"},
+        {"id": "bloodline_low", "name": "低阶血脉激活",      "tier": 3, "price": 5000,  "description": "激活随机低阶血脉特性"}
+      ]
+    },
+    {
+      "id": "equipment",
+      "name": "装备",
+      "items": [
+        {"id": "standard_armor",    "name": "标准防弹背心",  "tier": 1, "price": 300,   "description": "物理伤害减免 10%"},
+        {"id": "adaptive_armor",    "name": "自适应软甲",   "tier": 2, "price": 1200,  "description": "物理减免 20%，轻功不受限"},
+        {"id": "communication_ear", "name": "量子通讯耳机",  "tier": 1, "price": 150,   "description": "任意世界内通讯，不受干扰"},
+        {"id": "storage_ring",      "name": "储物戒指 0.5m³", "tier": 2, "price": 2000, "description": "亚空间储物，容量 0.5 立方米"}
+      ]
+    },
+    {
+      "id": "information",
+      "name": "情报",
+      "items": [
+        {"id": "world_intro",   "name": "目标世界入门情报",  "tier": 1, "price": 100,   "description": "本次穿越目标世界的背景简介"},
+        {"id": "npc_profile",   "name": "NPC 详细档案",     "tier": 2, "price": 500,   "description": "指定 NPC 的详细性格/能力档案"},
+        {"id": "plot_outline",  "name": "剧情大纲（前3轮）", "tier": 3, "price": 2000,  "description": "未来 3 次关键事件预报"}
+      ]
+    },
+    {
+      "id": "revival",
+      "name": "保险/复活",
+      "items": [
+        {"id": "one_time_revive", "name": "一次性复活令",    "tier": 2, "price": 3000,  "description": "死亡后强制触发，回到本世界入场点，HP 50%"},
+        {"id": "injury_prevent",  "name": "致命伤预防符",    "tier": 2, "price": 800,   "description": "单次阻止一次致命伤，消耗即毁"}
+      ]
+    }
+  ]
+}

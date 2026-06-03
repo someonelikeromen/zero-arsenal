@@ -1,0 +1,270 @@
+[
+  {
+    "project_id": "B3",
+    "project_name": "NovelAI",
+    "D03_ia": {
+      "layout_pattern": "三栏布局：左侧故事库侧边栏（Stories列表）+ 中央编辑器（纯文本区）+ 右侧设置面板（Story/Lorebook/Config三大Tab）。首次进入右侧默认显示Story Tab，所有核心配置集中于此一栏。",
+      "nav_depth_max": 3,
+      "notes": "导航层级：Home → Story选择 → Editor（Story Settings → Config Settings → Lorebook）。Lorebook单独弹出层覆盖编辑器，Config Settings在右侧Tab内联展开。"
+    },
+    "D04_onboarding": {
+      "first_launch_steps": 3,
+      "story_creation_flow": "点击'New Story'后直接跳入Editor，无独立向导弹窗。步骤：1) 模式选择弹窗（Storyteller模式 vs Text Adventure模式，仅2选1）；2) 编辑器界面展开，右侧Story Tab已打开；3) 用户自行在空白编辑区开始输入，或填写Memory/Author's Note。没有分步引导，新手需自行探索右侧配置。Storyteller模式会显示Title输入框让新手先定主题，降低一定门槛。",
+      "lorebook_intro": "Lorebook无新手引导。打开Lorebook面板时是空状态，只有一个'+ Add Entry'按钮和'Generate'（AI生成）按钮。无说明文字解释Lorebook是什么。官方文档定义：'The Lorebook is your story's knowledge base, injected into context when keywords appear'，但这段话不出现在UI里。新手靠右侧面板上方零散的'Goose Tip'（鸭嘴兽提示）学习。",
+      "empty_states": "故事库为空时：显示'New Story'大按钮 + 底部'View all Scenarios'入口（浏览社区场景模板）。没有引导文字说明创建步骤。Lorebook为空：只有'+ Add Entry' + '💡 Generate'按钮，无占位说明文字。Memory字段为空：显示placeholder文字'Summarize plot details and describe your characters here'，是少数有placeholder的字段。"
+    },
+    "D05_customization": {
+      "config_presets": "Config Preset以下拉列表展示，每个模型有专属默认预设（如Kayra模型带Carefree / Fresh Coffee / Writer's Daemon等命名预设）。无预设预览（不显示该预设的参数摘要或效果说明）。点击'Edit Preset'才能看到具体temperature/top-p等参数。Goose Tips写道：'切换预设可以让失控的AI重回正轨'——是唯一的使用引导。",
+      "style_selection": "Genre & Tags是最接近'风格选择'的功能：点击后可输入流派（Fantasy/Thriller/Romance等）和标签，自动填充ATTG格式块到Memory。AI Module选择（60+模块）：支持按文学家/流派/主题分类，有简短的模块描述，是比较完善的预设体验。无独立'场景风格'一键选择。"
+    },
+    "D08_user_tiers": {
+      "casual_support": "Storyteller模式 + Genre&Tags是主要的新手友好路径：输入标题和标签就能开始。'View all Scenarios'可以从社区模板快速开启。但缺少真正的分步向导；新手面对空编辑器配置压力较大。",
+      "power_user_features": "Config Settings深度参数（temperature/top-p/repetition penalty等全部暴露）；Advanced Conditions for Lorebook（链式触发条件）；自定义Module训练；Context Viewer查看实时注入内容；Inline Generation（右键生成）；Token Probability分析；Phrase Bias细粒度调控。"
+    },
+    "D13_ux_gaps": {
+      "story_creation_wizard": {
+        "steps": 2,
+        "has_type_selection": true,
+        "has_preset_styles": true,
+        "description": "NovelAI的'向导'极其轻量：仅有一个模式选择弹窗（Storyteller/Text Adventure）+ 可选的Genre&Tags填写。没有分步进度条，没有角色/世界设定环节，直接扔进编辑器。Storyteller模式有Title字段降低了第一步门槛，但整体仍是'专家即插即用'设计哲学，新手需大量探索。",
+        "what_zero_arsenal_can_learn": [
+          "模式选择作为创建的第一步（战役/单人RP/故事写作/沙盒探索），用简短一句话描述每种模式，比直接扔进空白Session更友好",
+          "Genre & Tags快速填写思路：zero-arsenal在创建Session时可用'世界类型'（赛博朋克/奇幻/现代/科幻）+ '标签'（多选chip）代替繁琐的文字描述框，降低开局填写负担",
+          "Goose Tips（场景内嵌入工具提示）：在zero-arsenal各空白配置区右侧放置可折叠的'?'提示，第一次展开时显示该字段的作用和填写示例，之后可关闭不再显示",
+          "Memory字段的Placeholder文字策略：zero-arsenal所有多行文本框（世界背景/角色描述）应有具体的placeholder示例，而不是空白或'请输入...'",
+          "Defaults系统：在zero-arsenal的用户设置中加入'新建Session默认值'页，允许用户预设常用AI模型/规则集/世界模板，减少每次创建时的重复配置"
+        ]
+      },
+      "lorebook_ux": {
+        "description": "NovelAI的Lorebook是本次调研中世界构建UX的最佳实践：① Lorebook Quick Access Bar允许在编辑器内直接搜索/编辑条目，无需跳离写作环境；② Lore Generator是真正的AI辅助填充——选类型（Person/Place/Organization/Item）→ 输入名字+描述词（parentheses格式）→ 生成，可多次续写；③ Category系统允许批量设置条目的Insertion Priority，将世界信息按优先级注入AI上下文；④ Subcontext功能将同类条目打包成独立上下文块，避免信息碎片化；⑤ Advanced Conditions支持条目链式触发（条目A激活时才激活条目B）。空状态设计较弱：无引导文字。",
+        "what_zero_arsenal_can_learn": [
+          "在Hub的世界条目列表为空时，显示'创建你的第一个世界元素'分类卡片（角色/地点/派系/规则/物品），点击即进入该类型的新建表单，而不是通用的'+ 新增'按钮",
+          "AI辅助生成世界条目：zero-arsenal创建世界条目时加入'AI帮我生成'按钮，用户选择类型（人物/地点/组织）并输入名字和2-3个关键词，调用LLM填充档案模板，对应现有的add_lore MCP工具",
+          "Quick Access思路映射：zero-arsenal Session页左侧信息面板（如果有的话）加入世界条目快速搜索栏，写作中途可以不切Tab直接查阅/修改角色档案",
+          "条目链式触发（Advanced Conditions）→ zero-arsenal的触发条件规则（如：NPC档案只在该NPC出现时注入context）可以在Session配置中可视化配置，而不是纯代码"
+        ]
+      },
+      "empty_states": [
+        {
+          "location": "故事库为空",
+          "current_design": "仅'New Story'按钮 + 底部'View all Scenarios'",
+          "assessment": "缺少分步引导，空白感较强",
+          "zero_arsenal_application": "zero-arsenal Hub首页Sessions为空时，展示3张场景卡片（'从预设模板开始' / '导入已有角色' / '从空白创建'），引导用户做第一件事"
+        },
+        {
+          "location": "Lorebook为空",
+          "current_design": "只有'+ Add Entry'和'💡 Generate'按钮，无说明",
+          "assessment": "对新手不友好，不知道Lorebook是做什么的",
+          "zero_arsenal_application": "zero-arsenal的世界条目为空时，在空状态区域显示1-2行说明文字（'世界条目在关键词触发时注入AI上下文，让AI记住你的设定'）和分类创建快捷入口"
+        },
+        {
+          "location": "Config Preset选择",
+          "current_design": "下拉列表，无预览",
+          "assessment": "新手不知道每个预设有什么效果",
+          "zero_arsenal_application": "zero-arsenal的AI规则集选择增加鼠标悬停预览卡（显示该预设适合的场景类型和关键参数摘要）"
+        }
+      ],
+      "best_ux_patterns": [
+        {
+          "pattern": "Lore Generator（AI辅助条目生成）",
+          "description": "在Lorebook内，用户选择条目类型（Person/Place/etc）→ 输入名字+括号内的描述词 → 点击Generate，AI根据已有故事上下文生成完整条目内容，可在生成后继续编辑或追加生成。支持Add Context将Memory/Author's Note纳入生成参照。",
+          "priority_for_zero_arsenal": "高",
+          "implementation_effort": "中",
+          "specific_note": "直接对应zero-arsenal的add_lore MCP工具，可以在前端封装一个'AI生成世界条目'按钮调用现有后端能力"
+        },
+        {
+          "pattern": "Genre & Tags作为轻量版故事定向工具",
+          "description": "不是强制的详细配置，而是可选的'方向微调'：选流派 + 输入若干标签，自动组成ATTG格式注入Memory。新手可用它快速建立故事基调，高级用户可完全绕过它手写Memory。",
+          "priority_for_zero_arsenal": "高",
+          "implementation_effort": "小",
+          "specific_note": "zero-arsenal Session创建Step 1可以是'世界标签选择'（多选chip），选完后自动预填充系统提示词的前置内容，用户不需要从零写世界背景描述"
+        },
+        {
+          "pattern": "Goose Tips（场景内嵌上下文帮助）",
+          "description": "在编辑器各关键配置旁显示黄色小提示（带鸭嘴兽图标），内容是该配置的作用和使用技巧，不是枯燥的文档链接。例如Memory旁的Tip是'更新Memory中的关键情节点可以让AI更连贯'。",
+          "priority_for_zero_arsenal": "中",
+          "implementation_effort": "小",
+          "specific_note": "zero-arsenal的角色创建/世界创建表单中的复杂字段（psyche_model_json/capability_cap等）旁添加可折叠的内联Tips，初次打开展开，之后收起不干扰"
+        },
+        {
+          "pattern": "Lorebook Quick Access Bar（不离开编辑器的快速查阅）",
+          "description": "Story Tab顶部有搜索框，实时搜索所有Lorebook条目并可直接编辑条目内容，不需要切换到Lorebook面板（避免离开写作流）。",
+          "priority_for_zero_arsenal": "中",
+          "implementation_effort": "中",
+          "specific_note": "zero-arsenal Session页的NPC/世界信息面板加入搜索栏，写作时直接搜角色名查阅/修改档案，而不是切到Hub页面"
+        }
+      ]
+    }
+  },
+  {
+    "project_id": "B4",
+    "project_name": "Chub.ai",
+    "D03_ia": {
+      "layout_pattern": "三产品线并列：Venus（角色库浏览）+ Mars（对话界面）+ Mercury（高级API平台）。角色卡为核心内容单元，从库浏览到对话是'卡片点击→Mars加载'的跳转模式。Mars对话页：左侧历史消息+输入框，右上角汉堡菜单藏所有设置。",
+      "nav_depth_max": 3
+    },
+    "D04_onboarding": {
+      "first_launch_steps": 4,
+      "notes": "注册仅需邮箱+用户名+密码，3步完成。登录后可立即浏览角色库，但对话需要先在Secrets中配置API Key（这是一个隐藏障碍，新手不知道需要这步）。没有引导流程主动告知用户'你需要先配置API才能聊天'。"
+    },
+    "D13_ux_gaps": {
+      "character_creation_flow": {
+        "steps": 1,
+        "tab_count": 1,
+        "has_ai_assist": false,
+        "has_field_descriptions": true,
+        "description": "角色创建是单页长滚动表单，无步骤分隔，无进度条。分两个逻辑区块：Character Info（元数据）和Character Definition（AI行为定义）。必填字段：Name + Description + Initial Message，共3个。可选字段约10+个（Avatar/Tagline/Tags/Scenario/Example Dialogs/System Prompt/Post Hist Instructions/Character's Note/Character Book/Alternate Greetings等）。每个字段都有简短说明文字（如Description旁写'Describe personality, appearance, backstory—anything goes'）。无AI辅助填写功能（文档明确说明'Chub AI does not auto-generate personality'）。Tags需要至少3个才能在搜索中显示（有隐性完成度激励）。Use V2 Spec.开关解锁高级字段（System Prompt/Post Hist Instructions），是个隐藏的高级模式切换。",
+        "what_zero_arsenal_can_learn": [
+          "必填/可选字段的视觉分层：zero-arsenal角色创建表单将Name+外貌+心理核心（必填）和背景/战斗/关系（可选，默认折叠）分开，降低首次创建的感知工作量",
+          "Initial Message作为必填字段：zero-arsenal角色创建中将'开场白/首条消息'设为必填，强制创建者思考角色如何切入对话，而不是让AI在空白上下文中猜测，对应角色档案的behavior_patterns字段",
+          "Tags最少N个才生效的规则可以转为进度提示：'再添加2个标签，角色将在搜索中可见'——zero-arsenal世界条目创建时类似提示（'再填写2个字段，AI对该角色的理解将显著提升'）",
+          "V2 Spec开关模式：zero-arsenal角色/世界创建表单加入'高级模式'开关，普通模式只显示核心字段，高级模式展开完整的psyche_model_json/capability_cap/knowledge_scope等复杂字段",
+          "字段内联说明文字策略：zero-arsenal每个档案字段下方加一行灰色hint文字（例如capability_cap字段下方写'描述该角色在战斗/技术/感知三个维度的上限，防止AI赋予角色超出设定的能力'）"
+        ]
+      },
+      "session_start_flow": {
+        "steps_from_library": 2,
+        "steps_from_own_character": 2,
+        "description": "从角色库开始对话：1) 点击角色卡上的紫色'Chat with [Name]'按钮；2) Mars对话页加载，Initial Message已显示在对话框中，可直接回复。整个流程极简，角色的首条消息作为'场景代入锚点'立即生效。API未配置时：对话发送后报错，需要进入Secrets配置，无前置引导。场景选择：无独立的场景选择向导，完全依赖角色的Initial Message承载场景设定。Alternate Greetings是唯一的场景变体机制（左右滑动切换不同的开场消息）。",
+        "what_zero_arsenal_can_learn": [
+          "角色卡的主要CTA必须是一个清晰的行动按钮（'开始Session' / '继续上次'），zero-arsenal Hub角色卡目前这个CTA不够显眼",
+          "Initial Message/开场白作为会话的第一条消息立即显示：zero-arsenal新建Session后，NarratorAgent的第一条输出应该来自预设的'开局描述'模板而不是空白等待，让用户感受到即时反馈",
+          "Alternate Greetings（多开场选项）：zero-arsenal创建Session时可以预设3种不同的'开局模式'（如同一世界的不同入场点），玩家开始前可以看到开局摘要并选择，增加复玩性",
+          "API配置的前置检查：zero-arsenal如果LLM连接未配置，在Session开始前主动弹出配置向导而不是等到第一次生成失败后才报错"
+        ]
+      },
+      "chat_tree_discovery": {
+        "description": "View Full Chat Tree入口在汉堡菜单（右上角三条横线）的下拉列表中，是一个文字菜单项，没有图标强化识别。功能介绍：'支持完整树形分支，类似ChatGPT的分支对话，适合CYOA剧本'。功能本身存在但发现路径深：新手不探索汉堡菜单就不会知道有树形视图。树形视图触发后以图形化树状图展示所有分支节点，可以点击任意节点跳转到该对话历史节点。Swipe机制（左右滑动AI回复选择不同版本）是分支树的主要创建入口。",
+        "what_zero_arsenal_can_learn": [
+          "ChapterTree（zero-arsenal已有的回溯功能）应该在Session界面有更明显的入口：目前是hover才出现的↩按钮，应该在工具栏有一个持久可见的'历史分支'图标按钮（树形图标），初次使用时显示tooltip说明功能",
+          "Swipe/重试机制作为分支创建的主流程：zero-arsenal在每条AI输出旁的'重试'按钮应该明确提示'重试将创建新分支，原版本保留'，而不是让用户担心丢失内容",
+          "CYOA场景下的分支树价值宣传：zero-arsenal创建Session时如果选择'互动小说/CYOA'模式，应该主动介绍'每次选择都会保存分支，可随时回溯到任意节点'——让玩家知道这个功能的存在"
+        ]
+      },
+      "community_import": {
+        "steps": 2,
+        "description": "从角色库导入：1) 在角色列表页点击角色卡；2) 点击'Chat'按钮直接开始，无需导入确认步骤。角色即开即用，角色数据在云端。本地修改（在Character Settings中编辑）仅影响自己的对话实例，不影响原始角色卡。标签/分类：支持按Tags/Type/Rating/Trending/Most Downloaded过滤，是发现高质量角色的主要方式。",
+        "what_zero_arsenal_can_learn": [
+          "zero-arsenal应有一个'预设世界/角色模板库'，用户一键复制到自己的项目，而不是从零开始填写所有字段",
+          "社区分享功能：允许用户将自己的世界/角色档案发布为模板，供其他用户一键导入，这是降低新用户上手成本的最有效长期策略"
+        ]
+      },
+      "empty_state_first_use": {
+        "description": "注册后直接进入角色库浏览页，无专属引导。角色库本身内容丰富，新用户可以立刻看到热门角色，几乎没有'空'状态的困惑。对话列表为空时：显示'New Chat'按钮，无引导文字。My Characters为空：显示'Create Character'按钮，无说明。",
+        "key_insight": "Chub.ai通过丰富的社区内容天然消除了空状态问题——用户注册后立刻有东西可以交互。这是zero-arsenal最难复制但最有参考价值的模式。"
+      },
+      "best_ux_patterns": [
+        {
+          "pattern": "Initial Message作为强制开局锚点",
+          "description": "角色创建中，Initial Message是必填字段，是角色开启对话时说的第一句话。这句话决定了整个对话的初始场景和氛围。优秀的Initial Message会包含：场景描写（*Scarlett flutters down...*）、角色动作（用星号包裹）、一个悬念钩子（'And who might you be?'）。Chub文档明确说这是影响对话质量的关键变量。",
+          "priority_for_zero_arsenal": "高",
+          "implementation_effort": "小",
+          "specific_note": "zero-arsenal的Session创建向导中加入'开局场景'必填步骤：选择开局模板（城市接头/废土探索/校园日常）或自定义，这段文字作为NarratorAgent的第一条输出，让玩家立刻置身场景"
+        },
+        {
+          "pattern": "Alternate Greetings（可滑动的多开场选项）",
+          "description": "角色可以有多个Alternate Greetings，玩家在开始对话时可以左右滑动预览不同的开场描述，选择自己喜欢的进入。这既增加了复玩价值，也让创建者可以为不同玩家偏好预设多套开场。",
+          "priority_for_zero_arsenal": "中",
+          "implementation_effort": "中",
+          "specific_note": "zero-arsenal世界创建中允许添加最多3个'开局预设'，新建Session时展示开局卡片供玩家选择，每张卡片显示前100字的场景描述和预期游玩风格标签"
+        },
+        {
+          "pattern": "Macro系统（{{user}}/{{char}}/{{roll:d6}}）",
+          "description": "角色定义中可以用{{user}}代指玩家名，{{char}}代指角色名，{{roll:4d6}}掷骰，甚至支持Handlebars逻辑（{{#if (gte level 1000)}}...{{/if}}）。这使得角色档案成为可复用的活模板而不是静态文本。",
+          "priority_for_zero_arsenal": "中",
+          "implementation_effort": "中",
+          "specific_note": "zero-arsenal的规则文件（rules/*.md）和角色档案模板中引入{{player_name}}/{{world_name}}/{{session_id}}等变量，让模板真正可复用，也为将来的社区分享打基础"
+        },
+        {
+          "pattern": "Chat Memory（AI生成对话摘要作为上下文）",
+          "description": "Mars对话界面的汉堡菜单中有'Chat Memory'功能：用户可以手动输入或让AI自动生成当前对话的摘要，摘要作为额外上下文发送给AI，解决长对话中AI记忆衰减的问题。AI摘要仅压缩context外的旧消息。",
+          "priority_for_zero_arsenal": "高",
+          "implementation_effort": "中",
+          "specific_note": "zero-arsenal的记忆系统（STUB-02中提到的向量引擎）在UI层应有一个'当前Session摘要'面板，显示AI当前记住的关键信息，并提供'刷新摘要'按钮，让玩家感知到AI的记忆状态而不是盲目相信"
+        }
+      ]
+    }
+  },
+  {
+    "project_id": "B5",
+    "project_name": "KoboldCpp",
+    "D03_ia": {
+      "layout_pattern": "单页Web应用（单HTML文件，零依赖）。首次加载显示UI Style选择弹窗。正式界面：中央文本编辑区（主内容）+ 顶部/侧边工具栏（侧边栏模式可选）。设置通过弹出层打开，不是内联侧栏。Settings弹窗内分多个Tab：Appearance/Context/Sampling/Advanced/Experimental。",
+      "nav_depth_max": 2
+    },
+    "D13_ux_gaps": {
+      "first_launch": {
+        "description": "首次打开KoboldAI Lite后，立刻弹出'Pick a UI Style'选择界面，提供4种主题：Aesthetic UI（温暖木质感，适合角色扮演）、Corpo UI（深色商务感）、Classic（传统写作界面）、Messenger（聊天气泡风格）。选完主题后进入'Quick Start - Select A Scenario'界面，可以从内置场景库选择开局场景，勾选'Automatically select AI model'自动匹配最适合的模型。同时弹出Usage Mode选择器，4个选项附有一句话描述：'Story Mode - 最适合小说式写作 / Adventure Mode - 最适合互动小说RPG / Chat Mode - 最适合AI聊天对话 / Instruct Mode - 最适合ChatGPT式任务'。整个流程约3步，无需账号注册，全程本地。",
+        "what_zero_arsenal_can_learn": [
+          "UI主题选择作为Onboarding第一步：zero-arsenal账号注册完成后（或首次进入Hub时），弹出'选择你喜欢的界面风格'，提供3-4个预设主题（暗色/明色/赛博朋克/暖色），立刻让用户产生归属感和个性化感，选择后写入用户配置",
+          "Quick Start场景库：zero-arsenal Hub空状态时提供4-6个官方预设场景卡片（附100字场景介绍+类型标签），用户一键加载完整的世界+角色+开局设定，从第一秒开始就有内容可以玩",
+          "Automatic model selection based on scenario type：zero-arsenal在Session创建时根据选择的世界类型（战斗/日常/悬疑）推荐不同的LLM配置/规则集组合，降低配置决策成本",
+          "Usage Mode一句话描述模式：zero-arsenal的Session类型（单人RP/群组TRPG/写作辅助/沙盒探索）在选择界面各配一句精准的使用场景说明，帮助新用户快速定位自己的需求"
+        ]
+      },
+      "mode_switching": {
+        "description": "4种模式（Story/Adventure/Chat/Instruct）可以在Settings菜单随时切换。切换时显示红色警告文字：'Don't change this halfway through a story!'（中途切换可能损坏故事格式），但不强制阻止。切换后UI会相应变化：Chat模式出现角色名输入框和系统提示字段；Adventure模式改变输入框提示为'What do you do?'；Instruct模式改变输入输出的格式化方式。模式切换不会清空已有文本，但格式标签可能错乱。没有'切换前备份'的引导。",
+        "what_zero_arsenal_can_learn": [
+          "Session内关键配置变更（如世界切换/规则集替换）时显示inline警告'此操作会影响AI对现有对话的理解，建议新建Session'，给用户心理预期而不是事后发现问题",
+          "模式切换后的UI变形策略：zero-arsenal更改Session的游玩模式时，相关输入组件应实时更新（如从'写作模式'切到'对话模式'，输入框的placeholder从'继续叙事...'变为'你对他说...'），增强模式感知",
+          "配置变更保护机制：zero-arsenal对Session内的破坏性变更（重置对话/更换AI模型）加入二次确认对话框，对话框中显示该变更的影响说明，而不是立刻执行"
+        ]
+      },
+      "settings_hierarchy": {
+        "description": "Settings弹窗内的分层策略：Appearance（UI风格/颜色/侧栏模式）→ Context（记忆/世界信息设置）→ Sampling（temperature/top-p等核心参数）→ Advanced（高级参数，默认折叠）→ Experimental（实验性功能，有明确'Use at your own risk'警告）。没有显式的'基础/高级'双模式Toggle，而是通过分组命名和默认折叠状态实现分层。每个参数旁有'?'帮助图标，悬停显示简短说明文字（如'Color Scheme: Set UI color scheme. Does not apply to corpo mode.'）。",
+        "what_zero_arsenal_can_learn": [
+          "Settings分组命名策略：zero-arsenal的Session设置面板（目前较平铺）按'外观' / '对话行为' / 'AI参数' / '高级/实验性'分组，高级和实验性分组默认折叠，折叠时显示简要说明（'高级参数：适合需要精细控制AI输出的用户'）",
+          "每个设置项的'?'帮助图标：zero-arsenal所有设置字段旁加一个小'?'图标，悬停弹出该设置的作用说明和推荐值，比跳转外部文档更流畅",
+          "Experimental区域的Risk警告语：zero-arsenal中确实存在实验性功能（如某些扩展工具）时，用黄色border的折叠区域包裹，折叠标题显示'⚠️ 实验性功能 — 可能影响稳定性'，降低用户无意间打开的风险",
+          "Side Panel Mode Toggle：zero-arsenal的工具栏/设置面板加入'固定显示'选项，在宽屏下可以把信息面板固定在侧边而不是每次点击才弹出，提升高频用户效率"
+        ]
+      },
+      "aesthetic_ui": {
+        "description": "Aesthetic UI是KoboldCpp最受欢迎的主题，专为角色扮演场景优化。定制选项：① 颜色方案下拉选择（Modern/Nostalgia/Tako/Shadow/Candy，5个预设，即选即生效）；② 自定义CSS文本框（高级用户可覆盖任意样式，需要用!important）；③ 自定义壁纸（背景图）；④ 自定义图标（用户和AI头像）；⑤ 侧栏模式（临时弹出 vs 固定显示）；⑥ 黑暗模式开关；⑦ Markdown渲染开关。颜色方案即选即生效，无需保存。Custom CSS存储在浏览器IndexedDB（非JSON存档），存在丢失风险（已知问题）。",
+        "what_zero_arsenal_can_learn": [
+          "颜色主题即选即生效（无需保存按钮）：zero-arsenal的主题切换应该是实时预览，选中即应用，而不是'选择→保存→刷新'三步",
+          "命名主题策略（Modern/Nostalgia/Tako等）：相比数字序号，有名字的主题让用户更容易记住和讨论，zero-arsenal主题应该有名字（如：暗夜城市/古卷纸张/赛博霓虹/清晨咖啡），名字本身传递了使用场景",
+          "自定义CSS入口的价值：zero-arsenal作为React+Tailwind项目，可以在设置中提供CSS变量覆盖输入（而非完整CSS），让高级用户调整主色调/字体大小/边框样式，但比完整CSS更安全和可控",
+          "自定义AI/用户头像：zero-arsenal对话界面的用户消息和AI消息旁加入头像区域，用户可上传自己的头像，AI的头像默认使用当前会话世界的封面图，增强沉浸感"
+        ]
+      },
+      "quick_start_scenarios": {
+        "description": "Quick Start是KoboldCpp内置的场景模板库。从'Scenarios'菜单打开，提供多个预设场景（不同的故事背景和初始提示词）。'Automatically select AI model'选项在选择场景时自动推荐最适合的AI模型，降低模型配置门槛。这是对'没有内容，不知道如何开始'的直接解决方案。",
+        "what_zero_arsenal_can_learn": [
+          "Quick Start场景库是zero-arsenal目前最缺失且最高优先级的功能：在Hub新建Session流程中加入'从官方模板开始'选项，提供至少5个完整预设（附世界设定+2-3个角色+开局场景），覆盖MUV-LUV/高达SEED等已支持的世界扩展",
+          "场景模板的组成：模板不只是描述文字，而是可以直接导入的完整数据包（world_settings + npc_profiles + opening_scene + rule_set），一键导入后立刻可以开始Session"
+        ]
+      },
+      "best_ux_patterns": [
+        {
+          "pattern": "首次启动的UI主题选择弹窗",
+          "description": "第一个交互不是'填写你的名字'或'选择计划'，而是'选择你喜欢的界面风格'。4种风格用截图+名称展示，选完即进入主界面。这让用户第一秒就感受到个性化，建立归属感。",
+          "priority_for_zero_arsenal": "高",
+          "implementation_effort": "小",
+          "specific_note": "在zero-arsenal首次登录后插入一个全屏'选择界面风格'步骤（3-4张主题预览卡），写入localStorage，Hub的背景/字体/强调色随之变化，后续可在设置中更改"
+        },
+        {
+          "pattern": "Mode描述文字（一句话说清适用场景）",
+          "description": "4种Usage Mode各有一句精确的适用场景说明，新手5秒内就能选对。不用文档，不用教程，一句话胜过一段说明。",
+          "priority_for_zero_arsenal": "高",
+          "implementation_effort": "小",
+          "specific_note": "zero-arsenal在新建Session时的类型选择（如果存在的话）为每种类型配一句话描述（'TRPG战役：多玩家参与，有GM角色，支持掷骰和规则裁判' / '单人RP：沉浸式角色扮演，AI全程扮演NPC和世界'等），降低决策成本"
+        },
+        {
+          "pattern": "'Don't change this halfway through a story!'内联警告",
+          "description": "在可能造成负面影响的设置旁直接显示红色警告文字，不是弹窗，不是文档链接，就是一行小字在设置项下方。简单直接，让用户在操作前就知道风险。",
+          "priority_for_zero_arsenal": "高",
+          "implementation_effort": "小",
+          "specific_note": "zero-arsenal所有高风险操作（删除Session/重置对话/更改世界扩展/切换AI模型）的按钮下方或旁边显示一行灰色小字说明操作影响，不需要弹窗，降低操作摩擦的同时保留风险提示"
+        },
+        {
+          "pattern": "Autosave Session + 离开恢复",
+          "description": "设置中有'Autosave Session'开关，开启后退出时自动保存当前故事和所有设置，下次回来自动恢复。还有'Run In Background'防止浏览器标签被挂起。这解决了用户最担心的'会话丢失'焦虑。",
+          "priority_for_zero_arsenal": "高",
+          "implementation_effort": "中",
+          "specific_note": "zero-arsenal的Session应该有明显的自动保存状态指示器（'已自动保存 30秒前'显示在顶部），消除用户的丢失焦虑，同时提供手动'保存检查点'按钮，对应现有的chapter_anchors功能"
+        }
+      ]
+    }
+  }
+]

@@ -1,0 +1,182 @@
+{
+  "timestamp": "20260602_202026",
+  "backend": "http://127.0.0.1:8000",
+  "frontend": "http://localhost:5174",
+  "session_id": "c87ba051-5aa2-4320-a289-0ebcc511ba6a",
+  "results": [
+    {
+      "msg": "GET /health → 200 {'status': 'ok', 'memory': {'mode': 'full', 'available': True, 'reason': ''}}",
+      "ok": true,
+      "ts": "2026-06-02T20:20:26.114396"
+    },
+    {
+      "msg": "GET /api/sessions → 4 个会话",
+      "ok": true,
+      "ts": "2026-06-02T20:20:26.145886"
+    },
+    {
+      "msg": "GET /api/engine/extensions → {'extensions': [{'key': 'crossover', 'name': '综漫无限流', 'description': '玩家作为穿越者进入各种动漫/游戏世界完成主神任务，获得强化点数和技能', 'agent_profile': 'play'}, {'key': 'wuxia', 'name': '武侠江湖', 'description': '传统武侠世界，玩家扮演行走江湖的侠客，修炼内功、闯荡门派', 'agent_profile': 'play'}, {'key': 'infinite_arsenal', 'name': '无限武库', 'description': '高武世界，玩家收集各种武器、法器、神器，通过战斗和探索强化自身', 'agent_profile': 'play'}, {'key': 'gundam_seed', 'name': 'Gundam SEED — CE71', 'description': '宇宙世纪 CE71，血色情人节后半年，协调者与自然人战争', 'agent_profile': 'play'}, {'key': 'muv_luv', 'name': 'MUV-LUV Alternative', 'description': '1998年 BETA 战争世界线，TSF 机甲战斗，高死亡率反乌托邦', 'agent_profile': 'play'}], 'count': 5}",
+      "ok": true,
+      "ts": "2026-06-02T20:20:26.172029"
+    },
+    {
+      "msg": "GET /api/system/info → tools=47 plugins=5 skills=43",
+      "ok": true,
+      "ts": "2026-06-02T20:20:26.187918"
+    },
+    {
+      "msg": "POST /api/sessions → 创建成功 id=c87ba051...",
+      "ok": true,
+      "ts": "2026-06-02T20:20:26.220152"
+    },
+    {
+      "msg": "GET /api/sessions/{id} → E2E测试会话_20260602_202026",
+      "ok": true,
+      "ts": "2026-06-02T20:20:26.237709"
+    },
+    {
+      "msg": "GET /api/engine/skills → 200 数量=43",
+      "ok": true,
+      "ts": "2026-06-02T20:20:26.250740"
+    },
+    {
+      "msg": "GET /api/hooks → 200 数量=2",
+      "ok": true,
+      "ts": "2026-06-02T20:20:26.265282"
+    },
+    {
+      "msg": "POST /message → 202 message_id=ef1d5fdb... stream_url=/api/sessions/c87ba051-5aa2-4320-a289-0ebcc511ba6a/events",
+      "ok": true,
+      "ts": "2026-06-02T20:20:26.295670"
+    },
+    {
+      "msg": "连接 SSE: http://127.0.0.1:8000/api/sessions/c87ba051-5aa2-4320-a289-0ebcc511ba6a/events",
+      "ok": true,
+      "ts": "2026-06-02T20:20:26.295677"
+    },
+    {
+      "msg": "session.idle → agents=['rules', 'dm', 'npc', 'world', 'narrator', 'style', 'var', 'chronicler', 'chronicler']",
+      "ok": true,
+      "ts": "2026-06-02T20:20:50.779436"
+    },
+    {
+      "msg": "叙事文本: 416 字 | 首100字: 驿站老板是个五十来岁的秃顶胖子，围裙上沾满油渍。他一边擦酒杯一边打量你，目光在你衣服的材质上停留了两秒——这地方少见这么规整的布料。  「怪事？多了去了。」他把酒杯搁在吧台上，「三个月前开始，西边那片",
+      "ok": true,
+      "ts": "2026-06-02T20:20:50.779579"
+    },
+    {
+      "msg": "真实LLM管线通过（416字叙事，9个agents，耗时24.5s）",
+      "ok": true,
+      "ts": "2026-06-02T20:20:50.779589"
+    },
+    {
+      "msg": "GET /api/agents/profiles → 200 数量=2",
+      "ok": true,
+      "ts": "2026-06-02T20:20:50.782170"
+    },
+    {
+      "msg": "GET /memory?query=驿站 → 200 记忆数=3",
+      "ok": true,
+      "ts": "2026-06-02T20:20:52.808417"
+    },
+    {
+      "msg": "GET /world-archives → 200 数量=2",
+      "ok": true,
+      "ts": "2026-06-02T20:20:52.832208"
+    },
+    {
+      "msg": "GET /chapters → 200",
+      "ok": true,
+      "ts": "2026-06-02T20:20:52.847535"
+    },
+    {
+      "msg": "GET /asks → 200",
+      "ok": true,
+      "ts": "2026-06-02T20:20:52.874626"
+    },
+    {
+      "msg": "GET /api/tools → 200 数量=?",
+      "ok": true,
+      "ts": "2026-06-02T20:20:52.891031"
+    },
+    {
+      "msg": "POST /api/engine/roll pool=4 → net=1 rolls=[7, 8, 3, 2] verdict=success",
+      "ok": true,
+      "ts": "2026-06-02T20:20:54.922483"
+    },
+    {
+      "msg": "截图: 20260602_202026_01_homepage.png",
+      "ok": true,
+      "ts": "2026-06-02T20:20:56.557299"
+    },
+    {
+      "msg": "首页加载 → body含关键词=True",
+      "ok": true,
+      "ts": "2026-06-02T20:20:56.563005"
+    },
+    {
+      "msg": "首页会话链接数: 20",
+      "ok": true,
+      "ts": "2026-06-02T20:20:56.578988"
+    },
+    {
+      "msg": "截图: 20260602_202026_02_settings.png",
+      "ok": true,
+      "ts": "2026-06-02T20:20:57.204790"
+    },
+    {
+      "msg": "设置页加载 → 含配置关键词=True",
+      "ok": true,
+      "ts": "2026-06-02T20:20:57.207420"
+    },
+    {
+      "msg": "截图: 20260602_202026_03_session_initial.png",
+      "ok": true,
+      "ts": "2026-06-02T20:21:14.340211"
+    },
+    {
+      "msg": "会话页加载 → 含聊天关键词=True",
+      "ok": true,
+      "ts": "2026-06-02T20:21:14.344209"
+    },
+    {
+      "msg": "输入框填充成功 → 截图: 20260602_202026_04_input_filled.png",
+      "ok": true,
+      "ts": "2026-06-02T20:21:14.944630"
+    },
+    {
+      "msg": "点击发送后截图: 20260602_202026_05_after_send.png",
+      "ok": true,
+      "ts": "2026-06-02T20:21:16.543341"
+    },
+    {
+      "msg": "骰子操作截图: 20260602_202026_06_dice.png",
+      "ok": true,
+      "ts": "2026-06-02T20:21:17.661273"
+    },
+    {
+      "msg": "最终状态截图: 20260602_202026_99_final_state.png",
+      "ok": true,
+      "ts": "2026-06-02T20:21:17.726037"
+    },
+    {
+      "msg": "浏览器 UI 测试完成",
+      "ok": true,
+      "ts": "2026-06-02T20:21:17.846715"
+    }
+  ],
+  "screenshots": [
+    "20260602_202026_01_homepage.png",
+    "20260602_202026_02_settings.png",
+    "20260602_202026_03_session_initial.png",
+    "20260602_202026_04_input_filled.png",
+    "20260602_202026_05_after_send.png",
+    "20260602_202026_06_dice.png",
+    "20260602_202026_99_final_state.png"
+  ],
+  "summary": {
+    "total": 32,
+    "passed": 32,
+    "failed": 0
+  }
+}

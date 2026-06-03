@@ -1,0 +1,69 @@
+---
+description: ZeroArsenal SQLite 数据库表结构速查——sessions/messages/message_parts/character_cards/chapters/memory_entries。
+globs: backend/db/**/*.py
+alwaysApply: false
+---
+
+# 数据库 Schema 速查
+
+## 主要表列名
+
+### sessions
+`id, world_plugin, agent_profile, mode, branch_of, branch_label, title, created_at, updated_at, state_json, is_archived, character_id`
+
+### messages
+`id, session_id, role(user/assistant/system/tool), turn_index, phase(p1/p3/p4/meta), agent_id, status(streaming/done/error), created_at, completed_at, tokens_used`
+
+### message_parts
+`id, message_id, session_id, type, content(JSON), status(streaming/done/error), sort_order, metadata(JSON), created_at`
+
+**Part 类型枚举**：`text / reasoning / tool_call / tool_result / dice_result / var_diff / action_options / image / error`
+
+### character_cards（v4 Schema）
+`id, session_id, name, data_json, updated_at`
+
+`data_json` 结构：
+```json
+{
+  "name": "角色名",
+  "attributes": {"strength": 5, "agility": 5, ...},
+  "derived": {"hp": 100, "mp": 50, "inner_force": 0, ...},
+  "skills": [{"name": "...", "level": 1}],
+  "inventory": [{"id": "...", "name": "...", "type": "weapon/item", "quality": "普通/精良/传说"}],
+  "meta": {"realm": "炼气期", "badges": [], "crossover_points": 0, "world_plugin": "wuxia"}
+}
+```
+
+### chapters
+`id, session_id, summary, branch_label, parent_chapter_id, is_consolidated(0/1), end_message_id, chapter_index, key_events(JSON), created_at`
+
+### memory_entries
+`id, session_id, content, tier(core/semantic/episodic), cognitive_partition, source_agent, viewer_agent, created_at`
+
+### world_archives
+`id, session_id, title, content(JSON), archive_type(achievement/location/npc/item/event), created_at, updated_at`
+
+## 数据库操作规范
+
+```python
+# 始终用 async context manager，不要持有连接对象
+from ..db import get_db
+
+async def my_func(session_id: str) -> dict:
+    async with get_db() as db:
+        row = await (await db.execute(
+            "SELECT data_json FROM character_cards WHERE session_id=? "
+            "ORDER BY updated_at DESC LIMIT 1", (session_id,)
+        )).fetchone()
+        if not row:
+            return {}
+        return json.loads(row["data_json"])
+```
+
+## 新增列规范
+
+新列必须同时在两处添加：
+1. `backend/db/schema.py` — `CREATE TABLE` 语句
+2. `backend/db/schema.py` — `MIGRATION_PATCHES_SQL` 列表（`ALTER TABLE ... ADD COLUMN ...`）
+
+`init_db()` 启动时自动执行 migration，已有列的 `ALTER TABLE` 失败会被静默忽略。

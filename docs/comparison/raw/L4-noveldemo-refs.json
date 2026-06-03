@@ -1,0 +1,42 @@
+{
+  "summary": "noveldemo + opencode + pi + superpowers 架构参考扫描结果",
+  "noveldemo": {
+    "dice_engine_loc": 625,
+    "algorithm": "WoD d10骰池：pool颗d10，threshold=8；≥threshold计1成功，10额外+1；1抵消；botch=net≤0且ones≥pool/2。分级：大失败/失败/勉强/成功/大成功/传奇",
+    "comparison_with_zero_arsenal": "zero-arsenal已迁移核心roll_dice_pool；增强seed可复现+HTTP API+LangGraph节点；未迁：完整Character类、CLI先攻/能量/心理子命令",
+    "writing_styles": {
+      "count": 37,
+      "location": "data/文风库/（非writing-styles）",
+      "organization": "README定义四层叠加模型（骨架/节奏/心理/温度/配件）+ 分类表格",
+      "metadata_format": "无YAML frontmatter；每文件# 标题 + XML <writing_style>块；README表格非机器可读",
+      "ui_in_zero_arsenal": "后端已注册37技能，GET /config/writing-styles存在；前端无文风选择器（listWritingStyles未接线，STUB_ANALYSIS标为死API）"
+    },
+    "rules_structure": "rules/写作规则+游戏规则+经济规则+评定规则+世界设定；每规则md有「第0步：必须read规则文件」清单",
+    "portable": ["文风README四层分类→Hub文风选择器分组","roller --narration叙事建议→骰子SSE卡片","JSONL骰子归档→已有dice_log可对齐"]
+  },
+  "opencode": {
+    "tool_registry": "Effect ToolRegistry.Service；tools(model,agent)按模型/特性旗标过滤；plugin.trigger('tool.definition')改写schema",
+    "permission_system": "声明式per-tool allow|ask|deny；运行时permission.asked事件+支持once/always/reject+DB持久；zero-arsenal参考了此设计",
+    "mcp": "完整MCP Service：stdio/HTTP/SSE传输+OAuth+ListTools包装为dynamicTool；比zero-arsenal的MCPToolBridge完整",
+    "portable": ["工具definition钩子","Permission ask事件+前端确认弹窗","MCP OAuth+连接状态UI","按model/agent过滤工具集"]
+  },
+  "pi": {
+    "extension_api": "生命周期事件 + registerTool(TypeBox) + registerCommand + UI dialog/widget",
+    "skill_format": "SKILL.md YAML frontmatter(name,description) + <skill name= location=> XML注入",
+    "convention": "~/.pi/agent/{extensions,agents,prompts} + .pi/agents/*.md项目级",
+    "portable": ["Pi式<skill> XML注入→zero-arsenal skill_loader已部分实现","项目级.zero-arsenal/skills/（已设计）"]
+  },
+  "superpowers": {
+    "skill_format": "极简frontmatter(name+description)+正文XML门禁（HARD-GATE/EXTREMELY-IMPORTANT/SUBAGENT-STOP）",
+    "vs_zero_arsenal": "zero-arsenal frontmatter更丰富（trigger/phases/priority/inject_as/applicable_worlds）；superpowers靠描述自然触发+正文门禁",
+    "key_workflows": ["HARD-GATE模式（无批准禁止执行）","subagent两阶段评审","verification-before-completion（证据先于断言）","brainstorming→plan→subagent→verify链"],
+    "portable": ["HARD-GATE→Rules/Planner Agent「无批准大纲禁止写正文」","verification-before-completion→Calibrator节点","brainstorming Checklist→Hub新弧段向导步骤"]
+  },
+  "cross_project_insights": [
+    "「确定性边界」共有设计哲学：骰子/积分/抽卡由引擎计算，LLM只写叙事",
+    "Skill三代格式：superpowers(极简)⊂pi(XML注入)⊂zero-arsenal(frontmatter调度字段)",
+    "D13最大缺口：noveldemo文风库有完整README taxonomy，zero-arsenal已注册37技能但Hub无文风多选UI",
+    "权限交互opencode领先：zero-arsenal有profile模型但缺ask流",
+    "MCP：opencode生产级；zero-arsenal有bridge但Hub MCP面板仍stub"
+  ]
+}

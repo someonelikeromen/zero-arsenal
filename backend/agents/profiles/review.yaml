@@ -1,0 +1,56 @@
+# AgentProfile: review — 审阅模式
+# 对齐设计文档 10-permission-modes.md
+name: review
+description: "审阅模式：严格只读，显示所有内部信息（含 DM 注释/权限请求）；写操作全部拒绝。"
+max_tokens_per_turn: 4096
+
+visible_part_types:
+  - narrative
+  - dice_roll
+  - state_patch
+  - npc_action
+  - world_event
+  - chapter_end
+  - dm_note
+  - skill_load
+  - compaction
+  - permission_ask
+  - system_grant
+  - action_options
+  - reasoning
+  - tool_call
+
+# review 模式只允许 LLM 调用只读工具
+active_tools:
+  - read_character
+  - get_world_state
+  - search_memory
+  - search_lore
+  - get_chapter_summary
+  - list_npcs
+  - query_world_rules
+  - check_skill_trigger
+  - query_character_summary
+  - generate_action_options
+
+permissions:
+  - pattern: "read_*"
+    action: allow
+  - pattern: "get_*"
+    action: allow
+  - pattern: "list_*"
+    action: allow
+  - pattern: "search_*"
+    action: allow
+  - pattern: "query_*"
+    action: allow
+  - pattern: "check_*"
+    action: allow
+  - pattern: "generate_action_options"
+    action: allow
+  # 所有写操作拒绝（严格只读）
+  - pattern: "*"
+    action: deny
+
+# 当 permissions 列表无匹配时的兜底策略（与 catch-all 保持一致）
+default_permission: deny

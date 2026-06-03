@@ -1,0 +1,88 @@
+{
+  "_comment": "ACG 跨次元来源注册表 —— 记录可抽取物品的 ACG 作品来源与对应的核准类目",
+  "version": "1.0",
+  "sources": [
+    {
+      "source_key": "naruto",
+      "display_name": "火影忍者",
+      "origin_type": "manga",
+      "default_categories": ["ApplicationTechnique", "Weapon"],
+      "example_items": ["木遁秘术·真数千手", "八门遁甲·开", "飞雷神之术", "螺旋丸"]
+    },
+    {
+      "source_key": "fate_stay_night",
+      "display_name": "Fate/stay night",
+      "origin_type": "visual_novel",
+      "default_categories": ["Weapon", "ApplicationTechnique"],
+      "example_items": ["王者之剑 Excalibur", "约束英雄之剑 Caliburn", "骑士之枪 Gáe Bolg", "命运之力 Rule Breaker"]
+    },
+    {
+      "source_key": "jojo_bizarre_adventure",
+      "display_name": "JoJo的奇妙冒险",
+      "origin_type": "manga",
+      "default_categories": ["ApplicationTechnique", "Companion"],
+      "example_items": ["白金之星", "世界", "黄金体验·镇魂曲", "疯狂钻石"]
+    },
+    {
+      "source_key": "fullmetal_alchemist",
+      "display_name": "钢之炼金术师",
+      "origin_type": "manga",
+      "default_categories": ["ApplicationTechnique", "Knowledge"],
+      "example_items": ["炼金术·等价交换", "赤焰炼金术", "冰炼金术"]
+    },
+    {
+      "source_key": "demon_slayer",
+      "display_name": "鬼灭之刃",
+      "origin_type": "manga",
+      "default_categories": ["ApplicationTechnique", "Weapon"],
+      "example_items": ["日之呼吸·全集中", "水之呼吸十二型", "霞之呼吸", "雷之呼吸壹之型·霹雳一闪"]
+    },
+    {
+      "source_key": "hunter_x_hunter",
+      "display_name": "全职猎人",
+      "origin_type": "manga",
+      "default_categories": ["ApplicationTechnique"],
+      "example_items": ["神念体·强化系绝技", "强化系·百分之一倍强化", "具现化系·爱与恨的条件", "变化系·神之左手恶魔之右手"]
+    },
+    {
+      "source_key": "bleach",
+      "display_name": "死神 BLEACH",
+      "origin_type": "manga",
+      "default_categories": ["Weapon", "ApplicationTechnique"],
+      "example_items": ["始解月牙天冲", "卍解·天锁斩月", "卍解·绝刀斩影"]
+    },
+    {
+      "source_key": "one_piece",
+      "display_name": "海贼王",
+      "origin_type": "manga",
+      "default_categories": ["ApplicationTechnique"],
+      "example_items": ["橡皮橡皮果实能力", "海军六式·剃", "海军六式·铁块", "霸王色霸气"]
+    },
+    {
+      "source_key": "my_hero_academia",
+      "display_name": "我的英雄学院",
+      "origin_type": "manga",
+      "default_categories": ["ApplicationTechnique"],
+      "example_items": ["无个性·传承·One For All", "爆轰·爆豪胜己能力", "半冷半热·轰燃"]
+    },
+    {
+      "source_key": "sword_art_online",
+      "display_name": "刀剑神域",
+      "origin_type": "light_novel",
+      "default_categories": ["ApplicationTechnique", "Weapon"],
+      "example_items": ["二刀流·星爆气流斩", "黑暗剑士·三技连击", "月夜黑猫剑技"]
+    }
+  ],
+  "tier_caps": {
+    "naruto": 5,
+    "fate_stay_night": 6,
+    "jojo_bizarre_adventure": 5,
+    "fullmetal_alchemist": 4,
+    "demon_slayer": 4,
+    "hunter_x_hunter": 5,
+    "bleach": 5,
+    "one_piece": 5,
+    "my_hero_academia": 4,
+    "sword_art_online": 3
+  }
+}

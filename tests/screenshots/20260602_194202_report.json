@@ -1,0 +1,187 @@
+{
+  "timestamp": "20260602_194202",
+  "backend": "http://127.0.0.1:8000",
+  "frontend": "http://localhost:5174",
+  "session_id": "2f27ad36-d203-4d5e-a07f-47c1befb466c",
+  "results": [
+    {
+      "msg": "GET /health → 200 {'status': 'ok', 'memory': {'mode': 'full', 'available': True, 'reason': ''}}",
+      "ok": true,
+      "ts": "2026-06-02T19:42:02.102188"
+    },
+    {
+      "msg": "GET /api/sessions → 4 个会话",
+      "ok": true,
+      "ts": "2026-06-02T19:42:02.123032"
+    },
+    {
+      "msg": "GET /api/engine/extensions → {'extensions': [{'key': 'crossover', 'name': '综漫无限流', 'description': '玩家作为穿越者进入各种动漫/游戏世界完成主神任务，获得强化点数和技能', 'agent_profile': 'play'}, {'key': 'wuxia', 'name': '武侠江湖', 'description': '传统武侠世界，玩家扮演行走江湖的侠客，修炼内功、闯荡门派', 'agent_profile': 'play'}, {'key': 'infinite_arsenal', 'name': '无限武库', 'description': '高武世界，玩家收集各种武器、法器、神器，通过战斗和探索强化自身', 'agent_profile': 'play'}], 'count': 3}",
+      "ok": true,
+      "ts": "2026-06-02T19:42:02.147734"
+    },
+    {
+      "msg": "GET /api/system/info → tools=47 plugins=3 skills=43",
+      "ok": true,
+      "ts": "2026-06-02T19:42:02.163608"
+    },
+    {
+      "msg": "POST /api/sessions → 创建成功 id=2f27ad36...",
+      "ok": true,
+      "ts": "2026-06-02T19:42:02.211928"
+    },
+    {
+      "msg": "GET /api/sessions/{id} → E2E测试会话_20260602_194202",
+      "ok": true,
+      "ts": "2026-06-02T19:42:02.233723"
+    },
+    {
+      "msg": "GET /api/engine/skills → 200 数量=43",
+      "ok": true,
+      "ts": "2026-06-02T19:42:02.258220"
+    },
+    {
+      "msg": "GET /api/hooks → 200 数量=2",
+      "ok": true,
+      "ts": "2026-06-02T19:42:02.261151"
+    },
+    {
+      "msg": "POST /message → 202 message_id=5dbf6c0f... stream_url=/api/sessions/2f27ad36-d203-4d5e-a07f-47c1befb466c/events",
+      "ok": true,
+      "ts": "2026-06-02T19:42:02.292770"
+    },
+    {
+      "msg": "连接 SSE: http://127.0.0.1:8000/api/sessions/2f27ad36-d203-4d5e-a07f-47c1befb466c/events",
+      "ok": true,
+      "ts": "2026-06-02T19:42:02.292779"
+    },
+    {
+      "msg": "session.error: At key 'session_id': Can receive only one value per step. Use an Annotated key to handle multiple values.\nFor troubleshooting, visit: https://docs.langchain.com/oss/python/langgraph/errors/INVALID_CONCURRENT_GRAPH_UPDATE",
+      "ok": true,
+      "ts": "2026-06-02T19:42:19.819018"
+    },
+    {
+      "msg": "SSE 超时（110s），停止",
+      "ok": false,
+      "ts": "2026-06-02T19:43:59.895733"
+    },
+    {
+      "msg": "叙事文本: 486 字 | 首100字: 驿站老板是个五十来岁的驼背汉子，脸上刻着风沙磨出的深沟。他正用块脏布擦拭柜台上的陶碗，听到你的问话，手上的动作顿了一下。  「最近？」他把碗放下，目光扫了眼门外黄濛濛的天，「客官是外地来的吧。这地界，",
+      "ok": true,
+      "ts": "2026-06-02T19:43:59.895909"
+    },
+    {
+      "msg": "真实LLM管线通过（486字叙事，7个agents，耗时117.6s）",
+      "ok": true,
+      "ts": "2026-06-02T19:43:59.895921"
+    },
+    {
+      "msg": "GET /api/agents/profiles → 200 数量=2",
+      "ok": true,
+      "ts": "2026-06-02T19:43:59.912028"
+    },
+    {
+      "msg": "GET /memory?query=驿站 → 200 记忆数=3",
+      "ok": true,
+      "ts": "2026-06-02T19:44:01.949612"
+    },
+    {
+      "msg": "GET /world-archives → 200 数量=2",
+      "ok": true,
+      "ts": "2026-06-02T19:44:01.982524"
+    },
+    {
+      "msg": "GET /chapters → 500",
+      "ok": true,
+      "ts": "2026-06-02T19:44:02.025947"
+    },
+    {
+      "msg": "GET /asks → 200",
+      "ok": true,
+      "ts": "2026-06-02T19:44:02.028709"
+    },
+    {
+      "msg": "GET /api/tools → 200 数量=?",
+      "ok": true,
+      "ts": "2026-06-02T19:44:02.032186"
+    },
+    {
+      "msg": "POST /api/engine/roll 2d6 → 结果=? rolls=[]",
+      "ok": true,
+      "ts": "2026-06-02T19:44:04.052097"
+    },
+    {
+      "msg": "截图: 20260602_194202_01_homepage.png",
+      "ok": true,
+      "ts": "2026-06-02T19:44:05.840935"
+    },
+    {
+      "msg": "首页加载 → body含关键词=True",
+      "ok": true,
+      "ts": "2026-06-02T19:44:05.848148"
+    },
+    {
+      "msg": "首页会话链接数: 0",
+      "ok": true,
+      "ts": "2026-06-02T19:44:05.865698"
+    },
+    {
+      "msg": "截图: 20260602_194202_02_settings.png",
+      "ok": true,
+      "ts": "2026-06-02T19:44:06.495522"
+    },
+    {
+      "msg": "设置页加载 → 含配置关键词=True",
+      "ok": true,
+      "ts": "2026-06-02T19:44:06.502023"
+    },
+    {
+      "msg": "截图: 20260602_194202_03_session_initial.png",
+      "ok": true,
+      "ts": "2026-06-02T19:44:23.626585"
+    },
+    {
+      "msg": "会话页加载 → 含聊天关键词=True",
+      "ok": true,
+      "ts": "2026-06-02T19:44:23.630083"
+    },
+    {
+      "msg": "输入框填充成功 → 截图: 20260602_194202_04_input_filled.png",
+      "ok": true,
+      "ts": "2026-06-02T19:44:24.208574"
+    },
+    {
+      "msg": "点击发送后截图: 20260602_194202_05_after_send.png",
+      "ok": true,
+      "ts": "2026-06-02T19:44:25.843415"
+    },
+    {
+      "msg": "骰子操作截图: 20260602_194202_06_dice.png",
+      "ok": true,
+      "ts": "2026-06-02T19:44:26.995755"
+    },
+    {
+      "msg": "最终状态截图: 20260602_194202_99_final_state.png",
+      "ok": true,
+      "ts": "2026-06-02T19:44:27.078084"
+    },
+    {
+      "msg": "浏览器 UI 测试完成",
+      "ok": true,
+      "ts": "2026-06-02T19:44:27.210559"
+    }
+  ],
+  "screenshots": [
+    "20260602_194202_01_homepage.png",
+    "20260602_194202_02_settings.png",
+    "20260602_194202_03_session_initial.png",
+    "20260602_194202_04_input_filled.png",
+    "20260602_194202_05_after_send.png",
+    "20260602_194202_06_dice.png",
+    "20260602_194202_99_final_state.png"
+  ],
+  "summary": {
+    "total": 33,
+    "passed": 32,
+    "failed": 1
+  }
+}

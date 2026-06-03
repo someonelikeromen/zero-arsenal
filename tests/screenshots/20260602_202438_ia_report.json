@@ -1,0 +1,98 @@
+{
+  "timestamp": "20260602_202438",
+  "world_plugin": "infinite_arsenal",
+  "session_id": "59650be5-dd52-4a9e-a9b2-cc79ac8bb2e1",
+  "results": [
+    {
+      "msg": "创建会话 id=59650be5... world_plugin=infinite_arsenal",
+      "ok": true
+    },
+    {
+      "msg": "角色卡 meta.battle_points=? meta.highest_tier=? meta.weapon_mastery=?",
+      "ok": true
+    },
+    {
+      "msg": "初始武器 starter_sword 存在=False",
+      "ok": false
+    },
+    {
+      "msg": "POST /message → 202 message_id=1ef5771f...",
+      "ok": true
+    },
+    {
+      "msg": "session.idle → agents=['dm', 'npc', 'world', 'narrator', 'style', 'var', 'chronicler', 'chronicler']",
+      "ok": true
+    },
+    {
+      "msg": "叙事: 369字 | 首100字: 铁质长剑出鞘时带着一声沉闷的金属摩擦声。你弓步踏前，剑尖直刺向蜥蜴的咽喉——那位置甲片较薄，是多数鳞甲生物的弱点。  剑锋距离目标还有三尺时，你尝试调动那道若有若无的「共鸣」。铁剑的表面泛起一层肉眼几",
+      "ok": true
+    },
+    {
+      "msg": "管线通过（369字，8个agents，21.3s）",
+      "ok": true
+    },
+    {
+      "msg": "角色库存 inventory=0件 weapons=0件",
+      "ok": true
+    },
+    {
+      "msg": "骰子 pool=5 → net=3 rolls=[7, 8, 10, 4, 7] verdict=success",
+      "ok": true
+    },
+    {
+      "msg": "GET /world-archives → 200 数量=2",
+      "ok": true
+    },
+    {
+      "msg": "GET /memory?query=长剑 → 200 记忆数=3",
+      "ok": true
+    },
+    {
+      "msg": "GET /chapters → 200 章节数=1",
+      "ok": true
+    },
+    {
+      "msg": "截图: 20260602_202438_ia_01_homepage.png",
+      "ok": true
+    },
+    {
+      "msg": "首页含 infinite_arsenal 选项=True",
+      "ok": true
+    },
+    {
+      "msg": "截图: 20260602_202438_ia_02_session.png",
+      "ok": true
+    },
+    {
+      "msg": "叙事内容可见=True",
+      "ok": true
+    },
+    {
+      "msg": "属性/骰子面板可见=True",
+      "ok": true
+    },
+    {
+      "msg": "输入框填充截图: 20260602_202438_ia_03_input.png",
+      "ok": true
+    },
+    {
+      "msg": "最终截图: 20260602_202438_ia_99_final.png",
+      "ok": true
+    },
+    {
+      "msg": "浏览器 UI 测试完成",
+      "ok": true
+    }
+  ],
+  "screenshots": [
+    "20260602_202438_ia_01_homepage.png",
+    "20260602_202438_ia_02_session.png",
+    "20260602_202438_ia_03_input.png",
+    "20260602_202438_ia_99_final.png"
+  ],
+  "summary": {
+    "total": 20,
+    "passed": 19,
+    "failed": 1
+  }
+}

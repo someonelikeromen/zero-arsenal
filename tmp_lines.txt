@@ -1,0 +1,42 @@
+﻿279 瑜版挸澧?DM 娴犲懘鈧俺绻冨銉ュ徔 `read_character`/`get_world_state` 閹稿娓堕弻銉嚄閿涘本妫ょ紒鐔剁妫板嫭鏁為崗銉ょ瑐娑撳鏋冮妴?
+280 
+281 ### D11 閳?濡€崇础閸掑洦宕查崫宥呯安缂傚搫鐨?previous_mode / active_tools閿涘牅缍嗘导妯哄帥缁狙嶇礆
+282 
+283 `PATCH /sessions/{id}/mode` 閸濆秴绨叉禒鍛扮箲閸?`{status:"ok"}`閿涘瞼宸辩亸?`previous_mode` 閸?`active_tools`閿涘苯澧犵粩顖涙￥濞夋洖甯€涙劖娲?
+284 
+285 ---
+286 
+287 ## 閸氬嫮娣惔锕€澧挎担娆忔▕鐠烘繆顕涢幆鍜冪礄閹镐胶鐢婚弴瀛樻煀閿?
+288 
+289 ### 1. 缁崵绮洪弸鑸电€?
+290 
+291 | 缂傚搫銇戞い?| 娴兼ê鍘涚痪?|
+292 |--------|--------|
+293 | 閴?`api/routers/` 閹峰棗鍨庨敍鍧畂utes.py ~1500+ 鐞涘矉绱?| 娑?|
+294 | 閴?`engine/psyche.py`閵嗕梗prompt_assembler.py` | 娴?|
+295 | `engine/combat.py` | 娴?|
+296 | `bus/event_types.py` + `bus/sse_adapter.py`閿涘湯SE 闁槒绶畵灞芥躬 routers/stream.py閿?| 娴?|
+297 | `db/migrations/` Alembic 閻楀牊婀伴弽?| 娴?|
+298 | `skills/watcher.py` watchdog 閻戭厼濮炴潪鏂ょ礄閸欘亝婀?rules_loader 閺?watchfiles閿?| 娴?|
+299 | 閺傚洭顥撴惔鎾圭熅瀵板嫸绱欑拋鎹愵吀閿涙碍鐗撮惄顔肩秿 `writing-styles/`閿涙稑鐤勯悳甯窗`backend/data/writing-styles/`閿?| 娴?|
+300 
+301 ---
+302 
+303 ### 2. Agent 缁崵绮?
+304 
+305 | 缂傚搫銇戞い?| 娴兼ê鍘涚痪?|
+306 |--------|--------|
+307 | 閴?`TurnContext` 鐞?`active_skills`閵嗕梗warnings`閵嗕梗chapter_anchor_id` | 娑?|
+308 | `AgentState` TypedDict vs `TurnContext` dataclass 鐎瑰本鏆ｇ€靛綊缍?| 娴?|
+309 | 閴?Rules `hard_block` 缂佸牊鈧礁灏崚鍡礄vs 閺咁噣鈧?block閿?| 娴?|
+310 | NPC 楠炶泛褰傜€?Session閿涘牐顔曠拋陇顩﹀Ч鍌涚槨娑?NPC 閻欘剛鐝?tool_loop閿涘苯缍嬮崜宥勮礋閸氬牆鑻熼幍褑顢戦敍澧?娴?|
+311 
+312 ---
+313 
+314 ### 3. 閹碘晛鐫嶇化鑽ょ埠
+315 
+316 | 缂傚搫銇戞い?| 娴兼ê鍘涚痪?|
+317 |--------|--------|
+318 | 鐎瑰本鏆?SkillRegistry watcher閿涘潟mportlib.reload 閻戭厼濮炴潪鏂ょ礆 | 娴?|
+319 | WorldPlugin 閻欘剛鐝涢柊宥囩枂閻╊喖缍嶉敍鍧v_luv/閵嗕宫undam_seed/ 缁涘绱殀 娴?|
+320 

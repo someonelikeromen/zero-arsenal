@@ -1,0 +1,15 @@
+{
+  "id": "template",
+  "display_name": "模板世界（骨架）",
+  "version": "0.1.0",
+  "description": "扩展骨架模板。复制本目录、去掉目录名前缀下划线后即可被加载器发现。",
+  "type": "world_plugin",
+  "min_engine_version": "0.1.0",
+  "author": "your-name",
+  "tags": ["template", "example"],
+  "entry_points": {
+    "plugin": "plugin.py",
+    "tools": "tools.py",
+    "hooks": "hooks.py"
+  }
+}

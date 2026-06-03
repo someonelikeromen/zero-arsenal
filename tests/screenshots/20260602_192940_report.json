@@ -1,0 +1,49 @@
+{
+  "timestamp": "20260602_192940",
+  "backend": "http://127.0.0.1:8000",
+  "frontend": "http://localhost:5174",
+  "session_id": null,
+  "results": [
+    {
+      "msg": "GET /health → 200 {'status': 'ok', 'memory': {'mode': 'full', 'available': True, 'reason': ''}}",
+      "ok": true,
+      "ts": "2026-06-02T19:29:40.158513"
+    },
+    {
+      "msg": "GET /api/sessions → 4 个会话",
+      "ok": true,
+      "ts": "2026-06-02T19:29:40.166811"
+    },
+    {
+      "msg": "GET /api/engine/extensions → {'extensions': [{'key': 'crossover', 'name': '综漫无限流', 'description': '玩家作为穿越者进入各种动漫/游戏世界完成主神任务，获得强化点数和技能', 'agent_profile': 'play'}, {'key': 'wuxia', 'name': '武侠江湖', 'description': '传统武侠世界，玩家扮演行走江湖的侠客，修炼内功、闯荡门派', 'agent_profile': 'play'}, {'key': 'infinite_arsenal', 'name': '无限武库', 'description': '高武世界，玩家收集各种武器、法器、神器，通过战斗和探索强化自身', 'agent_profile': 'play'}], 'count': 3}",
+      "ok": true,
+      "ts": "2026-06-02T19:29:40.185169"
+    },
+    {
+      "msg": "GET /api/system/info → tools=47 plugins=3 skills=43",
+      "ok": true,
+      "ts": "2026-06-02T19:29:40.200499"
+    },
+    {
+      "msg": "POST /api/sessions → 创建成功 id=874f73ad...",
+      "ok": true,
+      "ts": "2026-06-02T19:29:40.245613"
+    },
+    {
+      "msg": "GET /api/sessions/{id} → E2E测试会话_20260602_192940",
+      "ok": true,
+      "ts": "2026-06-02T19:29:40.261343"
+    },
+    {
+      "msg": "API Smoke 测试失败: 'list' object has no attribute 'get'",
+      "ok": false,
+      "ts": "2026-06-02T19:29:40.264502"
+    }
+  ],
+  "screenshots": [],
+  "summary": {
+    "total": 7,
+    "passed": 6,
+    "failed": 1
+  }
+}

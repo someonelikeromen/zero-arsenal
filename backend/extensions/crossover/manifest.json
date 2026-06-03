@@ -1,0 +1,15 @@
+{
+  "id": "crossover",
+  "display_name": "综漫无限流",
+  "version": "1.0.0",
+  "description": "综漫无限流世界插件：SP 经济、徽章体系、跨界事件、10 维属性。",
+  "type": "world_plugin",
+  "min_engine_version": "0.1.0",
+  "author": "built-in",
+  "tags": ["crossover", "economy", "action"],
+  "entry_points": {
+    "plugin": "plugin.py",
+    "tools": "tools.py",
+    "hooks": "hooks.py"
+  }
+}

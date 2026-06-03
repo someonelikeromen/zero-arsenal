@@ -1,0 +1,31 @@
+﻿Total lines: 604
+575 
+576 ---
+577 
+578 ## 瀹告彃鐣幋鎰般€嶇拋鏉跨秿閿?026-06-01 缁楊剙宕勬禍宀冪枂娣囶喖顦?P22-P27閿?
+579 
+580 | 娣囶喖顦查崘鍛啇 | 濞戝寮烽弬鍥︽ |
+581 |---------|---------|
+582 | P22: AgentProfile.default_permission 鐎涙顔岄敍鍫熸￥閸栧綊鍘ら弮?fallback閿?| ackend/agents/permission.py |
+583 | P22: plan ctive_tools 閸?
+584 ead_chapter/outline_chapter | ackend/agents/permission.py |
+585 | P22: review ctive_tools 閸?
+586 ead_chapter/style_check/purity_check | ackend/agents/permission.py |
+587 | P22: PLAY/PLAN/REVIEW_PROFILE 閸氬嫯鍤滈弰鎯х础婢圭増妲?default_permission | ackend/agents/permission.py |
+588 | P23: PromptRegistry.build(phase, agent_id, state) 閳?list[dict] | ackend/prompts/registry.py |
+589 | P23: 閸氬牆鑻?system/user frags 娑?OpenAI messages 閺嶇厧绱￠敍瀹巙dit_log 閺€顖涘瘮 | ackend/prompts/registry.py |
+590 | P24: 閺傛澘缂?indSSEToStores.ts閿涘本褰侀崣?SSE onEvent switch-case | rontend/src/lib/bindSSEToStores.ts |
+591 | P24: SessionPage.tsx 閺€鍦暏 createSSEHandler(deps) 鐠嬪啰鏁?| rontend/src/pages/SessionPage.tsx |
+592 | P24: session.mode_changed 婢跺嫮鎮婇崳銊︽暜閹?previous_mode/ctive_tools | rontend/src/lib/bindSSEToStores.ts |
+593 | P25: CharacterStore 閸?snapshotHistory: CharacterSnapshot[] | rontend/src/stores/character.ts |
+594 | P25: pplyPatch 閼奉亜濮╅幒銊ュ弳韫囶偆鍙庨敍鍦玁APSHOT_LIMIT=20閿?| rontend/src/stores/character.ts |
+595 | P25: 閺傛澘顤?pushSnapshot / 
+596 estoreSnapshot / clearSnapshots 閺傝纭?| rontend/src/stores/character.ts |
+597 | P26: 閺傛澘缂?IEventBus 閹跺€熻杽閹恒儱褰涢敍鍧卋stract publish/subscribe/...閿?| ackend/bus/interface.py |
+598 | P26: 閺傛澘缂?RedisEventBus 鐎圭偟骞囧鈺嬬礄Redis Pub/Sub閿涘苯鎯堥張顒€婀撮梼鐔峰灙閸掑棗褰傞敍?| ackend/bus/redis_bus.py |
+599 | P26: us/__init__.py 閹?REDIS_URL 閻滎垰顣ㄩ崣姗€鍣洪懛顏勫З閸掑洦宕?bus 鐎圭偟骞?| ackend/bus/__init__.py |
+600 | P27: 10-permission-modes.md asks 鐠侯垰绶為弴瀛橆劀娑?/asks/{ask_id} | docs/design/10-permission-modes.md |
+601 | P27: 濡€崇础閸掑洦宕查幒銉ュ經閺傚洦銆傞弨閫涜礋 PATCH閿涘矁藟閸?GET/POST asks 閹恒儱褰涢弬鍥ㄣ€?| docs/design/10-permission-modes.md |
+602 | P27: GAP_ANALYSIS 閺囧瓨鏌婇懛宕囶儑閸椾椒绨╂潪顕嗙礉鐎瑰本鍨氭惔锔剧叐闂冨灚娲块弬?| GAP_ANALYSIS.md |
+603 
+604 

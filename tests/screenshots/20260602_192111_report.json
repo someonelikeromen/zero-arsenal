@@ -1,0 +1,34 @@
+{
+  "timestamp": "20260602_192111",
+  "backend": "http://127.0.0.1:8000",
+  "frontend": "http://localhost:5174",
+  "session_id": null,
+  "results": [
+    {
+      "msg": "GET /health → 200 {'status': 'ok'}",
+      "ok": true,
+      "ts": "2026-06-02T19:21:11.879475"
+    },
+    {
+      "msg": "GET /api/sessions → 8 个会话",
+      "ok": true,
+      "ts": "2026-06-02T19:21:11.901537"
+    },
+    {
+      "msg": "GET /api/engine/extensions → {'extensions': [{'key': 'crossover', 'name': '综漫无限流', 'description': '玩家作为穿越者进入各种动漫/游戏世界完成主神任务，获得强化点数和技能', 'agent_profile': 'play'}, {'key': 'wuxia', 'name': '武侠江湖', 'description': '传统武侠世界，玩家扮演行走江湖的侠客，修炼内功、闯荡门派', 'agent_profile': 'play'}, {'key': 'infinite_arsenal', 'name': '无限武库', 'description': '高武世界，玩家收集各种武器、法器、神器，通过战斗和探索强化自身', 'agent_profile': 'play'}], 'count': 3}",
+      "ok": true,
+      "ts": "2026-06-02T19:21:11.933081"
+    },
+    {
+      "msg": "API Smoke 测试失败: HTTPConnectionPool(host='127.0.0.1', port=8000): Read timed out. (read timeout=5)",
+      "ok": false,
+      "ts": "2026-06-02T19:21:16.963309"
+    }
+  ],
+  "screenshots": [],
+  "summary": {
+    "total": 4,
+    "passed": 3,
+    "failed": 1
+  }
+}

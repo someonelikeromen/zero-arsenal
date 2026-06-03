@@ -1,0 +1,84 @@
+{
+  "agents": {
+    "rules": {
+      "provider": "deepseek",
+      "model": "deepseek-chat",
+      "temperature": 0.2,
+      "max_tokens": 512,
+      "description": "规则校验与骰子判定"
+    },
+    "dm": {
+      "provider": "deepseek",
+      "model": "deepseek-chat",
+      "temperature": 0.3,
+      "max_tokens": 768,
+      "description": "DM门禁：行动合法性验证"
+    },
+    "npc": {
+      "provider": "deepseek",
+      "model": "deepseek-chat",
+      "temperature": 0.8,
+      "max_tokens": 512,
+      "description": "NPC行为与台词"
+    },
+    "world": {
+      "provider": "deepseek",
+      "model": "deepseek-chat",
+      "temperature": 0.7,
+      "max_tokens": 512,
+      "description": "世界演变与沙盒推演"
+    },
+    "narrator_plan": {
+      "provider": "deepseek",
+      "model": "deepseek-chat",
+      "temperature": 0.3,
+      "max_tokens": 512,
+      "description": "叙事规划阶段P1（非流式）"
+    },
+    "narrator_write": {
+      "provider": "deepseek",
+      "model": "deepseek-chat",
+      "temperature": 0.85,
+      "max_tokens": 2048,
+      "description": "正文生成阶段P3（流式）"
+    },
+    "narrator_var": {
+      "provider": "deepseek",
+      "model": "deepseek-chat",
+      "temperature": 0.2,
+      "max_tokens": 1024,
+      "description": "变量结算阶段P4（流式）"
+    },
+    "style": {
+      "provider": "deepseek",
+      "model": "deepseek-chat",
+      "temperature": 0.5,
+      "max_tokens": 256,
+      "description": "文风润色与purity_check"
+    },
+    "chronicler": {
+      "provider": "deepseek",
+      "model": "deepseek-chat",
+      "temperature": 0.4,
+      "max_tokens": 1024,
+      "description": "章节固化与记忆压缩"
+    },
+    "memory_extract": {
+      "provider": "deepseek",
+      "model": "deepseek-chat",
+      "temperature": 0.3,
+      "max_tokens": 512,
+      "description": "记忆提取队列"
+    }
+  },
+  "providers": {
+    "deepseek": {
+      "api_base": "https://api.deepseek.com/v1",
+      "api_key_env": "DEEPSEEK_API_KEY"
+    },
+    "openai": {
+      "api_base": "https://api.openai.com/v1",
+      "api_key_env": "OPENAI_API_KEY"
+    }
+  }
+}

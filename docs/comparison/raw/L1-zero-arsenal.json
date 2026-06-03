@@ -1,0 +1,365 @@
+{
+  "project_id": "A1",
+  "project_name": "zero-arsenal",
+  "D01_architecture": {
+    "layer_clarity": "4/5 — backend 分层清晰：api/（REST+SSE）→ agents/（LangGraph）→ engine/（骰子/VM）→ memory/ → extensions/ → bus/ → db/；frontend 为 pages + components/parts + stores + lib。main.py lifespan 集中做启动编排，略偏「上帝入口」但未形成严重混乱。",
+    "coupling": "中 — 典型案例：main.py lifespan 直接 import extension_loader、hook_manager、skill_registry 做注册；memory/adapter 与 agents/llm 互依；extensions 通过 registry 注入 tools/agents/hooks，方向合理。未发现明显 Python 循环 import 证据，但 api 路由与 agents 节点间通过 bus 事件隐式耦合。frontend stores 与 SessionPage 通过 bindSSEToStores 集中耦合，可维护。",
+    "test_coverage": "偏低（估计整体 <25% LOC）。tests/ 含：unit/test_p1_gacha.py、test_p2_extension_loader.py、test_p3_parttype.py、test_p4_memory.py、test_p5_dm.py；integration/test_memory_endpoints.py；e2e/test_homepage_hub.py、test_browser_e2e.py、test_infinite_arsenal.py；test_live_generation.py、test_round10_quick.py。",
+    "error_handling": "HTTP：FastAPI HTTPException + main.py 全局处理器。LLM：litellm + asyncio.wait_for 超时；rules_agent LLM 失败默认 pass（安全风险）。DB：get_db 上下文管理。SSE：session.error / agent.error 事件；前端 10s 超时解锁。Redis bus 为 stub。",
+    "async_model": "全栈 async：FastAPI async 路由；LangGraph StateGraph 串行 rules→dm→parallel_npc_world→narrator→style→var→chronicler；SSE fire-and-forget；memory ExtractQueue 后台 worker。",
+    "scale": {
+      "backend_files": 114,
+      "frontend_files": 45,
+      "loc_estimate": "约 28k–35k"
+    }
+  },
+  "D02_design": {
+    "design_docs": [
+      "docs/design/00-README.md",
+      "docs/design/01-project-analysis.md",
+      "docs/design/02-system-architecture.md",
+      "docs/design/03-agent-system.md",
+      "docs/design/04-extension-system.md",
+      "docs/design/05-prompt-architecture.md",
+      "docs/design/06-data-model.md",
+      "docs/design/07-tool-registry.md",
+      "docs/design/08-memory-system.md",
+      "docs/design/09-event-bus-sse.md",
+      "docs/design/10-permission-modes.md",
+      "docs/design/11-api-design.md",
+      "docs/design/12-frontend-architecture.md"
+    ],
+    "core_principles": [
+      "扩展零侵入",
+      "三级覆盖（内置<用户<项目）",
+      "骰子先于叙事、Style门控",
+      "Part 状态机 + SSE 差分推送",
+      "AgentProfile 权限 play/plan/review"
+    ],
+    "constraints": "骰子结果不可被叙事篹改；JSONL 审计只追加；review 模式禁止掷骰/写叙事；STUB_ANALYSIS.md 列 151 处差距。",
+    "domain_model_clarity": "4/5"
+  },
+  "D03_ia": {
+    "nav_depth_max": 2,
+    "hub_tabs": [
+      "sessions",
+      "worlds",
+      "characters",
+      "assets",
+      "archives",
+      "prompts",
+      "settings"
+    ],
+    "session_layout": "三栏：左 ChapterTree | 中 MessageThread+InputBar | 右 dice/character/world/memory/history 标签面板",
+    "search_implemented": true,
+    "filter_implemented": true
+  },
+  "D04_onboarding": {
+    "empty_state_sessions": "部分 — 仅当 worlds+characters 皆空时显示提示，无已有会话列表，历史在「存档」 Tab",
+    "empty_state_characters": "有/基础 — 「暂无人物模板」+「创建第一个人物」按鈕",
+    "empty_state_worlds": "有/基础 — 「暂无世界模板」+创建按鈕",
+    "guided_flow": "无 — 无首次启动 Onboarding、无演示数据、无多步开局向导",
+    "tooltip_coverage": "部分 — 多为原生 title= 属性；无统一 Tooltip 组件；表单字段几乎无说明文案",
+    "error_message_quality": "3/5",
+    "steps_to_first_use": 5
+  },
+  "D05_customization": {
+    "theme_support": "ui store 支持 dark|light 但 CSS 固定暗色，setTheme 未被任何组件调用",
+    "dark_mode": "部分 — 默认暗色完整；浅色模式未接线",
+    "llm_providers": [
+      "deepseek（默认）",
+      "openai（支持）",
+      "litellm 可扩展"
+    ],
+    "data_export": "部分 — SessionManager 下载 JSON；无批量导出；无 SillyTavern 卡导出",
+    "advanced_params": "SettingsPage LlmRoutesTab 可编辑每 Agent 的 provider/model/temperature/max_tokens"
+  },
+  "D06_completeness": {
+    "session_management": "△ — 后端完整；前端会话Tab只创建不列表，历史在存档Tab",
+    "multi_agent_pipeline": "✓ — graph.py 8节点完整实现",
+    "dice_engine": "✓ — d10池、seed可复现、JSONL归档",
+    "memory_archive": "△ — 四层召回实现；ChromaDB降级SQLite；无归档进度；Redis stub",
+    "world_plugin": "△ — crossover/wuxia/infinite_arsenal较完整；muv_luv/gundam_seed有STUB",
+    "streaming_ui": "✓ — SSE + PartRenderer 17种Part类型",
+    "hub_ui": "△ — 七Tab功能齐但信息架构分散",
+    "mcp_integration": "△ — 后端有；无前端MCP管理UI",
+    "settings_ui": "△ — 七子Tab；无主题/文风选择"
+  },
+  "D07_streaming": {
+    "part_types": [
+      "narrative",
+      "text",
+      "dm_note",
+      "dice_roll",
+      "state_patch",
+      "npc_action",
+      "world_event",
+      "reasoning",
+      "tool_call",
+      "tool_result",
+      "var_diff",
+      "chapter_end",
+      "permission_ask",
+      "compaction",
+      "skill_load",
+      "system_grant",
+      "action_options"
+    ],
+    "interrupt_retry": "部分 — 无取消生成按鈕；10s超时解锁；SSE续传stub",
+    "loading_state": "InputBar显示Agent名+脉冲点",
+    "long_response_org": "Part分块；reasoning/tool可折叠；compaction显示token压缩摘要"
+  },
+  "D08_user_tiers": {
+    "casual_usability": "2/5 — 无教程，TRPG术语未解释",
+    "power_user_controls": "Settings LLM路由编辑、PromptManager、ScraperRulesPanel、OOC斜杠命令、API /docs",
+    "permission_system": "play/plan/review 三模式；可选 Bearer API"
+  },
+  "D09_dev_experience": {
+    "extension_structure": "backend/extensions/<id>/manifest.json + plugin.py + tools.py + hooks.py + skills/",
+    "min_extension_files": [
+      "manifest.json",
+      "plugin.py"
+    ],
+    "dev_docs": "部分 — docs/design/04-extension-system.md详尽；无独立CONTRIBUTING",
+    "hot_reload": "部分 — watchfiles监启skills；生产需重启",
+    "debug_tools": "FastAPI /docs、pytest套件、e2e截图"
+  },
+  "D10_deployment": {
+    "install_steps": 6,
+    "dependency_lock": "pyproject.toml >= 范围；package.json ^ 版本"
+  },
+  "notable_findings": [
+    "useUIStore.addNotification 已实现但全项目无调用 — Toast基础设施闲置",
+    "theme dark/light store存在但无UI切换，CSS固定暗色",
+    "38个writing-styles在backend/data/注册为Skill，前端无文风选择器",
+    "Hub会话Tab只创建不列表，历史在存档Tab — 易困惑",
+    "CharacterCreator有5步向导，会话创建无对等向导",
+    "rules_agent LLM失败默认pass（STUB-03，安全风险）"
+  ],
+  "borrow_worthy_patterns": [
+    "bindSSEToStores 将BusEvent与Zustand解耦",
+    "PartRenderer高频直引+低频React.lazy分层",
+    "parallel_npc_world asyncio.gather+return_exceptions降级",
+    "三级扩展发现+manifest声明式加载",
+    "LlmRoutesTab运行时PUT改路由无需重启"
+  ],
+  "D13_ux_gaps": {
+    "wizard_flows": [
+      {
+        "feature": "会话开局向导",
+        "our_status": "基础版",
+        "what_exists": "单页表单：world_plugin下拉+可选world/character，无开场生成",
+        "what_missing": "多步向导、开场情境设定、自动首条叙事生成、从模板预览",
+        "portability": "前身项目可移植",
+        "improvement_suggestion": "SessionWizard 4步组件"
+      },
+      {
+        "feature": "角色创建向导",
+        "our_status": "完整",
+        "what_exists": "CreatorModal 5步状态机（quick/quiz/background→填表→SSE→预览→保存）",
+        "what_missing": "预设角色卡库、SillyTavern PNG/JSON导入",
+        "portability": "自研增强"
+      },
+      {
+        "feature": "世界创建向导",
+        "our_status": "基础版",
+        "what_exists": "WorldManager Modal manual/url/doc三Tab+LorePreview",
+        "what_missing": "世界类型模板（武侠/机战）一键骨架、分步向导",
+        "portability": "前身项目参考"
+      },
+      {
+        "feature": "导入向导",
+        "our_status": "无",
+        "what_exists": "仅API层JSON、无拖放区",
+        "what_missing": "拖放区、格式检测、预览与字段映射",
+        "portability": "竞品借鉴"
+      }
+    ],
+    "empty_states": [
+      {
+        "location": "Hub会话Tab",
+        "our_status": "基础版",
+        "description": "无会话列表；worlds+characters皆空时一行提示"
+      },
+      {
+        "location": "Hub存档Tab",
+        "our_status": "基础版",
+        "description": "居中灰字「暂无会话存档」；无插图无CTA"
+      },
+      {
+        "location": "Hub人物Tab",
+        "our_status": "有/基础",
+        "description": "「暂无人物模板」+创建按鈕"
+      },
+      {
+        "location": "Hub世界Tab",
+        "our_status": "有/基础",
+        "description": "「暂无世界模板」+创建按鈕"
+      },
+      {
+        "location": "Session ChapterTree",
+        "our_status": "基础版",
+        "description": "「暂无章节」— 未解释需玩若干回合后固化"
+      },
+      {
+        "location": "Settings各Tab",
+        "our_status": "基础版",
+        "description": "纯文本，无配置引导链接"
+      }
+    ],
+    "contextual_help": [
+      {
+        "feature": "表单字段Tooltip",
+        "our_status": "无/基础",
+        "what_exists": "少量 title属性",
+        "what_missing": "术语表、?图标、FieldHint组件"
+      },
+      {
+        "feature": "危险操作二次确认",
+        "our_status": "基础版",
+        "what_exists": "window.confirm删会话/世界/人物等",
+        "what_missing": "统一ConfirmDialog、回溯显示将删除条数"
+      },
+      {
+        "feature": "系统状态可见",
+        "our_status": "部分",
+        "what_exists": "Settings可查；compaction Part显示token",
+        "what_missing": "Session顶栏当前model、本回合token估算"
+      }
+    ],
+    "templates_presets": [
+      {
+        "feature": "预设角色卡",
+        "our_status": "无",
+        "what_exists": "create_default_character后端默认",
+        "what_missing": "内置可玩示例卡"
+      },
+      {
+        "feature": "世界模板快速选择",
+        "our_status": "部分",
+        "what_exists": "world_plugin枚举",
+        "what_missing": "营销式卡片+预罪lore包"
+      },
+      {
+        "feature": "37+文风UI",
+        "our_status": "无",
+        "what_exists": "38个md文件注册为Skill，无前端入口",
+        "what_missing": "Session文风多选器、预览、与narrator绑定"
+      },
+      {
+        "feature": "提示词模板库",
+        "our_status": "部分",
+        "what_exists": "PromptManager按agent编辑",
+        "what_missing": "社区市场、版本对比、场景标签"
+      }
+    ],
+    "feedback_transparency": [
+      {
+        "feature": "Toast通知",
+        "our_status": "无",
+        "what_exists": "useUIStore.addNotification已定义但无调用",
+        "what_missing": "成功/失败Toast UI + 自动消失"
+      },
+      {
+        "feature": "Agent节点进度",
+        "our_status": "基础版",
+        "what_exists": "SSE agent.started/ended→InputBar显示Agent名",
+        "what_missing": "多节点进度条、耗时显示"
+      },
+      {
+        "feature": "后台任务进度",
+        "our_status": "无",
+        "what_exists": "chapter.consolidated SSE刷新ChapterTree",
+        "what_missing": "固化中spinner、队列长度"
+      },
+      {
+        "feature": "操作日志",
+        "our_status": "部分",
+        "what_exists": "HistoryPanel消息/骰子列表",
+        "what_missing": "用户操作审计、event_log查看器"
+      }
+    ],
+    "progressive_disclosure": [
+      {
+        "feature": "设置基础/高级分区",
+        "our_status": "部分",
+        "what_exists": "七Tab平铺",
+        "what_missing": "简单/高级开关，默认隐藊MCP/scraper"
+      },
+      {
+        "feature": "简单/完整TRPG模式",
+        "our_status": "部分",
+        "what_exists": "play/plan/review模式",
+        "what_missing": "一键故事模式隐藏骰子/章节面板"
+      },
+      {
+        "feature": "折叠面板",
+        "our_status": "部分",
+        "what_exists": "reasoning/tool/dm_note可折叠",
+        "what_missing": "Settings长表、World档案默认折叠"
+      }
+    ],
+    "priority_improvements": [
+      {
+        "item": "接线Toast+操作反馈（addNotification UI）",
+        "effort": "小",
+        "impact": "高",
+        "source": "自研"
+      },
+      {
+        "item": "会话开局多步向导+自动生成开场叙事",
+        "effort": "大",
+        "impact": "高",
+        "source": "前身项目可移植"
+      },
+      {
+        "item": "Hub会话Tab合并列表+创建",
+        "effort": "小",
+        "impact": "中",
+        "source": "自研"
+      },
+      {
+        "item": "文风选择器对接38 writing-styles Skills",
+        "effort": "中",
+        "impact": "高",
+        "source": "自研（数据已有）"
+      },
+      {
+        "item": "丰富空状态（插图+主/次CTA）",
+        "effort": "中",
+        "impact": "中",
+        "source": "竞品借鉴"
+      },
+      {
+        "item": "修复rules_agent LLM失败默认pass",
+        "effort": "小",
+        "impact": "高",
+        "source": "自研"
+      },
+      {
+        "item": "主题切换UI+light样式",
+        "effort": "小",
+        "impact": "低",
+        "source": "自研"
+      },
+      {
+        "item": "拖拽导入角色/世界卡",
+        "effort": "中",
+        "impact": "中",
+        "source": "竞品借鉴"
+      },
+      {
+        "item": "Agent Pipeline可视化进度条",
+        "effort": "中",
+        "impact": "中",
+        "source": "自研"
+      },
+      {
+        "item": "取消生成+SSE断线可靠续传",
+        "effort": "大",
+        "impact": "中",
+        "source": "自研"
+      }
+    ]
+  }
+}

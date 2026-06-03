@@ -1,0 +1,56 @@
+---
+description: ZeroArsenal TRPG 小说工具——项目总览、架构原则、目录速查。每次在此项目工作时均应参考。
+alwaysApply: true
+---
+
+# ZeroArsenal 项目总览
+
+## 项目定位
+
+统合 TRPG 小说工具：FastAPI 后端 + React 前端，多 Agent 叙事引擎，骰子系统，扩展插件体系。
+
+## 七条架构原则（优先级降序）
+
+1. **P1 骰子=确定性锚点**：任何影响游戏数值的变化必须经骰子引擎，LLM 只解释结果
+2. **P2 规则驱动 Agent**：每 Agent 行为边界由 `AgentProfile` YAML 声明，不由提示词隐式约定
+3. **P3 八类扩展点**：新世界/工具/技能/MCP/提示/Agent/事件/文风——零侵入核心代码
+4. **P4 DM 门禁**：玩家输入唯一入口是 `DMAgent`，任何 Agent 不得绕过
+5. **P5 消息 Part 化**：`TextPart / ToolCallPart / VarDiffPart` 等原子化，Part 为流式 SSE 最小单元
+6. **P6 权限即模式**：`play / plan / review` 三模式通过 `AgentProfile` 切换，不硬编码
+7. **P7 纯净度保证**：`StyleAgent` 执行散文净化，禁止"金光闪闪"等网文套路词
+
+## 目录速查
+
+```
+zero-arsenal/
+├── backend/
+│   ├── agents/        # LangGraph Agent 节点（每个文件一个 Agent）
+│   ├── api/routes.py  # FastAPI 全部端点
+│   ├── db/            # SQLite schema + migration
+│   ├── engine/        # 骰子引擎、VM
+│   ├── extensions/    # 内置扩展（crossover / wuxia / infinite_arsenal）
+│   ├── hooks/         # HookManager + HookDef
+│   ├── memory/        # 四层混合记忆子系统
+│   ├── prompts/       # PromptFragment Registry
+│   ├── tools/         # ToolRegistry + builtin_tools
+│   └── main.py        # FastAPI lifespan 启动入口
+├── frontend/
+│   ├── src/components/panels/  # ChapterTree / DicePanel / CharacterPanel
+│   ├── src/lib/                # api.ts / sse.ts / idb.ts
+│   ├── src/pages/SessionPage.tsx
+│   └── src/stores/             # Zustand stores
+└── docs/design/        # 权威设计文档（01~12）
+```
+
+## 设计文档索引
+
+| 文档 | 内容 |
+|------|------|
+| `docs/design/02` | 总体架构、七条原则 |
+| `docs/design/03` | Agent 三层架构、LangGraph 图 |
+| `docs/design/04` | 扩展体系（八类扩展点、Hook、发现机制） |
+| `docs/design/06` | 数据模型 Schema（Session/Message/Part/角色卡v4） |
+| `docs/design/07` | ToolRegistry / ToolDef 接口 |
+| `docs/design/08` | 四层记忆系统 |
+| `docs/design/11` | REST + SSE API 全览 |
+| `docs/design/12` | 前端架构 |

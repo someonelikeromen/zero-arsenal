@@ -1,0 +1,77 @@
+# AgentProfile: plan — 规划模式
+# 对齐设计文档 10-permission-modes.md
+name: plan
+description: "规划模式：显示 DM 注释和技能加载信息；写操作需 ask 确认，危险操作拒绝。"
+max_tokens_per_turn: 2048
+
+visible_part_types:
+  - narrative
+  - dice_roll
+  - state_patch
+  - npc_action
+  - world_event
+  - chapter_end
+  - dm_note
+  - skill_load
+  - compaction
+  - action_options
+  - system_grant
+
+# plan 模式限制 LLM 可见工具白名单（写操作需手动确认）
+active_tools:
+  - read_character
+  - get_world_state
+  - search_memory
+  - search_lore
+  - get_chapter_summary
+  - list_npcs
+  - query_world_rules
+  - check_skill_trigger
+  - query_character_summary
+  - roll_check
+  - generate_action_options
+  - load_skill
+  - update_character_state
+  - add_memory
+
+permissions:
+  - pattern: "read_*"
+    action: allow
+  - pattern: "get_*"
+    action: allow
+  - pattern: "list_*"
+    action: allow
+  - pattern: "search_*"
+    action: allow
+  - pattern: "check_*"
+    action: allow
+  - pattern: "query_*"
+    action: allow
+  - pattern: "roll_*"
+    action: allow
+  # 写操作需确认
+  - pattern: "write_*"
+    action: ask
+  - pattern: "update_*"
+    action: ask
+  - pattern: "add_*"
+    action: ask
+  - pattern: "earn_*"
+    action: ask
+  - pattern: "award_*"
+    action: ask
+  - pattern: "purchase_*"
+    action: ask
+  - pattern: "draw_gacha"
+    action: ask
+  # 危险操作拒绝
+  - pattern: "delete_*"
+    action: deny
+  - pattern: "reset_*"
+    action: deny
+  # 其余写操作 ask
+  - pattern: "*"
+    action: ask
+
+# 当 permissions 列表无匹配时的兜底策略（与 catch-all 保持一致）
+default_permission: ask

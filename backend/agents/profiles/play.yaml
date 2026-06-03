@@ -1,0 +1,67 @@
+# AgentProfile: play — 玩家模式
+# 对齐设计文档 10-permission-modes.md
+name: play
+description: "玩家模式：专注叙事体验，隐藏系统细节，操作无感知确认。"
+max_tokens_per_turn: 2048
+
+# 可见 Part 类型（前端渲染过滤）
+visible_part_types:
+  - narrative
+  - dice_roll
+  - state_patch
+  - npc_action
+  - world_event
+  - chapter_end
+  - system_grant
+  - action_options
+  - tool_call
+  - var_diff
+
+# 工具权限规则（顺序匹配，第一个命中即返回）
+permissions:
+  # 读操作：始终允许（不打扰玩家）
+  - pattern: "read_*"
+    action: allow
+  - pattern: "get_*"
+    action: allow
+  - pattern: "list_*"
+    action: allow
+  - pattern: "search_*"
+    action: allow
+  - pattern: "query_*"
+    action: allow
+  - pattern: "check_*"
+    action: allow
+  # 骰子 / 记忆写入：自动允许（游戏必需）
+  - pattern: "roll_*"
+    action: allow
+  - pattern: "add_memory"
+    action: allow
+  # 角色状态写入：允许（叙事流程需要）
+  - pattern: "update_character_state"
+    action: allow
+  - pattern: "earn_*"
+    action: allow
+  - pattern: "award_*"
+    action: allow
+  # 经济操作：允许
+  - pattern: "purchase_*"
+    action: allow
+  - pattern: "open_shop"
+    action: allow
+  - pattern: "evaluate_*"
+    action: allow
+  # 危险操作：ask 确认（60s 超时自动允许）
+  - pattern: "delete_*"
+    action: ask
+  - pattern: "reset_*"
+    action: ask
+  # 抽卡操作：ask（消耗大量 SP）
+  - pattern: "draw_gacha"
+    action: ask
+  # 其余：允许（play 模式尽量不打扰）
+  - pattern: "*"
+    action: allow
+
+# 当 permissions 列表无匹配时的兜底策略（与 catch-all 保持一致）
+default_permission: allow

@@ -1,0 +1,154 @@
+{
+  "timestamp": "20260602_193023",
+  "backend": "http://127.0.0.1:8000",
+  "frontend": "http://localhost:5174",
+  "session_id": "a4c091d3-b290-46db-8ff1-5b35aed2647d",
+  "results": [
+    {
+      "msg": "GET /health → 200 {'status': 'ok', 'memory': {'mode': 'full', 'available': True, 'reason': ''}}",
+      "ok": true,
+      "ts": "2026-06-02T19:30:23.267679"
+    },
+    {
+      "msg": "GET /api/sessions → 4 个会话",
+      "ok": true,
+      "ts": "2026-06-02T19:30:23.304280"
+    },
+    {
+      "msg": "GET /api/engine/extensions → {'extensions': [{'key': 'crossover', 'name': '综漫无限流', 'description': '玩家作为穿越者进入各种动漫/游戏世界完成主神任务，获得强化点数和技能', 'agent_profile': 'play'}, {'key': 'wuxia', 'name': '武侠江湖', 'description': '传统武侠世界，玩家扮演行走江湖的侠客，修炼内功、闯荡门派', 'agent_profile': 'play'}, {'key': 'infinite_arsenal', 'name': '无限武库', 'description': '高武世界，玩家收集各种武器、法器、神器，通过战斗和探索强化自身', 'agent_profile': 'play'}], 'count': 3}",
+      "ok": true,
+      "ts": "2026-06-02T19:30:23.307721"
+    },
+    {
+      "msg": "GET /api/system/info → tools=47 plugins=3 skills=43",
+      "ok": true,
+      "ts": "2026-06-02T19:30:23.311312"
+    },
+    {
+      "msg": "POST /api/sessions → 创建成功 id=a4c091d3...",
+      "ok": true,
+      "ts": "2026-06-02T19:30:23.466976"
+    },
+    {
+      "msg": "GET /api/sessions/{id} → E2E测试会话_20260602_193023",
+      "ok": true,
+      "ts": "2026-06-02T19:30:23.476839"
+    },
+    {
+      "msg": "GET /api/engine/skills → 200 数量=43",
+      "ok": true,
+      "ts": "2026-06-02T19:30:23.492188"
+    },
+    {
+      "msg": "GET /api/hooks → 200 数量=2",
+      "ok": true,
+      "ts": "2026-06-02T19:30:23.507031"
+    },
+    {
+      "msg": "POST /message → 202: {\"message_id\":\"ad2b11b9-81d0-4793-aa78-93ada8c611f5\",\"session_id\":\"a4c091d3-b290-46db-8ff1-5b35aed2647d\",\"status\":\"processing\",\"stream_url\":\"/api/sessions/a4c091d3-b290-46db-8ff1-5b35aed2647d/events\"}",
+      "ok": false,
+      "ts": "2026-06-02T19:30:23.547955"
+    },
+    {
+      "msg": "GET /api/agents/profiles → 200 数量=2",
+      "ok": true,
+      "ts": "2026-06-02T19:30:23.569124"
+    },
+    {
+      "msg": "GET /memory?query=驿站 → 429 记忆数=?",
+      "ok": true,
+      "ts": "2026-06-02T19:30:23.629235"
+    },
+    {
+      "msg": "GET /world-archives → 429 数量=?",
+      "ok": true,
+      "ts": "2026-06-02T19:30:23.632074"
+    },
+    {
+      "msg": "GET /chapters → 429",
+      "ok": true,
+      "ts": "2026-06-02T19:30:23.647804"
+    },
+    {
+      "msg": "GET /asks → 429",
+      "ok": true,
+      "ts": "2026-06-02T19:30:23.661906"
+    },
+    {
+      "msg": "GET /api/tools → 429 数量=0",
+      "ok": true,
+      "ts": "2026-06-02T19:30:23.664813"
+    },
+    {
+      "msg": "POST /api/engine/roll → 429: {\"ok\":false,\"error_code\":\"rate_limited\",\"message\":\"Too Many Requests. Limit: 60 req/min.\",\"retry_after_seconds\":1.0}",
+      "ok": false,
+      "ts": "2026-06-02T19:30:23.692188"
+    },
+    {
+      "msg": "截图: 20260602_193023_01_homepage.png",
+      "ok": true,
+      "ts": "2026-06-02T19:30:26.592283"
+    },
+    {
+      "msg": "首页加载 → body含关键词=True",
+      "ok": true,
+      "ts": "2026-06-02T19:30:26.599558"
+    },
+    {
+      "msg": "首页会话链接数: 0",
+      "ok": true,
+      "ts": "2026-06-02T19:30:26.620937"
+    },
+    {
+      "msg": "截图: 20260602_193023_02_settings.png",
+      "ok": true,
+      "ts": "2026-06-02T19:30:27.302883"
+    },
+    {
+      "msg": "设置页加载 → 含配置关键词=True",
+      "ok": true,
+      "ts": "2026-06-02T19:30:27.306430"
+    },
+    {
+      "msg": "截图: 20260602_193023_03_session_initial.png",
+      "ok": true,
+      "ts": "2026-06-02T19:30:29.910241"
+    },
+    {
+      "msg": "会话页加载 → 含聊天关键词=False",
+      "ok": true,
+      "ts": "2026-06-02T19:30:29.913750"
+    },
+    {
+      "msg": "未找到输入框",
+      "ok": false,
+      "ts": "2026-06-02T19:30:29.924139"
+    },
+    {
+      "msg": "未找到骰子按钮（跳过）",
+      "ok": true,
+      "ts": "2026-06-02T19:30:29.943665"
+    },
+    {
+      "msg": "最终状态截图: 20260602_193023_99_final_state.png",
+      "ok": true,
+      "ts": "2026-06-02T19:30:29.997714"
+    },
+    {
+      "msg": "浏览器 UI 测试完成",
+      "ok": true,
+      "ts": "2026-06-02T19:30:30.159323"
+    }
+  ],
+  "screenshots": [
+    "20260602_193023_01_homepage.png",
+    "20260602_193023_02_settings.png",
+    "20260602_193023_03_session_initial.png",
+    "20260602_193023_99_final_state.png"
+  ],
+  "summary": {
+    "total": 27,
+    "passed": 24,
+    "failed": 3
+  }
+}
