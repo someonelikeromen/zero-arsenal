@@ -22,15 +22,15 @@ import { getLastSyncedEventId, setLastSyncedEventId } from '../lib/idb'
 
 ## MessagePart 可见性
 
-`_isVisible(part, mode)` 根据当前模式决定渲染哪些 Part 类型：
+`MessageThread.tsx` 的 `VISIBLE_PARTS[mode]` 决定渲染哪些 Part（类型名与后端 `schema.py:PartType` 一致，注意是 `dice_roll` 不是 `dice_result`）：
 
 | 模式 | 可见 Part |
 |------|-----------|
-| `play` | text, dice_result, var_diff, action_options |
-| `plan` | text, reasoning, tool_call, tool_result, dice_result, var_diff |
-| `review` | 全部类型 |
+| `play` | narrative, dice_roll, state_patch, npc_action, world_event, chapter_end, system_grant, action_options, tool_call, tool_result, var_diff |
+| `plan` | play 的全部 + dm_note, skill_load, compaction |
+| `review` | plan 的全部 + permission_ask, reasoning |
 
-`action_options` Part 在正文区隐藏（`hideActionOptions={true}`），由底部选项栏单独渲染。
+`action_options` Part 在正文区隐藏（仅渲染最新一条之外 `hideActionOptions={true}`），由底部选项栏单独渲染。
 
 ## ChapterTree 规范
 
@@ -54,11 +54,21 @@ setChapterRefreshKey(k => k + 1)
 
 | Store | 文件 | 职责 |
 |-------|------|------|
-| `useStoryStore` | `story.ts` | MessagePart 列表 + 流式 delta + IndexedDB 缓存 |
+| `useStoryStore` | `story.ts` | `parts` 列表 + `streamBuffers` 流式缓冲 map + IndexedDB 缓存 |
 | `useSessionStore` | `session.ts` | SSE 连接 + mode + pendingAsks |
 | `useCharacterStore` | `character.ts` | 角色卡 + applyPatch（dot-notation） |
 
-`addPart` 写入 streaming 状态时立即同步到 IndexedDB（避免刷新丢失流式内容）。
+`addPart` 写入 streaming 状态时立即同步到 IndexedDB（避免刷新丢失流式内容）。IndexedDB 为时间过期 + LRU 驱逐（D22）。
+
+## 流式渲染与虚拟滚动（T-M15 + conf_b12，**改前必读**）
+
+- **流式 delta 不进 `parts`**：`appendDelta(partId, delta)` 只写 `state.streamBuffers[partId]`，**不**改 `parts` 数组引用 →
+  订阅 `parts` 的列表/兄弟组件不会随每个 delta 重渲染。
+- **`MessageThread` 用 `react-virtuoso` 虚拟滚动**：`data={visibleParts}` + `computeItemKey` + `components={{ Footer }}`（Swipe 控件）；
+  自动滚底用 `followOutput={(atBottom) => (atBottom ? 'smooth' : false)}`（贴底才跟随，上翻历史不被强拉）。
+- **`NarrativePart` / `ReasoningPart` 直写 DOM**：流式态用 `useStoryStore.subscribe` 订阅 `streamBuffers[part.id]`，
+  在回调里写 `ref.current.textContent`（跳过 React diff）。完成态由 `finalizePart` 把缓冲折叠进 `content.text` 并删除该 buffer。
+- 新增"流式文本类"Part 时照此模式接入；普通一次性 Part 直接走 `parts` + `PartRenderer` 即可。
 
 ## API 调用规范
 

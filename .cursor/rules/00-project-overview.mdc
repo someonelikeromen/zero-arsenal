@@ -24,22 +24,29 @@ alwaysApply: true
 ```
 zero-arsenal/
 ├── backend/
-│   ├── agents/        # LangGraph Agent 节点（每个文件一个 Agent）
-│   ├── api/routes.py  # FastAPI 全部端点
+│   ├── agents/        # LangGraph Agent 节点 + permission.py + profiles/*.yaml
+│   ├── api/
+│   │   ├── routes.py          # 仅聚合：把 routers/* 挂到 /api 前缀（勿往这写端点）
+│   │   ├── routers/           # 实际端点：sessions/stream/engine/config/worlds/characters/assets/prompts
+│   │   └── middleware/        # auth.py（鉴权 fail-closed）+ rate_limit.py（令牌桶）
+│   ├── bus/           # EventBus / RedisEventBus / interface（SSE 发布与续传）
 │   ├── db/            # SQLite schema + migration
-│   ├── engine/        # 骰子引擎、VM
+│   ├── engine/        # 骰子引擎、VM（simpleeval）
 │   ├── extensions/    # 内置扩展（crossover / wuxia / infinite_arsenal）
 │   ├── hooks/         # HookManager + HookDef
-│   ├── memory/        # 四层混合记忆子系统
-│   ├── prompts/       # PromptFragment Registry
-│   ├── tools/         # ToolRegistry + builtin_tools
+│   ├── memory/        # 四层混合记忆子系统（chromadb 向量 + extract_queue）
+│   ├── prompts/       # PromptFragment Registry（jinja2 模板）
+│   ├── tools/         # ToolRegistry + builtin_tools + mcp_bridge
+│   ├── timeouts.py    # D19 分级超时常量（唯一来源）
 │   └── main.py        # FastAPI lifespan 启动入口
 ├── frontend/
-│   ├── src/components/panels/  # ChapterTree / DicePanel / CharacterPanel
-│   ├── src/lib/                # api.ts / sse.ts / idb.ts
+│   ├── src/components/         # MessageThread（react-virtuoso）+ parts/* + panels/*
+│   ├── src/lib/                # api.ts / sse.ts / idb.ts / bindSSEToStores.ts
 │   ├── src/pages/SessionPage.tsx
-│   └── src/stores/             # Zustand stores
-└── docs/design/        # 权威设计文档（01~12）
+│   └── src/stores/             # Zustand stores（story 含 streamBuffers）
+└── docs/
+    ├── design/                 # 权威设计文档（01~12）
+    └── FIX_VERIFICATION_2026-06.md  # 复审修复核查台账（file:line 证据）
 ```
 
 ## 设计文档索引

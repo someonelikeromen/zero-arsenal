@@ -17,10 +17,14 @@ alwaysApply: false
 ### message_parts
 `id, message_id, session_id, type, content(JSON), status(streaming/done/error), sort_order, metadata(JSON), created_at`
 
-**Part 类型枚举**：`text / reasoning / tool_call / tool_result / dice_result / var_diff / action_options / image / error`
+**Part 类型枚举**（权威源 `backend/db/schema.py:PartType`，前端 `story.ts:PartType` 与之对齐）：
+`narrative / dm_note / dice_roll / state_patch / system_grant / npc_action / world_event / skill_load / chapter_end / permission_ask / compaction / action_options / reasoning / text / tool_call / tool_result / var_diff`
+
+> 注意是 `dice_roll`（不是 `dice_result`）。新增 Part 类型须同时在后端 `PartType` 与前端 `PartType`/`VISIBLE_PARTS` 登记。
 
 ### character_cards（v4 Schema）
-`id, session_id, name, data_json, updated_at`
+`id, session_id, schema_version('4.0'), data_json, character_name, world_plugin, tier(0-10), tier_sub(L/M/U/''), points(≥0), hp_overall(REAL 1.0), created_at, updated_at`
+（注意：列名是 `character_name`/`data_json`，非 `name`/`card_json`；`tier`/`tier_sub`/`points` 为反范式冗余，带 CHECK 约束）
 
 `data_json` 结构：
 ```json
@@ -35,13 +39,24 @@ alwaysApply: false
 ```
 
 ### chapters
-`id, session_id, summary, branch_label, parent_chapter_id, is_consolidated(0/1), end_message_id, chapter_index, key_events(JSON), created_at`
+`id, session_id, parent_chapter_id, branch_label, chapter_index, start_message_id, end_message_id, summary, key_events(JSON), is_consolidated(0/1), turn_count, status(active/reverted), created_at, updated_at`
 
 ### memory_entries
-`id, session_id, content, tier(core/semantic/episodic), cognitive_partition, source_agent, viewer_agent, created_at`
+`id, session_id, chapter_id, content, embedding(BLOB), bigram_tokens(JSON), graph_nodes(JSON), tier(episodic/semantic/core/working), cognitive_partition, source_agent, importance, access_count, last_accessed_at, related_npcs(JSON), related_location, world_time, created_at, consolidated_at`
+（`tier` 无 `viewer_agent` 列；`cognitive_partition` 故意不加 CHECK，由 memory 子系统约定取值）
 
 ### world_archives
-`id, session_id, title, content(JSON), archive_type(achievement/location/npc/item/event), created_at, updated_at`
+`id, session_id, title, content(JSON), archive_type(achievement/location/item/event), created_at, updated_at`
+
+> ⚠️ **NPC 不存这里**。NPC 档案唯一存储是 `npc_profiles` 表（NEW-C11，消除双存储分裂）。
+> 工具 `query_npc` / `get_npc_knowledge_scope` / `update_npc` 统一读写 `npc_profiles`；
+> 无档案时 `get_npc_knowledge_scope` 返回 `found:False`，**不编造**知识边界（D-13）。
+
+### npc_profiles（NPC 唯一存储）
+`id, session_id, key, name, profile_json, world_key, created_at, updated_at`
+- `key`：唯一标识（如 `shopkeeper_a`）；`(session_id, key)` 唯一，全局模板用 `(world_key, key)` 唯一（`world_key != ''`）
+- `profile_json`：完整 NPC 描述（外观/性格/动机/关系 + 信息不对称的 known/unknown 知识边界）
+- 动态状态（血量/好感度）另存 `session_npc_states(session_id, npc_id, state_json)`
 
 ## 数据库操作规范
 

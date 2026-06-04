@@ -32,6 +32,16 @@ async def _dm_impl(ctx: TurnContext) -> dict:
 - 用 `agent_span` 包裹，自动发 SSE 并捕获异常
 - `tool_loop` 最大迭代 `max_iterations=5`（默认），超出自动停止
 - **不在 Agent 节点里直接 `await db`**，改用 `get_db()` async context manager
+- 工具/LLM/MCP/ask 超时一律引用 `backend/timeouts.py` 常量，**不写魔法数字**（D19）
+
+## 分级超时（D19，唯一来源 `backend/timeouts.py`）
+
+| 常量 | 值(秒) | 语义 | 消费点 |
+|------|-------|------|--------|
+| `GLOBAL_TOOL_TIMEOUT` | 30 | 普通工具执行 | `tools/registry.py` |
+| `LONG_RUNNING_TIMEOUT` | 120 | LLM 生成 / 外部子 Agent | 长任务调用处 |
+| `MCP_TIMEOUT` | 15 | 外部 MCP 调用 | `tools/mcp_bridge.py` |
+| `PERMISSION_ASK_TIMEOUT` | 300 | 等用户权限决策（超时=deny） | `agents/ask_handler.py` |
 
 ## LangGraph 图路由
 
@@ -57,6 +67,13 @@ def _route_after_dm(state):
 | `chapter.consolidated` | `chronicler_agent` 固化章节后 |
 | `session.done` | 本轮全部 Agent 完成 |
 
+## 事件总线 / Redis（`backend/bus/`）
+
+- `EventType` 是普通常量类 **不是 Enum**——构造事件用 `EventType.XXX`（其值为字符串），勿当 Enum 调用。
+- Redis 发布须带 `id`/`timestamp`，否则 `Last-Event-ID` 续传退化为 1h 全量回放（NEW-C7-05）。
+- 退订/连接关闭时回收 pubsub + task，`get_subscriber_count` 按本地队列计数（NEW-C7-04）。
+- 多 worker/多实例必须设 `REDIS_URL`；`redis` 未安装但设了 URL → 自动降级内存总线（带日志）。
+
 ## API 端点规范
 
 ```python
@@ -76,4 +93,41 @@ async def session_events(session_id: str, request: Request,
 
 - `VarAgent` 等非关键 Agent：`try/except Exception` 包裹整个节点，失败后继续 pipeline
 - 关键 Agent（DM/Rules）：失败时写 `agent.error` 事件，返回默认安全状态
-- 永远不吞掉异常不日志：`logger.exception("...")`
+- 永远不吞掉异常不日志：`logger.exception(...)` 或 `logger.warning(...)`
+
+## 降级必留日志（禁止静默 `except: pass`）
+
+任何兜底/降级分支（默认卡、空列表 `[]`、跳过注入、解析失败回退）都必须记日志说明原因与上下文：
+
+```python
+# ❌ 静默吞掉，排障盲区
+try:
+    entries = json.loads(text)
+except Exception:
+    entries = []
+
+# ✅ 降级带日志
+try:
+    entries = json.loads(text)
+except Exception as e:
+    logger.warning("[worlds] 设定提炼 JSON 解析失败，降级 entries=[]: %s", e)
+    entries = []
+```
+
+已治理的路由侧降级点：`characters.py` / `engine.py` / `sessions.py` / `worlds.py`（见 `docs/FIX_VERIFICATION_2026-06.md`「降级日志」）。
+唯一可不记日志的例外：def_c2 裁定为「成本优化/可接受」的 world_agent 跳过 LLM、style 原文透传。
+
+## 安全默认 fail-closed（不确定 = 拒绝）
+
+| 场景 | 默认行为 | 位置 |
+|------|---------|------|
+| 未配置 `ZERO_ARSENAL_API_TOKEN` | 拒绝所有 `/api/*`（非放行）；token 比较用 `hmac.compare_digest` | `middleware/auth.py` |
+| `dm_verdict` 为枚举外/缺失值 | 视为 `block` | DM 路由 / `graph.py` |
+| 权限规则匹配不到 | `DENY` | `permission.py` resolve |
+| `ask` 等待超时 | `deny`（= `PERMISSION_ASK_TIMEOUT`） | `ask_handler.py` |
+
+## 权限 Profile（P6：规则驱动，不靠提示词）
+
+- Python 定义在 `agents/permission.py`，**YAML（`agents/profiles/*.yaml`）覆盖优先**。
+- WorldPlugin 可声明 `permission_overlay[mode]`，按模式叠加到基础 Profile（`apply_plugin_overlay`）。
+- 每工具动作 ∈ `{allow, ask, deny}`；review 模式下危险工具收紧。
