@@ -24,21 +24,20 @@
 
 ---
 
-## 2. 事件总线（Bus）— 单进程限制 ⚠️
+## 2. 事件总线（Bus）
 
 | 模式 | 触发条件 | 能力 |
 |---|---|---|
 | 内存总线 `EventBus`（默认） | 未设置 `REDIS_URL` | `asyncio.Queue` 进程内发布/订阅 + SSE 重放 |
-| Redis 总线 `RedisEventBus` | 设置了 `REDIS_URL` 且安装了 `redis` | 设计用于跨进程广播 |
+| Redis 总线 `RedisEventBus` | 设置了 `REDIS_URL` 且安装了 `redis` | 跨进程 Pub/Sub；事件 JSON 携带 `id`/`timestamp`，支持 Last-Event-ID 续传锚点 |
 
-**关键限制：**
+**部署注意：**
 
-- **默认（内存总线）下，事件无法跨进程/跨实例广播。** 多 worker（如 `uvicorn --workers N`）或多实例部署时，一个进程发布的 SSE 事件，订阅在另一个进程上的客户端**收不到**。
-- `RedisEventBus` 当前为**实现桩**（见 `STUB_ANALYSIS.md` STUB-01/12）：`publish`/`subscribe` 仍降级到进程内 `_local_queues`，`get_events_after*()` 固定返回 `[]`，**断线续传不可用**。
-- `redis` 未安装但设置了 `REDIS_URL` 时，自动 `except` 降级回内存总线（见 `bus/__init__.py`）。
-- `event_log` 持久化失败时静默 `pass`（实时 SSE 仍可用，但历史重放记录可能丢失）。
-
-**部署建议：** 当前生产环境请使用**单进程**（`--workers 1`）部署，依赖内存总线。多进程需先补全 `RedisEventBus`（`redis.asyncio` Pub/Sub + DB 历史查询）。
+- **默认（内存总线）下，事件无法跨进程/跨实例广播。** 单 worker（`--workers 1`）或单实例部署时使用即可。
+- **多 worker / 多实例** 时必须设置 `REDIS_URL`，否则各进程 SSE 订阅互不可见。
+- `redis` 未安装但设置了 `REDIS_URL` 时，自动降级回内存总线（见 `bus/__init__.py`）。
+- `event_log` 持久化失败时记录警告（实时 SSE 仍可用，历史重放可能不完整）。
+- pubsub / 订阅任务在 `unsubscribe` 与连接关闭时回收（见 `bus/event_bus.py`、`bus/redis_bus.py`）。
 
 ---
 

@@ -1,27 +1,44 @@
 # 零度武库 (Zero Arsenal)
 
-AI 跑团小说工具 — 多 Agent · 确定性骰子 · 可扩展世界插件
+AI 跑团小说工具 — 多 Agent 叙事 · 确定性 d10 骰池 · 可扩展世界插件 · SSE 实时前端
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
+## 特性
+
+- **LangGraph 多 Agent 管线**：规则审查 → DM 门禁 → 骰子 → NPC/世界 → 四阶段叙事 → 文风 → 变量 → 章节固化
+- **四层混合记忆**：向量（chromadb）+ Bigram 词法兜底 + 图扩散 + 认知权重；支持 viewer 五视角召回
+- **世界扩展**：`crossover` / `wuxia` / `infinite_arsenal` / `muv_luv` / `gundam_seed` 等，Hook + 专属工具 + 铁律 Markdown
+- **角色卡 v4**：OCEAN、多部位 HP、经济/徽章、jsonschema 校验
+- **前端**：章节树、Part 流式渲染、Hub 会话管理、Tailwind v4
+
+## 文档
+
+| 文档 | 说明 |
+|------|------|
+| [docs/开发须知.md](docs/开发须知.md) | **协作者入口**（环境、代码地图、PR） |
+| [docs/PROGRESS.md](docs/PROGRESS.md) | **当前进度**与待办 |
+| [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) | 贡献规范与扩展开发细节 |
+| [docs/design/00-README.md](docs/design/00-README.md) | 设计文档索引（实现权威来源） |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | 架构与降级行为 |
+| [docs/FIX_VERIFICATION_2026-06.md](docs/FIX_VERIFICATION_2026-06.md) | 2026-06 复审核查台账 |
 
 ## 快速启动
 
 ### 后端
 
 ```bash
-# 安装依赖（建议 Python 3.11+，uv 或 pip）
 cd zero-arsenal
 pip install -e "backend/[dev]"
 
-# 复制环境变量
 cp .env.example .env
-# 编辑 .env 填入 DEEPSEEK_API_KEY
+# 编辑 .env 填入 DEEPSEEK_API_KEY 或其它 LLM Key
 
-# 启动开发服务器
 python -m backend.main
-# 或
-uvicorn backend.main:app --reload
+# 或: uvicorn backend.main:app --reload
 ```
 
-API 文档：http://localhost:8000/docs
+API 文档：<http://localhost:8000/docs>
 
 ### 前端
 
@@ -31,52 +48,51 @@ npm install
 npm run dev
 ```
 
-前端：http://localhost:5173
+前端：<http://localhost:5173>
 
 ## 项目结构
 
 ```
 zero-arsenal/
 ├── backend/
-│   ├── main.py            # FastAPI 入口
-│   ├── pyproject.toml
-│   ├── api/               # REST + SSE 路由
-│   ├── bus/               # 事件总线（asyncio.Queue）
-│   ├── db/                # SQLite Schema + 连接管理
-│   ├── engine/            # 骰子引擎（d10 骰池）
-│   ├── memory/            # 四层混合记忆子系统
-│   ├── tools/             # ToolRegistry + SKILL.md 加载器
-│   ├── agents/            # LangGraph Agent 节点（Phase 2）
-│   ├── extensions/        # WorldPlugin 扩展目录
-│   │   ├── crossover/     # 综漫无限流
-│   │   ├── wuxia/         # 武侠世界
-│   │   └── infinite_arsenal/
-│   ├── skills/            # SKILL.md 技能文件
-│   └── data/
-│       ├── sys_config/    # agents.json, mcp.json
-│       ├── writing-styles/
-│       └── dice-archive/  # 骰子 JSONL 归档
-│
-├── frontend/
-│   └── src/
-│       ├── lib/           # api.ts, sse.ts
-│       ├── stores/        # Zustand (session, story)
-│       ├── components/
-│       │   └── parts/     # PartRenderer + 各类型 Part
-│       └── pages/         # HomePage, SessionPage
-│
-└── docs/design/           # 13 个设计文档
+│   ├── main.py              # FastAPI 入口
+│   ├── api/                 # REST + SSE
+│   ├── agents/              # LangGraph 节点
+│   ├── bus/                 # 事件总线（内存 / Redis）
+│   ├── db/                  # SQLite + 角色卡 v4
+│   ├── engine/              # 骰子、战斗、VariableVM
+│   ├── memory/              # 混合记忆子系统
+│   ├── tools/               # ToolRegistry、MCP 桥
+│   ├── extensions/          # 世界插件
+│   ├── skills/              # 预置 SKILL.md
+│   └── data/                # 配置、文风库等
+├── frontend/src/            # React + Zustand + SSE
+└── docs/                    # 设计、进度、开发须知
 ```
 
-## Phase 路线图
+## 进度摘要
 
-| Phase | 内容 | 状态 |
-|-------|------|------|
-| 1 | FastAPI 骨架 + SQLite + Bus/SSE + roller.py + memory/ | ✅ 完成 |
-| 2 | LangGraph 7-Agent 图 + NarratorAgent 四阶段 + DM/NPC/World Agent | ✅ 完成 |
-| 3 | PromptFragment Registry + WorldPlugin（crossover/wuxia/infinite_arsenal）| ✅ 完成 |
-| 4 | TavernCommand DSL + RestrictedPython VM 变量执行 | ✅ 完成 |
-| 5 | ChroniclerAgent 章节固化 + 四层混合记忆召回（向量+Bigram+图+认知权重）| ✅ 完成 |
-| 6 | AgentProfile 权限模式 + ask 交互暂停/恢复 | ✅ 完成 |
-| 7 | 三栏前端（章节树+故事流+骰子/角色面板）+ 37个文风 SKILL.md | ✅ 完成 |
-| 8 | ToolRegistry（8个内置工具）+ OpenAI function calling 格式 | ✅ 完成 |
+2026-06 复审修复（`173d921`）后，**P0–P5 主路径已通**。仅剩 2 项部分实现：路由侧降级日志覆盖、长列表真·虚拟滚动。详见 [docs/PROGRESS.md](docs/PROGRESS.md)。
+
+| 里程碑 | 状态 |
+|--------|------|
+| 骨架 + Agent + 扩展 + 记忆 + 权限 + 前端 | ✅ |
+| 2026-06 安全/崩溃/设计对齐复审 | ✅ |
+| 路由降级日志、虚拟滚动 windowing | ⚠️ 待办 |
+
+## 协作开发
+
+1. Fork 本仓库，从 `main` 切分支（`feat/` / `fix/` / `docs/`）
+2. 阅读 [docs/开发须知.md](docs/开发须知.md)
+3. 本地跑通测试后提 PR（见 [CONTRIBUTING.md](docs/CONTRIBUTING.md)）
+4. **勿提交** `.env`、数据库文件或 API Key
+
+## 部署提示
+
+- **单实例**：默认内存事件总线即可（`--workers 1`）。
+- **多实例**：设置 `REDIS_URL` 并安装 `redis`；可选 `ZERO_ARSENAL_API_TOKEN` 开启 API 鉴权。
+- 变量脚本需安装 `RestrictedPython`（见 [ARCHITECTURE.md](docs/ARCHITECTURE.md)）。
+
+## 许可证
+
+[MIT](LICENSE)
