@@ -65,7 +65,7 @@
 
 | ID | 修复内容 | 真实实现? | 证据(file:line) | 备注 |
 |---|---|---|---|---|
-| 降级日志 | 叙事/路由降级补日志 | ⚠️ | `agents/world_agent.py`、`style_agent.py`、`npc_agent.py`、`options` | world/style/npc/options 降级补日志；R-D02/03/04/08、T-D09/11 路由侧未覆盖 |
+| 降级日志 | 叙事/路由降级补日志 | ✅ | `agents/{world,style,npc}_agent.py`+`graph.py`；`routers/characters.py:343/379`、`engine.py:212`、`sessions.py:186/375/389`、`worlds.py:96` | 叙事侧已补；路由侧 R-D02(characters questions/默认卡)、R-D03(engine rules_loader)、R-D04(sessions on_session_init/overlay/active_tools)、R-D08(worlds entries) 全部由 except pass→warning |
 | 死代码 | 死代码/死配置清理 | ✅ | `graph.py`(M-09)、`agents.json`、删 2 死数据文件、`builtin_tools.py`(_template)、`registry.py`(VALID_*)、`state.py`(冗余 import) | 均 grep 确认无引用后删 |
 | prompt 接线 | TokenBudget/registry.build/watcher | ✅ | `prompts/token_budget.py`、`prompts/registry.py:build`、`skills/watcher.py` | TokenBudget 接入各 agent；build 为权威装配；watcher 刷新 Hook/Agent/Fragment |
 | 前端死字段 | activeSkills/快照/world store | ✅ | `frontend/src/stores/*` | 删 activeSkills/snapshot actions/world npcs·loadNpcs·addArchive/重复 NPC CRUD |
@@ -97,7 +97,7 @@
 | D21 | Tailwind v4 | ✅ | `frontend`（postcss/index.css/config/package） | @tailwindcss/postcss + @import "tailwindcss"；build 通过 |
 | D22 | IndexedDB LRU | ✅ | `frontend/src/lib/idb.ts` | 按 last-access LRU 驱逐 |
 | D9 | Narrator P4 VariableBlock | ✅ | `agents`（P3 prompt/P4） | P3 不再发变量标记，P4 专责 VariableBlock |
-| 前端优化 | 订阅/滚底/虚拟滚动 | ⚠️ | `frontend`（MessageThread） | 智能滚底+流式跟随已做；真·虚拟滚动 windowing 未做（避免引依赖）；细粒度订阅未做 |
+| 前端优化 | 订阅/滚底/虚拟滚动 | ✅ | `frontend/src/components/MessageThread.tsx`（react-virtuoso）、`stores/story.ts`（streamBuffers）、`parts/{NarrativePart,ReasoningPart}.tsx` | T-M15：react-virtuoso 窗口化+followOutput 跟随；conf_b12：流式 delta 写入独立 streamBuffers map（不改 parts 引用），NarrativePart/ReasoningPart 订阅自身缓冲直写 DOM，列表不随 delta 重渲染；build EXIT0 |
 
 ## Phase 5 · 文档同步
 
@@ -110,10 +110,12 @@
 
 > 收尾阶段把所有 ⚠️/❌ 项汇总到此处，作为下一轮迭代输入。
 
-全部 P0 + 24 条裁定项均已实现并核查（✅）。仅以下两项为**部分实现（⚠️）**，保留在 `REVIEW_TODO_2026-06.md` 未勾选：
+全部 P0 + 24 条裁定项均已实现并核查（✅）。**2026-06-04 第二轮**（用户放行第三方依赖）已清零此前 2 项 ⚠️ 部分实现：
 
-1. **降级日志（叙事/路由）** — world/style/npc/options 四个叙事 Agent 的静默降级已补日志；但路由侧 R-D02/03/04/08、T-D09/11 的降级路径尚未逐一覆盖。影响：可观测性，不影响功能正确性。
-2. **前端优化 · 虚拟滚动（T-M15）** — 已实现智能滚底 + 流式跟随；真正的 windowing 虚拟滚动未做（需引入第三方依赖，按「保持安全」暂缓）。conf_b12 NarrativePart 细粒度订阅同属此性能优化范畴，未做。
+1. ✅ **降级日志（路由侧）** — R-D02（`characters.py` questions/默认卡兜底）、R-D03（`engine.py` rules_loader 缺失）、R-D04（`sessions.py` on_session_init/overlay/active_tools 三处 except pass）、R-D08（`worlds.py` entries=[]）全部由静默 `except: pass`/空降级改为 `logger.warning`。T-D09/T-D11 此前已由 agents 子代理覆盖。
+2. ✅ **前端性能（T-M15 + conf_b12）** — 引入 `react-virtuoso` 完成列表窗口化（`followOutput` 贴底跟随）；并将流式 delta 拆入 store 独立 `streamBuffers` map（不改 `parts` 引用），`NarrativePart`/`ReasoningPart` 订阅各自缓冲直写 DOM，实现 conf_b12 细粒度订阅，列表不再随每个 delta 重渲染。
+
+> 结论：复审清单 + 24 条裁定项已**全部 ✅ 实现**，无遗留 ⚠️/❌ 项。
 
 ### 收尾验证（Phase 6）
 

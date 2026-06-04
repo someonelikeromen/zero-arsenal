@@ -209,7 +209,8 @@ async def list_extension_rules():
     try:
         from ...extensions.rules_loader import rule_registry
         return {"rules": rule_registry.list_rules(), "count": len(rule_registry.list_rules())}
-    except ImportError:
+    except ImportError as e:
+        logger.warning("[engine] rules_loader 未初始化，规则列表降级为空: %s", e)
         return {"rules": [], "count": 0, "note": "rules_loader not initialized"}
 
 

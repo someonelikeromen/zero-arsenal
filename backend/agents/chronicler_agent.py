@@ -250,10 +250,15 @@ async def chronicler_agent_node(ctx: TurnContext) -> TurnContext:
     # 章节固化后触发 5W1H ExtractQueue 分析（非阻塞，后台处理）
     try:
         from ..memory.extract_queue import extract_queue
+        # 携带 novel_id/world_key/messages → 章节摘要也进 LLM 图谱提取（轨道A），
+        # 而非仅 SQLite 启发式（轨道B）。messages 用章节摘要构造单条 assistant 消息。
         extract_queue.enqueue({
             "session_id": ctx.session_id,
+            "novel_id": ctx.session_id,
+            "world_key": getattr(ctx, "world_plugin", "") or "",
             "chapter_id": chapter_id,
             "narrative_text": summary,
+            "messages": [{"role": "assistant", "content": summary}],
             "user_input": "",
             "source_agent": "chronicler",
         })

@@ -52,6 +52,13 @@ export interface Message {
 interface StoryStore {
   parts: MessagePart[]
   messages: Message[]
+  /**
+   * 流式增量缓冲区（conf_b12 细粒度订阅）：按 partId 隔离存放流式文本。
+   * 关键点——流式 delta 只更新本 map，**不**触碰 `parts` 数组引用，
+   * 因此订阅 `parts` 的列表（含虚拟滚动）不会随每个 delta 重渲染；
+   * 仅订阅 `streamBuffers[partId]` 的 NarrativePart 自身更新（直写 DOM）。
+   */
+  streamBuffers: Record<string, string>
   streamingPartId: string | null
   sessionId: string | null
   isLoading: boolean
@@ -74,6 +81,7 @@ export const useStoryStore = create<StoryStore>()(
     immer((set, get) => ({
       parts: [],
       messages: [],
+      streamBuffers: {},
       streamingPartId: null,
       sessionId: null,
       isLoading: false,
@@ -136,9 +144,12 @@ export const useStoryStore = create<StoryStore>()(
 
       addPart: (part) => {
         set((state) => {
-          state.parts.push(part)
+          // streamBuffer 不入 parts（避免后续 delta 改动 parts 引用）；改用 streamBuffers map
+          const { streamBuffer: _sb, ...rest } = part
+          state.parts.push(rest as MessagePart)
           if (part.status === 'streaming') {
             state.streamingPartId = part.id
+            state.streamBuffers[part.id] = _sb ?? ''
           }
         })
         const sid = get().sessionId
@@ -148,11 +159,9 @@ export const useStoryStore = create<StoryStore>()(
       },
 
       appendDelta: (partId, delta) =>
+        // 仅更新 streamBuffers[partId]——parts 数组引用保持不变，列表不重渲染
         set((state) => {
-          const p = state.parts.find((p) => p.id === partId)
-          if (p) {
-            p.streamBuffer = (p.streamBuffer ?? '') + delta
-          }
+          state.streamBuffers[partId] = (state.streamBuffers[partId] ?? '') + delta
         }),
 
       finalizePart: (partId, finalContent) => {
@@ -160,8 +169,13 @@ export const useStoryStore = create<StoryStore>()(
           const p = state.parts.find((p) => p.id === partId)
           if (p) {
             p.status = 'done'
-            if (finalContent) p.content = finalContent
-            delete p.streamBuffer
+            // 服务端 finalContent 缺正文时，用累计的流式缓冲兜底
+            if (finalContent && (finalContent.text || Object.keys(finalContent).length > 0)) {
+              p.content = finalContent
+            } else if (state.streamBuffers[partId]) {
+              p.content = { ...p.content, text: state.streamBuffers[partId] }
+            }
+            delete state.streamBuffers[partId]
             if (state.streamingPartId === partId) {
               state.streamingPartId = null
             }
@@ -205,6 +219,7 @@ export const useStoryStore = create<StoryStore>()(
 
       clearSession: () =>
         set((state) => {
+          state.streamBuffers = {}
           state.parts = []
           state.messages = []
           state.streamingPartId = null

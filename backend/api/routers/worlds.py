@@ -94,7 +94,10 @@ async def _extract_lore_sse(raw_text: str) -> AsyncIterator[str]:
             start = full_text.find("[")
             end = full_text.rfind("]") + 1
             entries = json.loads(full_text[start:end]) if start >= 0 else []
-        except Exception:
+            if start < 0:
+                logger.warning("[worlds] 设定提炼 LLM 输出未含 JSON 数组，降级 entries=[]（text 长度=%d）", len(full_text))
+        except Exception as e:
+            logger.warning("[worlds] 设定提炼 JSON 解析失败，降级 entries=[]: %s", e)
             entries = []
 
         yield f"data: {json.dumps({'type': 'done', 'entries': entries, 'raw': full_text}, ensure_ascii=False)}\n\n"

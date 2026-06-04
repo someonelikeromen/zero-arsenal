@@ -340,7 +340,10 @@ async def generate_questions(req: GenerateQuestionsRequest):
                 s = full_text.find("[")
                 e = full_text.rfind("]") + 1
                 questions = json.loads(full_text[s:e]) if s >= 0 else []
-            except Exception:
+                if s < 0:
+                    logger.warning("[characters] 引导问题 LLM 输出未含 JSON 数组，降级 questions=[]（text 长度=%d）", len(full_text))
+            except Exception as e:
+                logger.warning("[characters] 引导问题 JSON 解析失败，降级 questions=[]: %s", e)
                 questions = []
 
             yield f"data: {json.dumps({'type': 'done', 'questions': questions}, ensure_ascii=False)}\n\n".encode()
@@ -375,8 +378,10 @@ async def generate_character(req: GenerateCharacterRequest):
                 e = full_text.rfind("}") + 1
                 char_data = json.loads(full_text[s:e]) if s >= 0 else {}
                 if not char_data:
+                    logger.warning("[characters] 角色生成 LLM 输出未含有效 JSON，降级默认卡（world=%s）", req.world_plugin)
                     char_data = create_default_character(req.name or "新角色", req.world_plugin)
-            except Exception:
+            except Exception as e:
+                logger.warning("[characters] 角色生成 JSON 解析失败，降级默认卡（world=%s）: %s", req.world_plugin, e)
                 char_data = create_default_character(req.name or "新角色", req.world_plugin)
 
             # D7：LLM 产出归一化到 v4 并校验（失败仅告警，保留生成结果）

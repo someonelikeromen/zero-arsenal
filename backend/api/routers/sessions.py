@@ -183,8 +183,9 @@ async def create_session(req: CreateSessionRequest):
                         (json.dumps(_patched["character_data"], ensure_ascii=False), now, session_id)
                     )
                     await db2.commit()
-    except Exception:
-        pass
+    except Exception as _init_err:
+        logger.warning("[create_session] WorldPlugin on_session_init 失败，沿用初始角色卡 (world=%s, session=%s): %s",
+                       req.world_plugin, session_id, _init_err)
 
     await bus.publish(BusEvent(type=EventType.SESSION_STARTED, session_id=session_id,
                                data={"world_plugin": req.world_plugin, "agent_profile": req.agent_profile}))
@@ -372,8 +373,9 @@ async def change_mode(session_id: str, req: ModeChangeRequest):
                         for pat, val in overlay_for_mode.items()
                     }
                     effective_profile = apply_plugin_overlay(base_profile, typed_overlay)
-            except Exception:
-                pass  # WorldPlugin 不存在或 overlay 为空时使用基础 Profile
+            except Exception as _ov_err:
+                logger.warning("[change_mode] WorldPlugin overlay 应用失败，沿用基础 Profile (world=%s, mode=%s): %s",
+                               world_plugin_key, req.mode, _ov_err)
 
         # 缓存会话级有效 Profile（供 tool_loop / ask_handler 使用）
         profile_registry.set_session_profile(session_id, effective_profile)
@@ -386,8 +388,9 @@ async def change_mode(session_id: str, req: ModeChangeRequest):
                 t for t in tool_registry._tools
                 if effective_profile.check_tool(t) != PermissionAction.DENY
             ]
-    except Exception:
-        pass
+    except Exception as _at_err:
+        logger.warning("[change_mode] 计算 active_tools 失败，返回空列表 (session=%s, mode=%s): %s",
+                       session_id, req.mode, _at_err)
 
     await bus.publish(BusEvent(
         type=EventType.SESSION_MODE_CHANGED,

@@ -2,8 +2,8 @@
 
 > ✅ **修复执行已完成（2026-06-04）**：基于本清单 + 24 条裁定的修复 plan 已全部执行。
 > 逐点核查结论见 **`docs/FIX_VERIFICATION_2026-06.md`**（权威台账，含 file:line 证据与收尾验证）。
-> 结论：P0 + 全部 24 条裁定项均已实现并核查为 ✅；仅 2 项为部分实现（⚠️，见台账「未完全实现汇总」）：
-> ①叙事/路由降级补日志（路由侧 R-D02/03/04/08、T-D09/11 未全覆盖）；②前端真·虚拟滚动 windowing（已做智能滚底，windowing 暂缓）。
+> 结论：P0 + 全部 24 条裁定项均已实现并核查为 ✅。**2026-06-04 第二轮**（放行第三方依赖）已清零此前 2 项部分实现：
+> ①路由侧降级补日志 R-D02/03/04/08 已全部 except pass→warning；②前端引入 react-virtuoso 完成真·虚拟滚动 windowing + conf_b12 流式细粒度订阅。**全清单无遗留 ⚠️/❌。**
 > 收尾验证：`pytest --collect-only`=61(EXIT0)、`-m "not stub"`=4 passed/6 skipped、前端 `npm run build` EXIT0、init_db CHECK/FK 通过、记忆引擎 full mode。
 >
 > 复审基准日期：**2026-06-03**
@@ -97,8 +97,8 @@
 - [x] world_agent 零日志排障盲区补日志 — `agents/world_agent.py`（degradation · NEW-C2-05）
 - [x] options 失败仅 DEBUG、注入节点缺失静默跳过 → 升级日志级别 — `agents/*`（degradation · T-D09/T-D11）
 - [x] NPC 空文本回退固定台词 / style 失败丢弃纯净度结果 → 补日志告警 — `agents/{npc,style}_agent.py`（degradation · NEW-C2-01/02）
-- [ ] 各类静默降级补日志：兜底默认卡/空列表/except pass/0 条提炼 — `api/routers/sessions.py`（degradation · R-D02/03/04/08）
-- [ ] D-04/D-05/D-06/D-08 叙事降级补日志 — `agents/*`（degradation · D-04~D-08）
+- [x] 各类静默降级补日志：兜底默认卡/空列表/except pass/0 条提炼 — `characters.py`/`engine.py`/`sessions.py`/`worlds.py`（degradation · R-D02/03/04/08；2026-06-04 全部 except pass→warning）
+- [x] D-04/D-05/D-06/D-08 叙事降级补日志 — `agents/*`（degradation · D-04~D-08）：D-05 world_agent 已补 warning（NEW-C2-05）、D-08 `narrator_agent.py:416` P4 提取失败已 warning；D-04（无触发词跳过 LLM，成本优化）/D-06（style 审查失败原文透传）按 def_c2 裁定「可接受/无需动作」
 
 ### 死代码 / 死配置清理
 - [x] M-07/M-09 死代码清理 — `agents/*`（dead · M-07/M-09）
@@ -166,7 +166,7 @@
 - [x] MCP 静态注册 schema 失真 → 动态拉取 — `tools/mcp_bridge.py`（degradation · NEW-C11-09）
 
 ### 优化
-- [ ] NarrativePart 改 store.subscribe 细粒度订阅 — `frontend/src/components/parts/*`（optimize · conf_b12）
+- [x] NarrativePart 改 store.subscribe 细粒度订阅 — `frontend/src/components/parts/{NarrativePart,ReasoningPart}.tsx` + `stores/story.ts` streamBuffers map（optimize · conf_b12；2026-06-04）
 - [x] IndexedDB 改 LRU 驱逐（当前时间过期）— `frontend/src/lib/*`（optimize · conf_b12）
 - [ ] 虚拟滚动实现 — `frontend/src/components/*`（optimize · T-M15）
 - [x] 自动滚底不仅依赖 parts.length — `frontend/src/components/*`（optimize · NEW-C14-05）

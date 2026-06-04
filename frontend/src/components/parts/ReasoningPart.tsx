@@ -4,7 +4,7 @@
  * 默认折叠，点击展开；流式阶段显示 loading 状态。
  */
 import React, { useState, useRef, useEffect } from 'react'
-import { MessagePart } from '../../stores/story'
+import { MessagePart, useStoryStore } from '../../stores/story'
 
 interface Props {
   part: MessagePart
@@ -20,12 +20,24 @@ export const ReasoningPart: React.FC<Props> = ({ part }) => {
     part.streamBuffer ??
     ''
 
-  // 流式阶段直接写入 DOM
+  // 流式阶段（conf_b12）：订阅 store streamBuffers[part.id]，展开时直写 DOM（不触发列表重渲染）
   useEffect(() => {
-    if (part.status === 'streaming' && expanded && contentRef.current) {
-      contentRef.current.textContent = part.streamBuffer ?? ''
+    if (part.status !== 'streaming' || !expanded) return
+    const partId = part.id
+    const write = (buf: string | undefined) => {
+      if (contentRef.current != null) contentRef.current.textContent = buf ?? ''
     }
-  }, [part.streamBuffer, part.status, expanded])
+    write(useStoryStore.getState().streamBuffers[partId])
+    let last = useStoryStore.getState().streamBuffers[partId]
+    const unsub = useStoryStore.subscribe((s) => {
+      const buf = s.streamBuffers[partId]
+      if (buf !== last) {
+        last = buf
+        write(buf)
+      }
+    })
+    return unsub
+  }, [part.id, part.status, expanded])
 
   const isStreaming = part.status === 'streaming'
   const agentLabel = part.agent ? part.agent : 'reasoning'

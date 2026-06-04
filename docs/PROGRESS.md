@@ -24,17 +24,14 @@
 
 收尾验证（见 FIX_VERIFICATION Phase 6）：`pytest --collect-only` 61 项、前端 `npm run build` 通过、init_db CHECK/FK 通过、59 工具加载、记忆 `mode=full`。
 
-## 部分完成（⚠️，适合认领）
+## 部分完成项（2026-06-04 第二轮已清零 ✅）
 
-| ID | 内容 | 影响 |
+| ID | 内容 | 结果 |
 |----|------|------|
-| 降级日志 | world/style/npc/options 已补日志；**路由侧** R-D02/03/04/08、T-D09/11 未全覆盖 | 可观测性，不影响功能正确性 |
-| 前端性能 | 智能滚底 + 流式跟随已有；**真·虚拟滚动 windowing** 与 NarrativePart 细粒度订阅未做 | 长会话列表性能，暂缓引第三方依赖 |
+| 降级日志 | 路由侧 R-D02/03/04/08 静默降级 | ✅ `characters.py`/`engine.py`/`sessions.py`/`worlds.py` 全部 except pass→warning；T-D09/11 此前已覆盖 |
+| 前端性能 | 真·虚拟滚动 windowing + NarrativePart 细粒度订阅 | ✅ 引入 `react-virtuoso` 窗口化（followOutput 跟随）；流式 delta 拆入 store `streamBuffers` map，NarrativePart/ReasoningPart 订阅自身缓冲直写 DOM（conf_b12） |
 
-## 建议 good-first-issue
-
-1. 为 `api/routers/sessions.py` 及叙事路由降级路径补 `logger.warning`（对照 FIX_VERIFICATION「降级日志」备注）。
-2. 评估 `MessageThread` 虚拟列表方案（`react-window` / 自研 windowing），在不大改 Part 渲染的前提下做 POC。
+> 至此复审清单 + 24 条裁定项**全部 ✅**，无遗留 ⚠️/❌。
 
 ## 路线图（产品向）
 
@@ -42,7 +39,8 @@
 |------|------|------|
 | Phase 1–8 | 骨架、Agent、扩展、VM、记忆、权限、前端、工具 | ✅ 主路径完成 |
 | 2026-06 复审 | P0 崩溃/安全 + P1–P5 设计对齐 | ✅ `173d921` |
-| 下一迭代 | 路由降级日志、虚拟滚动、多实例 Redis 生产演练 | ⏳ 见上表 ⚠️ |
+| 2026-06 第二轮 | 路由降级日志 + react-virtuoso 虚拟滚动 + conf_b12 细粒度订阅 | ✅ 清单全闭环 |
+| 下一迭代 | 多实例 Redis 生产演练、bundle 拆包优化 | ⏳ |
 
 ## 维护规则
 

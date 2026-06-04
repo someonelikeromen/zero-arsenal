@@ -6,7 +6,7 @@
  * 完成后：React state 接管，触发一次完整渲染（支持 Markdown 基础格式）
  */
 import React, { useRef, useEffect } from 'react'
-import { MessagePart } from '../../stores/story'
+import { MessagePart, useStoryStore } from '../../stores/story'
 
 interface Props {
   part: MessagePart
@@ -15,12 +15,26 @@ interface Props {
 export const NarrativePart: React.FC<Props> = ({ part }) => {
   const containerRef = useRef<HTMLDivElement>(null)
 
-  // 流式阶段：直接 DOM 写入，跳过 React diff
+  // 流式阶段（conf_b12 细粒度订阅）：直接订阅 store 的 streamBuffers[part.id]，
+  // 每个 delta 仅通过 imperative subscribe 回调直写 DOM textContent，
+  // 既跳过 React diff，也不触发列表/兄弟组件重渲染。
   useEffect(() => {
-    if (part.status === 'streaming' && containerRef.current) {
-      containerRef.current.textContent = part.streamBuffer ?? ''
+    if (part.status !== 'streaming') return
+    const partId = part.id
+    const write = (buf: string | undefined) => {
+      if (containerRef.current != null) containerRef.current.textContent = buf ?? ''
     }
-  }, [part.streamBuffer, part.status])
+    write(useStoryStore.getState().streamBuffers[partId])
+    let last = useStoryStore.getState().streamBuffers[partId]
+    const unsub = useStoryStore.subscribe((s) => {
+      const buf = s.streamBuffers[partId]
+      if (buf !== last) {
+        last = buf
+        write(buf)
+      }
+    })
+    return unsub
+  }, [part.id, part.status])
 
   const agentLabel = part.agent && part.agent !== 'narrator' ? `[${part.agent}]` : ''
 

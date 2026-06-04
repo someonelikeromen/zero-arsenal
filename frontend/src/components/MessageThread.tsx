@@ -1,10 +1,15 @@
 /**
  * MessageThread — 故事流（Part 消息列表）
  * 参考 12-frontend-architecture.md §3 StoryCanvas
- * 独立组件，负责：Part 过滤（按 Mode 可见性）+ 全量渲染 + 智能自动滚底
- * 注：当前为全量渲染（非虚拟滚动）；自动滚底会跟随流式增量，且仅在用户贴近底部时触发。
+ * 独立组件，负责：Part 过滤（按 Mode 可见性）+ 虚拟滚动（react-virtuoso）+ 智能自动滚底
+ *
+ * 虚拟滚动（T-M15）：用 react-virtuoso 仅挂载可视区内的 Part，长会话不再全量挂载。
+ * 自动滚底：Virtuoso `followOutput` —— 用户贴底时跟随流式/新增内容，上翻历史时不被强拉。
+ * 流式增量不改变 parts 数组（见 story store streamBuffers / conf_b12），故列表不随 delta 重渲染；
+ * 末条叙事的 textContent 增长由 Virtuoso 的 ResizeObserver 跟随。
  */
-import React, { useRef, useEffect, useMemo, useCallback } from 'react'
+import React, { useMemo, useCallback } from 'react'
+import { Virtuoso } from 'react-virtuoso'
 import { MessagePart } from '../stores/story'
 import { PartRenderer } from './parts/PartRenderer'
 
@@ -53,31 +58,6 @@ export const MessageThread: React.FC<Props> = ({
   onForkFromMessage,
   sending = false,
 }) => {
-  const bottomRef = useRef<HTMLDivElement>(null)
-  const containerRef = useRef<HTMLDivElement>(null)
-  // 用户是否贴近底部（向上翻阅历史时为 false，避免被强拉到底）
-  const nearBottomRef = useRef(true)
-
-  const handleScroll = useCallback(() => {
-    const el = containerRef.current
-    if (!el) return
-    const dist = el.scrollHeight - el.scrollTop - el.clientHeight
-    nearBottomRef.current = dist < 120
-  }, [])
-
-  // 流式增量签名：累加各 part 的 streamBuffer 长度，使单条叙事流式输出也能触发跟随
-  const streamSignature = useMemo(
-    () => parts.reduce((n, p) => n + (p.streamBuffer?.length ?? 0), 0),
-    [parts]
-  )
-
-  // 自动滚底：内容（条数或流式增量）变化时，仅当用户当前贴近底部才滚动
-  useEffect(() => {
-    if (nearBottomRef.current) {
-      bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-    }
-  }, [parts.length, streamSignature])
-
   const visible = VISIBLE_PARTS[mode]
 
   // 计算最新的 action_options part（用于抑制重复渲染）
@@ -92,38 +72,54 @@ export const MessageThread: React.FC<Props> = ({
     return narr.length > 0 ? narr[narr.length - 1].message_id : null
   }, [parts])
 
-  const visibleParts = parts.filter((p) => visible.has(p.type))
+  const visibleParts = useMemo(
+    () => parts.filter((p) => visible.has(p.type)),
+    [parts, visible]
+  )
+
+  const itemContent = useCallback(
+    (_index: number, p: MessagePart) => (
+      <PartRenderer
+        part={p}
+        onSelectOption={onSelectOption}
+        hideActionOptions={p.type === 'action_options' && p.id !== lastActionOptionId}
+      />
+    ),
+    [onSelectOption, lastActionOptionId]
+  )
+
+  // Swipe 备选指示器（Virtuoso Footer：始终位于列表末尾）
+  const Footer = useCallback(() => {
+    if (sending || !lastNarrativeMsgId || !onForkFromMessage) return <div className="h-2" />
+    return (
+      <div className="flex items-center gap-2 pt-1 pb-2 pl-1 text-[11px] text-zinc-600">
+        <span className="font-mono tabular-nums" title="平行走向数（当前 + 已有分支）">
+          ‹ 1/{branchCount + 1} ›
+        </span>
+        <button
+          onClick={() => onForkFromMessage(lastNarrativeMsgId)}
+          className="flex items-center gap-1 px-1.5 py-0.5 rounded hover:bg-zinc-800 hover:text-indigo-400 transition-colors"
+          title="从此处分支出另一种叙事走向（创建平行分支）"
+        >
+          <span>⑂</span> 换一种走向
+        </button>
+      </div>
+    )
+  }, [sending, lastNarrativeMsgId, onForkFromMessage, branchCount])
 
   return (
-    <div ref={containerRef} onScroll={handleScroll} className={`overflow-y-auto px-4 py-4 space-y-1 ${className}`}>
-      {visibleParts.map((p) => (
-        <PartRenderer
-          key={p.id}
-          part={p}
-          onSelectOption={onSelectOption}
-          hideActionOptions={
-            p.type === 'action_options' && p.id !== lastActionOptionId
-          }
-        />
-      ))}
-
-      {/* Swipe 备选指示器：在最新叙事气泡底部，可分支出平行走向 */}
-      {!sending && lastNarrativeMsgId && onForkFromMessage && (
-        <div className="flex items-center gap-2 pt-1 pl-1 text-[11px] text-zinc-600">
-          <span className="font-mono tabular-nums" title="平行走向数（当前 + 已有分支）">
-            ‹ 1/{branchCount + 1} ›
-          </span>
-          <button
-            onClick={() => onForkFromMessage(lastNarrativeMsgId)}
-            className="flex items-center gap-1 px-1.5 py-0.5 rounded hover:bg-zinc-800 hover:text-indigo-400 transition-colors"
-            title="从此处分支出另一种叙事走向（创建平行分支）"
-          >
-            <span>⑂</span> 换一种走向
-          </button>
-        </div>
-      )}
-
-      <div ref={bottomRef} />
+    <div className={`min-h-0 ${className}`}>
+      <Virtuoso
+        data={visibleParts}
+        computeItemKey={(_, p) => p.id}
+        itemContent={itemContent}
+        components={{ Footer }}
+        followOutput={(isAtBottom) => (isAtBottom ? 'smooth' : false)}
+        initialTopMostItemIndex={Math.max(0, visibleParts.length - 1)}
+        increaseViewportBy={{ top: 600, bottom: 600 }}
+        className="h-full px-4 py-4"
+        style={{ height: '100%' }}
+      />
     </div>
   )
 }

@@ -14,7 +14,7 @@
 > - **§5.1 useSSE**：无独立 hook，连接生命周期内联于 `SessionPage` + `sessionStore.connectSSE`。
 > - **§7 DiceRollPart**：payload 由后端 `DiceRollResult`（pool_formula/rolls/threshold/verdict/...）驱动，无 `major_success`/重骰追加可视化。
 > - **§10 前端 prompts/**：**已下沉后端**（前端无 prompts 模块）；OOC 命令实际为 `/mode /fork /stats /clear /help`。
-> - **缺口（可选补实现）**：NarrativePart 未做 `store.subscribe` 细粒度订阅（仍随父组件重渲染）；IndexedDB 用时间过期（`STALE_MS`）代 `MAX_SESSIONS` LRU 驱逐。
+> - **性能（2026-06-04 已实现）**：`MessageThread` 用 `react-virtuoso` 虚拟滚动（`followOutput` 贴底跟随）；流式 delta 拆入 store `streamBuffers` map 不改 `parts` 引用，`NarrativePart`/`ReasoningPart` 经 `useStoryStore.subscribe` 订阅自身缓冲直写 DOM（conf_b12 细粒度订阅，列表不随 delta 重渲染）；IndexedDB 已为 时间过期 + LRU（D22）。
 
 ---
 
