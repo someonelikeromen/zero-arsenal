@@ -20,7 +20,11 @@ export function LlmConfigBanner({ onGoSettings }: { onGoSettings?: () => void })
       .catch(() => setLlmMissing(true))
 
     api.getMemoryHealth()
-      .then(r => setMemoryDegraded(!r?.ok))
+      .then(r => {
+        const mode = r?.memory?.mode as string | undefined
+        const full = r?.memory?.is_full_mode === true || mode === 'full'
+        setMemoryDegraded(!full)
+      })
       .catch(() => setMemoryDegraded(true))
   }, [])
 

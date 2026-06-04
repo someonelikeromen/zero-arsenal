@@ -40,7 +40,7 @@ def _backend_available() -> bool:
     """探活：要求真实健康端点返回 200，且用短超时——这样无后端 / 端口被无响应进程占用
     （ReadTimeout）/ 返回非 200 时，整模块干净 skip，而不是在后续断言里误判为失败。"""
     try:
-        r = _get("/api/config/system/memory-health", timeout=3)
+        r = _get("/api/system/memory-health", timeout=3)
         return r.status_code == 200
     except Exception:
         return False
@@ -78,8 +78,8 @@ def session_id():
 # ── 测试：记忆健康端点 ────────────────────────────────────────────────────────
 
 def test_memory_health_endpoint():
-    """GET /api/config/system/memory-health 返回 200 及 memory.mode 字段。"""
-    r = _get("/api/config/system/memory-health")
+    """GET /api/system/memory-health 返回 200 及 memory.mode 字段。"""
+    r = _get("/api/system/memory-health")
     assert r.status_code == 200, f"memory-health 端点返回 {r.status_code}"
     data = r.json()
     assert data.get("ok") is True, f"ok 字段为 False: {data}"

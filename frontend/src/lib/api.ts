@@ -204,7 +204,7 @@ export const api = {
   listExtensions: () =>
     apiFetch<{ extensions: Array<{ key: string; name: string; description?: string; agent_profile?: string }>; count: number }>('/engine/extensions'),
   listEngineRules: () =>
-    apiFetch<{ rules: Array<{ id: string; name?: string; description?: string; enabled?: boolean; active?: boolean }>; count: number }>('/engine/rules'),
+    apiFetch<{ rules: Array<{ rule_id: string; title?: string; description?: string; trigger?: string; applicable_agents?: string[]; priority?: number; enabled?: boolean }>; count: number }>('/engine/rules'),
   activateRule: (ruleId: string, enabled: boolean) =>
     apiFetch<{ rule_id: string; enabled: boolean }>(`/engine/rules/${ruleId}/activate?enabled=${enabled}`, {
       method: 'POST', body: '{}',
@@ -315,7 +315,7 @@ export const api = {
     apiFetch<Record<string, unknown>>('/system/info'),
 
   getMemoryHealth: () =>
-    apiFetch<{ ok: boolean; memory: Record<string, unknown> }>('/config/system/memory-health'),
+    apiFetch<{ ok: boolean; memory: Record<string, unknown> }>('/system/memory-health'),
 
   // Config API (11 §5)
   listWorldPlugins: () =>

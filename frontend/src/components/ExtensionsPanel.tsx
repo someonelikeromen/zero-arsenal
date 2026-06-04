@@ -14,11 +14,13 @@ interface Extension {
 }
 
 interface EngineRule {
-  id: string
-  name?: string
+  rule_id: string
+  title?: string
   description?: string
+  trigger?: string
+  applicable_agents?: string[]
+  priority?: number
   enabled?: boolean
-  active?: boolean
 }
 
 export default function ExtensionsPanel() {
@@ -48,12 +50,12 @@ export default function ExtensionsPanel() {
   useEffect(() => { load() }, [load])
 
   const toggleRule = async (rule: EngineRule) => {
-    const next = !(rule.enabled ?? rule.active ?? true)
-    setToggling(rule.id)
+    const next = !(rule.enabled ?? true)
+    setToggling(rule.rule_id)
     try {
-      await api.activateRule(rule.id, next)
-      setRules(prev => prev.map(r => r.id === rule.id ? { ...r, enabled: next, active: next } : r))
-      notify.success(`规则「${rule.name ?? rule.id}」已${next ? '启用' : '停用'}`)
+      await api.activateRule(rule.rule_id, next)
+      setRules(prev => prev.map(r => r.rule_id === rule.rule_id ? { ...r, enabled: next } : r))
+      notify.success(`规则「${rule.title ?? rule.rule_id}」已${next ? '启用' : '停用'}`)
     } catch (e) {
       notify.error(`切换失败：${e instanceof Error ? e.message : String(e)}`)
     } finally {
@@ -110,16 +112,19 @@ export default function ExtensionsPanel() {
         ) : (
           <div className="space-y-2">
             {rules.map(rule => {
-              const on = rule.enabled ?? rule.active ?? true
+              const on = rule.enabled ?? true
               return (
-                <div key={rule.id} className="flex items-center justify-between bg-zinc-900 border border-zinc-800 rounded-lg px-4 py-3">
+                <div key={rule.rule_id} className="flex items-center justify-between bg-zinc-900 border border-zinc-800 rounded-lg px-4 py-3">
                   <div className="min-w-0">
-                    <div className="text-sm font-medium truncate">{rule.name ?? rule.id}</div>
-                    {rule.description && <div className="text-xs text-zinc-500 truncate">{rule.description}</div>}
+                    <div className="text-sm font-medium truncate">{rule.title ?? rule.rule_id}</div>
+                    <div className="text-xs text-zinc-500 truncate">
+                      {rule.rule_id}
+                      {rule.applicable_agents && rule.applicable_agents.length > 0 && ` · ${rule.applicable_agents.join('/')}`}
+                    </div>
                   </div>
                   <button
                     onClick={() => toggleRule(rule)}
-                    disabled={toggling === rule.id}
+                    disabled={toggling === rule.rule_id}
                     className={`shrink-0 ml-3 relative w-11 h-6 rounded-full transition-colors ${on ? 'bg-indigo-600' : 'bg-zinc-700'} disabled:opacity-50`}
                   >
                     <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform ${on ? 'translate-x-5' : ''}`} />

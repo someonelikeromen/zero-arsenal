@@ -62,7 +62,7 @@ async def system_info():
 
 @router.get("/system/memory-health")
 async def memory_health():
-    """记忆子系统健康状态（fallback/full 模式 + 各组件可用性）。"""
+    """记忆子系统健康状态（full / fallback 模式 + 各组件可用性）。"""
     from ...memory.adapter import memory_adapter
     details: dict = {}
     try:
