@@ -3,6 +3,8 @@
 import sys
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 
@@ -23,8 +25,9 @@ def test_parttype_has_new_constants():
         )
 
 
+@pytest.mark.stub
 def test_tool_loop_emits_bus_events():
-    """tool_loop.py 必须引入 bus 并在工具执行前后 emit Part 事件。"""
+    """tool_loop.py 必须引入 bus 并在工具执行前后 emit Part 事件。（静态源码子串检查 · stub）"""
     tool_loop_src = (
         Path(__file__).parent.parent.parent / "backend" / "agents" / "tool_loop.py"
     ).read_text(encoding="utf-8")
@@ -40,9 +43,7 @@ def test_play_yaml_has_tool_call_type():
         Path(__file__).parent.parent.parent
         / "backend" / "agents" / "profiles" / "play.yaml"
     )
-    if not play_yaml.exists():
-        import pytest
-        pytest.skip("play.yaml 不存在")
+    assert play_yaml.exists(), f"play.yaml 不存在：{play_yaml}"
 
     data = yaml.safe_load(play_yaml.read_text(encoding="utf-8"))
     visible = data.get("visible_part_types", [])

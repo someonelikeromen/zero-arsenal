@@ -128,12 +128,55 @@ def part_status(hp: int, max_hp: int) -> str:
 
 # ── 角色属性计算（简化版，从 character_data 读取）────────────────────────────
 
+def _read_body_parts(char_data: dict) -> dict:
+    """
+    NEW-C4-03：统一部位 HP schema。
+    优先读取 combat 引擎写入的 `attributes.hp.parts`（字段 current/max），
+    回退到旧版 `body_parts`（字段 hp/max_hp）。
+    返回归一化后的 {part: {"hp": int, "max_hp": int}}。
+    """
+    parts = (
+        char_data.get("attributes", {}).get("hp", {}).get("parts")
+        if isinstance(char_data.get("attributes"), dict) else None
+    )
+    if isinstance(parts, dict) and parts:
+        normalized: dict[str, dict] = {}
+        for part, bp in parts.items():
+            if not isinstance(bp, dict):
+                continue
+            max_hp = bp.get("max", bp.get("max_hp", 1)) or 1
+            cur_hp = bp.get("current", bp.get("hp", max_hp))
+            normalized[part] = {"hp": cur_hp, "max_hp": max_hp}
+        if normalized:
+            return normalized
+    # 旧 schema 回退
+    legacy = char_data.get("body_parts", {})
+    if isinstance(legacy, dict):
+        return {
+            p: {"hp": bp.get("hp", bp.get("max_hp", 1)), "max_hp": bp.get("max_hp", 1)}
+            for p, bp in legacy.items() if isinstance(bp, dict)
+        }
+    return {}
+
+
+def _read_psyche(char_data: dict) -> dict:
+    """
+    NEW-C4-03：统一心理 schema。
+    优先读取 runtime/psyche 使用的 `char["psyche"]`，
+    回退到旧版 `psychology.state`。
+    """
+    psyche = char_data.get("psyche")
+    if isinstance(psyche, dict) and psyche:
+        return psyche
+    return char_data.get("psychology", {}).get("state", {}) if isinstance(char_data.get("psychology"), dict) else {}
+
+
 def _effective_attr(char_data: dict, attr: str) -> int:
     attrs = char_data.get("attributes", {})
     a = attrs.get(attr, {"base": 1, "equip": 0, "status": 0, "temp": 0})
     total = a.get("base", 1) + a.get("equip", 0) + a.get("status", 0) + a.get("temp", 0)
-    # 部位减值
-    body_parts = char_data.get("body_parts", {})
+    # 部位减值（对齐 combat 引擎 attributes.hp.parts schema）
+    body_parts = _read_body_parts(char_data)
     penalty = 0
     for part, bp in body_parts.items():
         s = part_status(bp.get("hp", bp.get("max_hp", 1)), bp.get("max_hp", 1))
@@ -145,8 +188,8 @@ def _effective_attr(char_data: dict, attr: str) -> int:
         elif s in ("crippled", "lost"):
             if part in ("head", "torso"):
                 penalty -= 3
-    # 心理减值
-    psych = char_data.get("psychology", {}).get("state", {})
+    # 心理减值（对齐 runtime psyche schema）
+    psych = _read_psyche(char_data)
     stress = psych.get("stress", 0)
     if stress >= 75:
         penalty -= 2

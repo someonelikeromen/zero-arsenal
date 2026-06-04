@@ -1,8 +1,23 @@
 # 07 — 工具注册表设计（Tool Registry）
 
-> **版本**：v1.0  
+> **版本**：v1.1（2026-06 对齐实现）  
 > **参考来源**：opencode `tool/tool.ts`（Effect Schema + ctx.ask）、pi TypeBox `registerTool`、MCP 动态工具规范  
-> **状态**：设计稿，待实现
+> **状态**：已实现（部分偏离）——核心机制（注册、按 Agent 过滤、execution_mode 并发、权限 ask SSE、MCP 桥接、内置/扩展工具清单）全部落地，工具数远超本草案。
+>
+> 注：本文档已于 2026-06 对齐实现（D0 以代码为准）。原「设计稿，待实现」已撤销。下文 §3.3/§3.6 的「实现名称对照表」与「补录」维护良好；§1/§2/§4/§5/§7 的接口/流程/常量按下列「实现对齐总览」修正：
+>
+> **实现对齐总览（2026-06）**
+> - **§1.1 ToolContext**：实际字段 `session_id/message_id/agent_name/profile_name/turn_index/metadata/turn_ctx/bus/abort_signal`。**无 `ctx.ask_permission` 回调**——权限交互改由 `ToolRegistry._wait_for_permission` + `ask_handler` 集中处理；`turn_id→turn_index(int)`、`extra→metadata`、`state` 由 `turn_ctx`+`state_snapshot` 替代。
+> - **§1.2 ToolResult**：结构存在但**形同虚设**——所有 handler 返回**纯 dict**，`ToolRegistry.execute` 也返回 dict，`part_type/should_memorize/needs_continuation` 实际由 handler 自行发 Part。实际为「dict 返回 + handler 自发 Part」模型；`metadata→data`，且 `should_memorize`/`needs_continuation` 默认值实现为 **False**（草案为 True）。
+> - **§1.3 ToolDef**：`id→name`、`parameters` 放宽为 `Union[dict, Type]`（内置工具用 dict=JSON Schema 直传）、`default_permission→permission_required: str`（无 Literal 约束）、`execute→handler`（签名 `handler(**args)->dict`）、`timeout_seconds` 默认 **15.0**；另有未消费的死字段 `requires_permission`。
+> - **§1.4 AgentProfile**：实际见 `backend/agents/permission.py`——用 glob 模式 `list[ToolPermission]` + `default_permission` + `active_tools` + `visible_part_types` + `max_tokens_per_turn` + `allowed_groups`，替代草案的 `permission_overrides` dict（详见 10-permission-modes §2）。
+> - **§2.1 执行链**：拆在 `tool_loop._execute_one` + `ToolRegistry.execute` 两处；`registry.execute` **先权限后验证**（与草案相反），且 tool_loop 已先门控一次 → 存在双重权限检查；before/after_hooks 在 tool_loop 跑（非 registry 内）。
+> - **§5.1 权限矩阵**：**play 模式系统性放宽为 allow**（`default=ALLOW` + 末位 `*→allow`，`edit/earn/purchase/fork/consolidate/mcp_*` 均 allow）——属「尽量不打扰」产品取向（D0 已采纳为现状，见 10-permission-modes §3.1）；plan/review 与设计基本吻合（但 review 的 style/purity 误 deny 为缺陷，见 10 §3.3）。`deny 不可被 overlay 上调为 allow` 的安全底线当前未强制（待补）。
+> - **§3.6+ 额外工具**：实现另有 `fetch_web_lore`、`list_scraper_rules`（group="lore"）及扩展自动发现 `_discover_extension_tools`（扫描 `extensions/*/tools.py` 的 `TOOLS`），本草案 §3 未列。
+> - **§4.1 MCPBridge**：实际为**配置驱动**（读 `data/sys_config/mcp.json`）、用 **aiohttp**、`fetch_tool_list` 用 **GET**、工具名 `mcp_{server}_{tool}`（下划线）、无 `_jsonschema_to_pydantic`（直传 inputSchema dict）、用 `register_to_registry()/discover()/register_plugin_mcp_servers()` 替代 `get_tool_defs()/close()`。**MCP 重试指数退避未实现**。
+> - **§6 ToolRegistry**：单例为 `ToolRegistry.get_instance()` + 模块级 `tool_registry`；`to_llm_schema→to_openai_functions`；**无 `unregister`**（MCP 热卸载待补）。
+> - **§7.2 超时常量**：实际 ToolDef 默认 15s、MCP 10s、ASK 60s、fetch_tool_list 5s——与草案 GLOBAL=30/LONG_RUNNING=120/MCP=15/PERMISSION_ASK=300 全部不符，且无集中分级超时常量（待统一）。
+> - **§8 测试**：本分片范围内未见工具链单测/集成测试（待补）。
 
 ---
 

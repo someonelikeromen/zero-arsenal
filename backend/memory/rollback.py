@@ -6,6 +6,32 @@ from __future__ import annotations
 from loguru import logger
 
 
+def _get_db_cm():
+    """获取数据库异步上下文管理器（兼容 db.queries / backend.db.queries 两种导入路径）。"""
+    try:
+        from db.queries import get_db
+    except ImportError:  # pragma: no cover - 包前缀导入回退
+        from backend.db.queries import get_db  # type: ignore[no-redef]
+    return get_db
+
+
+async def _clear_sync_status(novel_id: str, node_ids: list[str]) -> None:
+    """清除指定脏节点的 node_sync_status 记录（正确使用 async with get_db()）。"""
+    if not node_ids:
+        return
+    get_db = _get_db_cm()
+    try:
+        async with get_db() as db:
+            placeholders = ",".join("?" for _ in node_ids)
+            await db.execute(
+                f"DELETE FROM node_sync_status WHERE novel_id=? AND node_id IN ({placeholders})",
+                [novel_id, *node_ids],
+            )
+            await db.commit()
+    except Exception as e:
+        logger.warning(f"[Rollback] 同步状态清除失败: {e}")
+
+
 class MemoryRollback:
     """
     记忆图谱回滚服务。
@@ -32,9 +58,6 @@ class MemoryRollback:
         """
         from memory.graph import graph_manager
         from memory.vector import vector_manager
-        from db.queries import get_db
-
-        db = get_db()
 
         # 1. 从图中找出该时间后创建的节点
         graph = graph_manager.get(novel_id)
@@ -61,14 +84,7 @@ class MemoryRollback:
             vector_removed = 0
 
         # 4. 清除 node_sync_status 记录
-        try:
-            for nid in dirty_ids:
-                await db._exec(
-                    "DELETE FROM node_sync_status WHERE novel_id=? AND node_id=?",
-                    (novel_id, nid),
-                )
-        except Exception as e:
-            logger.warning(f"[Rollback] 同步状态清除失败: {e}")
+        await _clear_sync_status(novel_id, dirty_ids)
 
         logger.info(
             f"[Rollback:{novel_id}] 完成：图={graph_removed}, 向量={vector_removed}"
@@ -124,9 +140,6 @@ class MemoryRollback:
         """
         from memory.graph import graph_manager
         from memory.vector import vector_manager
-        from db.queries import get_db
-
-        db = get_db()
 
         graph = graph_manager.get(novel_id)
         dirty_ids = graph.get_nodes_created_after(since_iso)
@@ -148,14 +161,7 @@ class MemoryRollback:
         except Exception as e:
             logger.error(f"[Rollback] 向量删除失败: {e}")
 
-        try:
-            for nid in dirty_ids:
-                await db._exec(
-                    "DELETE FROM node_sync_status WHERE novel_id=? AND node_id=?",
-                    (novel_id, nid),
-                )
-        except Exception as e:
-            logger.warning(f"[Rollback] 同步状态清除失败: {e}")
+        await _clear_sync_status(novel_id, dirty_ids)
 
         logger.info(
             f"[Rollback:{novel_id}] 时间回滚完成：图={graph_removed}, 向量={vector_removed}"

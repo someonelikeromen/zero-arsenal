@@ -2,6 +2,19 @@
 
 > **参考来源**：MoRanJiangHu 前端的 `subsystems/zustandStore` 模式 + IndexedDB 本地缓存设计；
 > opencode TUI 的差分渲染思想；pi `setActiveTools` 工具集切换。
+>
+> 注：本文档已于 2026-06 对齐实现（D0 以代码为准）。核心运行链路（React19/Zustand/SSE 续传/PartRenderer 分派/ChapterTree/IndexedDB 冷启动/响应式三栏）功能齐备且多处超出设计；下列结构性偏离按实现修正。
+>
+> **实现对齐总览（2026-06，`frontend/src/`）**
+> - **技术栈**：Tailwind 实际为 **v3**（PostCSS 链，非 v4 `@tailwindcss/vite`）；**未引入 shadcn/ui/Radix**，骰子/对话框/权限弹窗均为手写 Tailwind 组件；IndexedDB 用**原生 `indexedDB.open`**（无 `idb` 库）。
+> - **目录结构**：实际为 `lib/{sse,api,idb,bindSSEToStores}.ts` + `components/parts/` + `components/panels/`；**无 `services/`、`types/`、`hooks/`、`components/ui` 目录**（类型内联各 store / `lib/api.ts`）；新增 `pages/`（HomePage 代 Lobby、SettingsPage 代 Config）+ `router.tsx`（TanStack Router）。
+> - **布局**：右栏为 **8-Tab 多功能面板**（`RIGHT_TABS`），`DicePanel` 收入右栏 dice tab（非中栏底栏 DM 工具箱横条）；左栏 w-52、右栏 w-64。
+> - **Store**：`StoryStore.parts` 为**数组 + 单 `streamingPartId`**（非 Record+Set）；`CharacterStore` 快照按 `ts`/LIFO、命令枚举 `SET/ADD/PUSH/POP`（非 set/increment/...）、手动深克隆（非 immer）；`uiStore` 实为 `{activePanel,sidebarOpen,notifications,inputDisabled,theme}`，权限弹窗由 `sessionStore.pendingAsks` 控制；immer 覆盖 4/7 store。
+> - **§4.2 state_patch**：实现**有 UI**（`StatePatchPart` 差异卡片），补丁在 `bindSSEToStores`（SSE part.done）层应用（非 PartRenderer useEffect + null 渲染）。
+> - **§5.1 useSSE**：无独立 hook，连接生命周期内联于 `SessionPage` + `sessionStore.connectSSE`。
+> - **§7 DiceRollPart**：payload 由后端 `DiceRollResult`（pool_formula/rolls/threshold/verdict/...）驱动，无 `major_success`/重骰追加可视化。
+> - **§10 前端 prompts/**：**已下沉后端**（前端无 prompts 模块）；OOC 命令实际为 `/mode /fork /stats /clear /help`。
+> - **缺口（可选补实现）**：NarrativePart 未做 `store.subscribe` 细粒度订阅（仍随父组件重渲染）；IndexedDB 用时间过期（`STALE_MS`）代 `MAX_SESSIONS` LRU 驱逐。
 
 ---
 
@@ -401,13 +414,11 @@ export const useCharacterStore = create<CharacterStore>()(
 
 ### 3.5 其他 Store 切片
 
-> ⚠️ **实现状态（第二十九轮补录）**：`chapter`、`dice`、`ui`、`world` 四个 store 文件已创建（脚手架完整），
-> 但目前**未接入任何组件**（孤儿状态）。  
-> - `DicePanel` 使用组件内 `useState` + `api.getDiceHistory`，未消费 `useDiceStore`  
-> - `ChapterTree` 使用组件内 `useState` + `fetch`，未消费 `useChapterStore`  
-> - `WorldPanel` 使用组件内 `state`，未消费 `useWorldStore`  
-> - `uiStore.theme` 有 `setTheme` 但无 UI 调用，`PermissionDialog` 由 `sessionStore.pendingAsks` 控制而非 `uiStore.showPermissionDialog`  
-> 接线工作属于已知技术债，待前端完善阶段处理。
+> ✅ **实现状态（2026-06 更新，已对齐实现）**：原「四 store 孤儿（未接入任何组件）」警告**已过时，现已全部接线生效**：
+> - `DicePanel` 消费 `useDiceStore`，`bindSSEToStores` 向 diceStore 推送骰子结果  
+> - `ChapterTree` 消费 `useChapterStore`  
+> - `SessionPage` 消费 `useDiceStore` / `useWorldStore`  
+> - `uiStore` 实际结构为 `{activePanel, sidebarOpen, notifications, inputDisabled, theme}`；`PermissionDialog` 由 `sessionStore.pendingAsks` 控制（设计的 `uiStore.showPermissionDialog` 字段未采用，属有意重组）。
 
 ```typescript
 // stores/diceStore.ts — 骰子历史

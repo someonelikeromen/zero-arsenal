@@ -204,7 +204,11 @@ def test_real_llm_message(session_id: str):
 
 def test_browser_ui(session_id: str):
     section("Part 3: 浏览器 UI 测试 (Playwright)")
-    from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
+    try:
+        from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
+    except ImportError:
+        import pytest
+        pytest.skip("playwright 未安装，跳过浏览器 UI 测试")
 
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
@@ -344,13 +348,13 @@ def test_extension_apis(session_id: str):
     import time as _time; _time.sleep(2)
 
     # 记忆搜索
-    r = requests.get(f"{BACKEND_URL}/api/sessions/{session_id}/memory?q=驿站&limit=5", timeout=5)
-    mem_count = len(r.json()) if r.ok else "限流" if r.status_code == 429 else "?"
-    log(f"GET /memory?query=驿站 → {r.status_code} 记忆数={mem_count}")
+    r = requests.get(f"{BACKEND_URL}/api/sessions/{session_id}/memory?q=驿站&top_k=5", timeout=5)
+    mem_count = len(r.json()) if r.ok else ("限流" if r.status_code == 429 else "?")
+    log(f"GET /memory?q=驿站 → {r.status_code} 记忆数={mem_count}", ok=r.ok)
 
     # 世界档案（含NPC）
     r = requests.get(f"{BACKEND_URL}/api/sessions/{session_id}/world-archives", timeout=5)
-    log(f"GET /world-archives → {r.status_code} 数量={len(r.json()) if r.ok else ('限流' if r.status_code == 429 else '?')}")
+    log(f"GET /world-archives → {r.status_code} 数量={len(r.json()) if r.ok else ('限流' if r.status_code == 429 else '?')}", ok=r.ok)
 
     # 章节树
     r = requests.get(f"{BACKEND_URL}/api/sessions/{session_id}/chapters", timeout=5)
@@ -376,7 +380,7 @@ def test_extension_apis(session_id: str):
         roll = r.json()
         log(f"POST /api/engine/roll pool=4 → net={roll.get('net','?')} rolls={roll.get('rolls','?')} verdict={roll.get('verdict','?')}")
     elif r.status_code == 429:
-        log(f"POST /api/engine/roll → 429 限流（正常）")
+        log(f"POST /api/engine/roll → 429 限流（端点被限流，未验证成功）", ok=False)
     else:
         log(f"POST /api/engine/roll → {r.status_code}: {r.text[:150]}", ok=False)
 

@@ -28,6 +28,26 @@ _PROFILE_MULTIPLIERS: dict[str, float] = {
     "review": 0.8,
 }
 
+# 系统提示（PromptFragment 拼接）的 token 预算，按 build_system_prompt 的 phase 维度。
+# 与 DEFAULT_BUDGETS（输出 token）分离：此处约束注入的 system prompt 体量，
+# 供 PromptRegistry.get_for_phase(token_budget=...) 裁剪低优先级片段（NEW-C12-02）。
+SYSTEM_PROMPT_BUDGETS: dict[str, int] = {
+    "rules": 3000,
+    "dm":    4000,
+    "p1":    3000,
+    "p3":    6000,
+    "p4":    3000,
+    "style": 2000,
+    "all":   4000,
+}
+
+
+def system_prompt_budget(phase: str, profile: str = "play") -> int:
+    """返回指定 phase 在当前 profile 下的 system prompt token 预算（NEW-C12-02 接线）。"""
+    base = SYSTEM_PROMPT_BUDGETS.get(phase, 4000)
+    multiplier = _PROFILE_MULTIPLIERS.get(profile, 1.0)
+    return int(base * multiplier)
+
 # 中文字符正则
 _ZH_PATTERN = re.compile(r"[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]")
 

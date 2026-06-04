@@ -34,7 +34,7 @@ from ..tools.registry import ToolContext  # noqa: F401
 logger = logging.getLogger(__name__)
 
 _DOOM_THRESHOLD = 3       # 同签名调用超过此次数视为 doom loop
-_DEFAULT_MAX_ITER = 10    # 最大循环轮数
+_DEFAULT_MAX_ITER = 20    # 最大循环轮数（D12：恢复为设计值 20）
 
 
 # ---------------------------------------------------------------------------
@@ -64,7 +64,11 @@ async def run_tool_loop(
         return await _run(messages, system_prompt, tools, agent_config, ctx,
                           max_iterations, on_delta)
     except Exception as e:
-        logger.warning(f"[tool_loop] run_tool_loop failed: {e}")
+        # NEW-C3-04：致命错误（litellm 超时/限流/provider 不可用等）此前被压成
+        # ("",[])，调用方无法区分 "模型没说话" 与 "调用失败"。这里升级为 ERROR +
+        # exc_info，确保栈可见；仍返回空以避免崩溃上层管线（契约保持不变）。
+        logger.error("[tool_loop] run_tool_loop failed: %s: %s",
+                     type(e).__name__, e, exc_info=True)
         return "", []
 
 
@@ -135,7 +139,22 @@ async def _run(
             kwargs["tools"]       = openai_tools
             kwargs["tool_choice"] = "auto"
 
-        resp   = await litellm.acompletion(**kwargs)
+        # NEW-C3-04 / D-22：FC 调用失败时自动降级到文本解析模式，而非整体
+        # 吞成空输出。仅对启用了 FC 的请求做一次降级重试；非 FC 错误向上抛。
+        try:
+            resp = await litellm.acompletion(**kwargs)
+        except Exception as fc_err:
+            if use_fc:
+                logger.warning(
+                    "[tool_loop] function calling 调用失败，降级为文本解析模式重试: %s: %s",
+                    type(fc_err).__name__, fc_err,
+                )
+                use_fc = False
+                kwargs.pop("tools", None)
+                kwargs.pop("tool_choice", None)
+                resp = await litellm.acompletion(**kwargs)
+            else:
+                raise
         choice = resp.choices[0]
         msg    = choice.message
 
@@ -357,7 +376,7 @@ async def _execute_one(
     _part_id = str(uuid.uuid4())
     _now = __import__("time").time()
     try:
-        from ..bus import bus, BusEvent, EventType
+        from ..bus import bus
         from ..db.schema import PartType
         if ctx.session_id:
             await bus.publish_part_created(
@@ -371,7 +390,7 @@ async def _execute_one(
 
     # ── emit tool_result Part（工具执行后）──────────────────────────────────
     try:
-        from ..bus import bus, BusEvent, EventType
+        from ..bus import bus
         if ctx.session_id:
             await bus.publish_part_done(
                 ctx.session_id, _part_id,

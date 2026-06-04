@@ -138,7 +138,6 @@ class MemoryConsolidator:
         try:
             emb_client = get_embedding_client()
             emb = await emb_client.embed(synopsis_node.content)
-            from memory.vector import vector_manager
             await vector_manager.upsert_node(novel_id, synopsis_node, emb)
         except Exception as e:
             logger.warning(f"[Consolidator] 摘要节点向量化失败: {e}")

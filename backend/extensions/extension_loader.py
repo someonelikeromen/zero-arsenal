@@ -63,6 +63,16 @@ class LoadedExtension:
     rules:           list[Path]    = field(default_factory=list)
     prompt_fragments: list[Path]   = field(default_factory=list)
 
+    @property
+    def key(self) -> str:
+        """
+        稳定扩展键（NEW-C8-08）。main.py 用 `getattr(_ext, "key", "")` 取键以
+        标注 hook_id；此前 LoadedExtension 无 key 字段恒回退到模块名，导致
+        loader 注册路径与 discover_and_register_hooks 的 hook_id 不一致、无法去重。
+        统一返回 ext_id，使两条注册路径产生相同 id（ext.{ext_id}.{method}）从而互相覆盖去重。
+        """
+        return self.ext_id
+
 
 def discover_extensions() -> dict[str, ExtensionBundle]:
     """

@@ -1,8 +1,12 @@
 # 数据模型完整设计文档
 
-**文档版本**：v1.0  
+**文档版本**：v1.1（2026-06 对齐实现）  
 **创建日期**：2026-05-31  
 **归属系统**：zero-arsenal / AI-VN 互动叙事引擎  
+
+> 注：本文档已于 2026-06 对齐实现（D0 以代码为准）。下文 SQL/Schema 已按 `backend/db/schema.py`、`backend/db/character_v4.py`、`backend/memory/schema.py` 的实际列名与默认值补注修正。两点重要例外（属待修复缺陷而非文档滞后，**不**改文档来迁就现状）：
+> 1. **角色卡 v4**：实现实为「v3 简化卡」（缺 `energy_pools/loadout/identity/achievements`、psychology 缺 OCEAN、body_parts 仅 4 部位 hp_ratio、economy 缺 badges/tier）。§2 保留为完整 v4 目标设计；详见 §2.1 注与 `docs/review/fix_report_docs.md`。
+> 2. **`node_sync_status` 表**：代码（`memory/rollback.py`、`memory/extractor.py`）对其 DELETE/UPDATE，但全仓**无建表语句**——属缺失，待补建表，见 §5 注。
 
 ---
 
@@ -42,13 +46,19 @@ Session（会话）
 -- =====================================================
 -- 会话表
 -- =====================================================
+-- 实现对齐注（2026-06，backend/db/schema.py）：
+--   · world_plugin 实际带 DEFAULT 'crossover'
+--   · mode 取值实际为 play | plan | review（非 sandbox/replay）
+--   · branch_of 实际仅 REFERENCES sessions(id)，缺 ON DELETE SET NULL
+--   · state_json 实际未加 NOT NULL
+--   · 实现额外多出 fork_from_msg、status 两列（设计未列）
 CREATE TABLE IF NOT EXISTS sessions (
     id              TEXT PRIMARY KEY,
     -- 激活的 WorldPlugin 名称（如 wuxia_jianghu / crossover_mla）
-    world_plugin    TEXT NOT NULL,
+    world_plugin    TEXT NOT NULL DEFAULT 'crossover',
     -- 激活的 AgentProfile（play / plan / review / 自定义）
     agent_profile   TEXT NOT NULL DEFAULT 'play',
-    -- 游戏模式：play（交互）/ sandbox（沙盒）/ replay（回放）
+    -- 游戏模式：play（交互）/ plan（策划只读）/ review（审校）
     mode            TEXT NOT NULL DEFAULT 'play',
     -- 分支来源（来自 pi JSONL 树的分支概念）
     branch_of       TEXT REFERENCES sessions(id) ON DELETE SET NULL,
@@ -75,6 +85,9 @@ CREATE INDEX IF NOT EXISTS idx_sessions_created_at ON sessions(created_at DESC);
 
 -- =====================================================
 -- 消息表
+-- 实现对齐注（2026-06）：实现的 messages 表 role/phase **未加 CHECK 约束**；
+--   phase 默认 '' 且实际取值用 dm/npc/world/narrator/style/var 等（MessagePhase 类另定义 p1/p3/p4/meta）；
+--   实现额外多出 content、message_type 两列。
 -- =====================================================
 CREATE TABLE IF NOT EXISTS messages (
     id              TEXT PRIMARY KEY,
@@ -108,6 +121,8 @@ CREATE INDEX IF NOT EXISTS idx_messages_phase ON messages(session_id, phase);
 
 -- =====================================================
 -- Part 表（消息片段）
+-- 实现对齐注（2026-06）：实现的 message_parts 表 content/metadata **未加 NOT NULL**、
+--   status **未加 CHECK**；实现额外多出 agent、updated_at 两列。
 -- =====================================================
 CREATE TABLE IF NOT EXISTS message_parts (
     id              TEXT PRIMARY KEY,
@@ -562,6 +577,8 @@ class MessagePart:
 
 角色卡 v4 是本系统的核心数据结构，统合了系统、战斗、心理、经济等所有维度。
 
+> 🔴 **实现差距（2026-06，待补实现——非文档滞后，故不下调本设计）**：当前 `backend/db/character_v4.py` 的 `CHARACTER_V4_SCHEMA` 实质仍是「v3 简化卡」，与本节完整 v4 目标存在严重差距：顶层 `required` 仅 `["name","world_plugin"]`；attributes 为固定 5 维（strength/dexterity/intelligence/will/empathy）而无 `schema`/`values` 维度切换；body_parts 仅 4 部位（head/chest/arms/legs）且为 `hp_ratio`（设计要 6 部位 hp_max/hp_current/armor/status_effects）；**完全缺 `energy_pools`、`loadout`、`identity`、`achievements`**；psychology 缺 OCEAN/clarity/emotion_state/traumas/beliefs/...；economy 缺 `badges/tier/tier_sub`（`cash`→`currency`）；meta 仅 created_at/session_id/writing_style。`migrate_v3_to_v4` 也产出同款简化卡。本节保留为完整 v4 的目标设计，差距登记于 `docs/review/fix_report_docs.md`，由实现侧补齐。
+
 ```json
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
@@ -989,19 +1006,24 @@ class MessagePart:
 ### 2.2 角色卡存储表
 
 ```sql
+-- 实现对齐注（2026-06，backend/db/schema.py）：列名/类型与下方设计示例有差异：
+--   · version       → 实现列名 schema_version
+--   · card_json     → 实现列名 data_json
+--   · hp_overall    → 实现为 INTEGER DEFAULT 0（非 REAL DEFAULT 1.0）
+--   · tier 实现默认 1（设计 0）、tier_sub 实现默认 'M'（设计 ''）
 CREATE TABLE IF NOT EXISTS character_cards (
     id              TEXT PRIMARY KEY,
     session_id      TEXT REFERENCES sessions(id) ON DELETE SET NULL,
-    version         TEXT NOT NULL DEFAULT '4.0.0',
+    schema_version  TEXT NOT NULL DEFAULT '4.0.0',   -- 设计示例曾名 version
     -- 完整角色卡 JSON（通过 JSON1 扩展可部分查询）
-    card_json       TEXT NOT NULL,
+    data_json       TEXT NOT NULL,                   -- 设计示例曾名 card_json
     -- 常用字段提升为列，方便快速查询
     character_name  TEXT NOT NULL,
     world_plugin    TEXT NOT NULL,
-    tier            INTEGER DEFAULT 0,
-    tier_sub        TEXT DEFAULT '',
+    tier            INTEGER DEFAULT 1,
+    tier_sub        TEXT DEFAULT 'M',
     points          INTEGER DEFAULT 0,
-    hp_overall      REAL DEFAULT 1.0,    -- 综合HP%
+    hp_overall      INTEGER DEFAULT 0,   -- 综合HP（实现为 INTEGER/0，设计原为 REAL/1.0）
     created_at      REAL NOT NULL DEFAULT (unixepoch('now', 'subsec')),
     updated_at      REAL NOT NULL DEFAULT (unixepoch('now', 'subsec'))
 );
@@ -1010,6 +1032,7 @@ CREATE INDEX IF NOT EXISTS idx_cards_session ON character_cards(session_id);
 CREATE INDEX IF NOT EXISTS idx_cards_name ON character_cards(character_name);
 
 -- 角色卡快照（每章结束时保存，用于回溯）
+-- 实现对齐注（2026-06）：实现以 session_id（+ message_id）为锚，**无 card_id 外键**。
 CREATE TABLE IF NOT EXISTS character_snapshots (
     id              TEXT PRIMARY KEY,
     card_id         TEXT NOT NULL REFERENCES character_cards(id) ON DELETE CASCADE,
@@ -1124,7 +1147,10 @@ CREATE TABLE IF NOT EXISTS character_snapshots (
 
 ### 3.2 世界档案存储表
 
+> **实现对齐注（2026-06）**：实际 `world_archives` 表已**条目化**（每行一条 lore/setting/npc/rule 条目），列为 `title / content / archive_type(lore|npc|rule|setting) / world_key / time_flow_ratio`，**无** `archive_json / current_location_id / world_time_str / elapsed_seconds`（`archive_json`→`content`）。下方为原「整世界单档案」设计示例，保留供对照。
+
 ```sql
+-- 【设计示例（整世界单档案）；实际实现为条目化，见上注】
 CREATE TABLE IF NOT EXISTS world_archives (
     id              TEXT PRIMARY KEY,
     session_id      TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
@@ -1139,19 +1165,27 @@ CREATE TABLE IF NOT EXISTS world_archives (
 );
 
 -- NPC 档案独立存储（便于全局复用）
+-- 实现对齐注（2026-06）：实现**新增 session_id(NOT NULL)**（非全局表），并把 npc_name 拆为
+--   key + name 两列；唯一约束基于 key：idx_npc_session_key(session_id,key)
+--   与 idx_npc_world_key(world_key,key) WHERE world_key!=''（非下方的 idx_npc_world_name）。
 CREATE TABLE IF NOT EXISTS npc_profiles (
     id              TEXT PRIMARY KEY,
+    session_id      TEXT NOT NULL,        -- 实现新增
     world_key       TEXT NOT NULL,
-    npc_name        TEXT NOT NULL,
+    key             TEXT NOT NULL,        -- 实现：稳定标识（设计原为 npc_name）
+    name            TEXT NOT NULL,        -- 实现：显示名
     -- 完整 NPC 档案（psyche_model_json + 外貌 + 能力）
     profile_json    TEXT NOT NULL,
     created_at      REAL NOT NULL DEFAULT (unixepoch('now', 'subsec')),
     updated_at      REAL NOT NULL DEFAULT (unixepoch('now', 'subsec'))
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS idx_npc_world_name ON npc_profiles(world_key, npc_name);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_npc_session_key ON npc_profiles(session_id, key);
 
 -- 会话-NPC 关系状态（session 级别的动态状态，与全局 NPC 档案分离）
+-- 实现对齐注（2026-06）：实现用独立 id + UNIQUE(session_id,npc_id)（非复合主键）；
+--   affinity/trust 实际为 REAL（非 INTEGER），trust 默认 0.0（非 50）；
+--   knowledge_of_protagonist 实际默认 '{}'（非 '[]'）。
 CREATE TABLE IF NOT EXISTS session_npc_states (
     session_id      TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
     npc_id          TEXT NOT NULL,
@@ -1359,17 +1393,25 @@ CREATE TABLE IF NOT EXISTS memory_entries (
     last_accessed_at    REAL
 );
 
+-- 实现对齐注（2026-06）：实现的 memory_entries 表 tier/cognitive_partition **未加 CHECK 约束**；
+--   cognitive_partition 实际取值与本设计枚举不一致（主建表含 world_state/relationship、迁移默认 objective_local，
+--   存在默认值自相矛盾），且实现多出 source_agent 列。详见 08-memory-system.md（记忆系统以 GraphRAG/NetworkX+ChromaDB
+--   平行架构为主，memory_entries 表主要服务 SQLite fallback 召回）。
+-- 🔴 缺失：node_sync_status 表 —— rollback.py/extractor.py 对其 DELETE/UPDATE，但全仓无 CREATE TABLE，待补建表。
 CREATE INDEX IF NOT EXISTS idx_memory_session ON memory_entries(session_id, tier);
 CREATE INDEX IF NOT EXISTS idx_memory_chapter ON memory_entries(chapter_id);
 CREATE INDEX IF NOT EXISTS idx_memory_importance ON memory_entries(session_id, importance DESC);
 CREATE INDEX IF NOT EXISTS idx_memory_partition ON memory_entries(session_id, cognitive_partition);
 
--- 向量索引元数据（实际向量搜索由 Python 侧 FAISS/Annoy 管理）
+-- 向量索引元数据（实际向量搜索由 Python 侧 ChromaDB/FAISS 管理）
+-- 实现对齐注（2026-06）：实现用独立 id + UNIQUE(session_id)（非 session_id 作 PK）；
+--   total_vectors → 实现列名 entry_count；dimension 实际默认 1536（非 768）；
+--   index_type 实际默认 'flat'（非 'faiss_flat'）。
 CREATE TABLE IF NOT EXISTS vector_index_meta (
     session_id          TEXT PRIMARY KEY,
-    index_type          TEXT DEFAULT 'faiss_flat',  -- faiss_flat / annoy / sqlite_vss
-    dimension           INTEGER DEFAULT 768,
-    total_vectors       INTEGER DEFAULT 0,
+    index_type          TEXT DEFAULT 'flat',
+    dimension           INTEGER DEFAULT 1536,
+    entry_count         INTEGER DEFAULT 0,   -- 设计示例曾名 total_vectors
     index_path          TEXT,
     last_rebuilt_at     REAL
 );
@@ -1491,13 +1533,15 @@ class MemoryRecaller:
 -- =====================================================
 -- 骰子日志（双写：SQLite + JSONL 文件）
 -- =====================================================
+-- 实现对齐注（2026-06）：实现用 created_at（非 timestamp）；verdict 实际无 CHECK 约束；
+--   实现另有一批扁平列 message_id/pool/threshold/rolls/net/attribute/skill/reason（与 result_json 内容重叠）。
 CREATE TABLE IF NOT EXISTS dice_log (
     id              TEXT PRIMARY KEY,
     session_id      TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
     -- 产生骰子的消息 Part ID（关联 message_parts 表）
     part_id         TEXT REFERENCES message_parts(id),
-    -- 判定时间
-    timestamp       REAL NOT NULL DEFAULT (unixepoch('now', 'subsec')),
+    -- 判定时间（实现列名 created_at）
+    created_at      REAL NOT NULL DEFAULT (unixepoch('now', 'subsec')),
     -- 判定输入（属性/技能/修正值等完整上下文）
     input_json      TEXT NOT NULL,
     -- 判定结果（骰池详情）
@@ -1862,6 +1906,8 @@ class ConfigLoader:
 ---
 
 ## 8. 数据迁移策略
+
+> **实现对齐注（2026-06）**：实现**未采用 Alembic**。改为在 `backend/db/schema.py` 用手写幂等补丁清单 `MIGRATION_PATCHES_SQL`（全 `ADD COLUMN` / `CREATE … IF NOT EXISTS`，均带 DEFAULT）+ `schema_version` 表记录补丁版本。本节 §8.1/§8.2 的 Alembic 配置/脚本为「应然/可选」方案，保留供对照；§8.3「只增不删、默认值安全」原则已被实现遵守。
 
 ### 8.1 Alembic 迁移配置
 

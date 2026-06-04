@@ -125,8 +125,12 @@ async def create_session(req: CreateSessionRequest):
                     char_data = migrate_v3_to_v4(char_data)
                 valid, errs = validate_character(char_data)
                 if not valid:
+                    logger.warning(
+                        "[create_session] character_data 校验失败，回退默认卡: %s", errs[:5]
+                    )
                     char_data = create_default_character("旅行者", req.world_plugin)
-            except Exception:
+            except Exception as _cv_err:
+                logger.warning("[create_session] character_data 处理异常，回退默认卡: %s", _cv_err)
                 char_data = create_default_character("旅行者", req.world_plugin)
         else:
             char_data = create_default_character("旅行者", req.world_plugin)
@@ -972,6 +976,9 @@ async def rollback_to_chapter(session_id: str, chapter_id: str,
         )
         await db.commit()
 
+    # NEW-C6-04：角色快照恢复必须 fail-loud（不再静默 pass）。
+    # 若查到快照但 UPDATE 失败，则抛 500，避免“返回成功但角色状态未回滚”的假象。
+    character_state_restored = False
     try:
         async with get_db() as db:
             snap = await (await db.execute(
@@ -989,13 +996,24 @@ async def rollback_to_chapter(session_id: str, chapter_id: str,
                 )).fetchone()
             if snap:
                 now2 = datetime.now().timestamp()
-                await db.execute(
+                cur = await db.execute(
                     "UPDATE character_cards SET data_json=?, updated_at=? WHERE session_id=?",
                     (snap["snapshot_json"], now2, session_id)
                 )
                 await db.commit()
-    except Exception:
-        pass
+                # rowcount>0 才视为真正恢复成功
+                character_state_restored = (getattr(cur, "rowcount", 0) or 0) > 0
+                if not character_state_restored:
+                    logger.warning(
+                        "[rollback_to_chapter] 找到快照但 character_cards 无匹配行 session=%s",
+                        session_id,
+                    )
+    except Exception as _snap_err:
+        logger.error(
+            "[rollback_to_chapter] 角色快照恢复失败 session=%s chapter=%s: %s",
+            session_id, chapter_id, _snap_err,
+        )
+        raise HTTPException(500, f"角色快照恢复失败: {_snap_err}") from _snap_err
 
     rollback_result: dict = {}
     try:
@@ -1058,7 +1076,7 @@ async def rollback_to_chapter(session_id: str, chapter_id: str,
         "rolled_back_to": chapter_id,
         "deleted_chapters": deleted_chapters,
         "new_branch_id": new_branch_id,
-        "character_state_restored": snap is not None,
+        "character_state_restored": character_state_restored,
         "memory_rollback": rollback_result,
     }
 
@@ -1131,12 +1149,13 @@ async def create_world_archive(session_id: str, req: CreateArchiveRequest):
     archive_id = str(uuid.uuid4())
     now = datetime.now().timestamp()
     async with get_db() as db:
+        # NEW-C6-05：world_key 不再误用 archive_type，留空（会话内档案不绑定全局 world_key）。
         await db.execute(
             "INSERT INTO world_archives (id, session_id, title, content, archive_type, trigger_keywords, world_key, created_at, updated_at) "
             "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (archive_id, session_id, req.title,
              json.dumps(req.content, ensure_ascii=False), req.archive_type,
-             req.trigger_keywords, req.archive_type, now, now)
+             req.trigger_keywords, "", now, now)
         )
         await db.commit()
     return {"archive_id": archive_id, "title": req.title}
@@ -1236,7 +1255,12 @@ async def delete_npc(session_id: str, npc_key: str):
 
 @router.get("/sessions/{session_id}/memory")
 async def search_memory(session_id: str, q: str = "", top_k: int = 10,
-                        tier: Optional[str] = None):
+                        tier: Optional[str] = None,
+                        viewer_agent: str = "narrator"):
+    """
+    召回记忆。viewer_agent 控制 5 认知分区视角隔离（conf_b08 §3）：
+    chronicler/narrator（全分区）/ dm / planner / world / rules / protagonist / player / npc[_<name>]。
+    """
     from ...memory.adapter import memory_adapter
     from ...db import MemoryEntry
 
@@ -1250,8 +1274,20 @@ async def search_memory(session_id: str, q: str = "", top_k: int = 10,
         session_id=session_id,
         world_plugin=world_plugin,
         query_text=q,
+        viewer_agent=viewer_agent,
         top_k=top_k,
     )
+
+    # 按 viewer_agent 的 5 分区可见集合过滤结构化 entries（与召回视角一致）
+    partition_cond = ""
+    try:
+        from ...memory.retriever import viewer_allowed_partitions, ALL_PARTITIONS
+        _allowed = viewer_allowed_partitions(viewer_agent)
+        if _allowed and _allowed < ALL_PARTITIONS:
+            _inlist = ",".join(f"'{p}'" for p in sorted(_allowed))
+            partition_cond = f" AND cognitive_partition IN ({_inlist})"
+    except Exception:
+        partition_cond = ""
 
     async with get_db() as db:
         where = ["session_id=?"]
@@ -1261,13 +1297,14 @@ async def search_memory(session_id: str, q: str = "", top_k: int = 10,
             params.append(tier)
         params.append(top_k)
         rows = await db.execute(
-            f"SELECT * FROM memory_entries WHERE {' AND '.join(where)} "
+            f"SELECT * FROM memory_entries WHERE {' AND '.join(where)}{partition_cond} "
             "ORDER BY created_at DESC LIMIT ?",
             params
         )
         entries = [MemoryEntry.from_row(dict(r)).to_dict() for r in await rows.fetchall()]
 
-    return {"results": results_text, "entries": entries, "full_mode": memory_adapter.is_full_mode}
+    return {"results": results_text, "entries": entries,
+            "viewer_agent": viewer_agent, "full_mode": memory_adapter.is_full_mode}
 
 
 @router.post("/sessions/{session_id}/memory")

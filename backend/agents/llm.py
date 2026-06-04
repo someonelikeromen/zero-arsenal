@@ -118,10 +118,36 @@ async def llm_stream(
 
 _AGENT_CONFIG_WARNED: set[str] = set()
 
+# 硬编码兜底（最末一级）
+_HARD_DEFAULT = {"provider": "deepseek", "model": "deepseek-chat", "temperature": 0.7, "max_tokens": 1024}
+
+
+def _global_single_model_override() -> Optional[dict]:
+    """
+    D11：全局单模型覆盖（环境变量）。设置后所有角色统一走该 provider/model，
+    用于"未配置多模型时退化为单模型"的场景与本地快速切换。
+    ZERO_ARSENAL_LLM_PROVIDER / ZERO_ARSENAL_LLM_MODEL（两者都设才生效）。
+    """
+    prov = os.environ.get("ZERO_ARSENAL_LLM_PROVIDER", "").strip()
+    model = os.environ.get("ZERO_ARSENAL_LLM_MODEL", "").strip()
+    if prov and model:
+        return {"provider": prov, "model": model}
+    return None
+
 
 def load_agent_config(agent_name: str) -> dict:
-    """从 data/sys_config/agents.json 读取 Agent LLM 配置。"""
-    _default = {"provider": "deepseek", "model": "deepseek-chat", "temperature": 0.7, "max_tokens": 1024}
+    """
+    从 data/sys_config/agents.json 读取 Agent LLM 配置（D11 多模型角色映射）。
+
+    解析优先级（高 → 低）：
+      1. 环境变量全局单模型覆盖（ZERO_ARSENAL_LLM_PROVIDER+MODEL）
+      2. agents.json → agents.<agent_name>（角色专属模型）
+      3. agents.json → default / _default（统一默认模型；"未配置时退化为单模型"）
+      4. 硬编码兜底 deepseek-chat
+    角色未单独配置时自动落到统一默认，从而支持"多模型按需、缺省单模型"。
+    """
+    override = _global_single_model_override()
+
     config_path = _find_config()
     if config_path is None:
         if "agents.json" not in _AGENT_CONFIG_WARNED:
@@ -130,22 +156,38 @@ def load_agent_config(agent_name: str) -> dict:
                 "[LLM] agents.json 未找到，所有 Agent 使用硬编码默认配置（deepseek-chat）。"
                 "请在 data/sys_config/agents.json 中配置各 Agent 的模型参数。"
             )
-        return _default
+        base = dict(_HARD_DEFAULT)
+        if override:
+            base.update(override)
+        return base
+
     with open(config_path, encoding="utf-8") as f:
         data = json.load(f)
     agents = data.get("agents", {})
+    # 统一默认（角色映射缺省层）：支持 "default" / "_default" 两种键
+    role_default = agents.get("default") or agents.get("_default") or data.get("default") or {}
+
     cfg = agents.get(agent_name)
     if cfg is None:
         warn_key = f"agent:{agent_name}"
         if warn_key not in _AGENT_CONFIG_WARNED:
             _AGENT_CONFIG_WARNED.add(warn_key)
             logger.warning(
-                "[LLM] agents.json 中未找到 Agent '%s' 的配置，使用硬编码默认值。"
-                "请在 agents.json 的 'agents' 字段中添加 '%s' 配置项。",
+                "[LLM] agents.json 中未找到 Agent '%s' 的配置，回退到统一默认/硬编码值。"
+                "如需角色专属模型，请在 agents.json 的 'agents' 字段中添加 '%s' 配置项。",
                 agent_name, agent_name,
             )
-        return _default
-    return cfg
+        cfg = {}
+
+    # 分层合并：硬编码 < 统一默认 < 角色专属 < 环境覆盖
+    resolved = dict(_HARD_DEFAULT)
+    if isinstance(role_default, dict):
+        resolved.update(role_default)
+    if isinstance(cfg, dict):
+        resolved.update(cfg)
+    if override:
+        resolved.update(override)
+    return resolved
 
 
 def _find_config() -> Optional[str]:

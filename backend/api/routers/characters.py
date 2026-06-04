@@ -16,10 +16,40 @@ from pydantic import BaseModel
 
 from ...db import get_db
 from ...agents.llm import llm_stream
-from ...db.character_v4 import create_default_character
+from ...db.character_v4 import (
+    create_default_character,
+    migrate_v3_to_v4,
+    validate_character,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+def _normalize_to_v4(data: dict, world_plugin: str, source: str = "") -> dict:
+    """
+    将任意角色卡数据归一化到 v4 并做 jsonschema 校验（R-M14 / D7）。
+    - 非 v4（缺 schema_version 或 < 4）先 migrate_v3_to_v4；
+    - 校验失败仅告警（保留归一化后的数据，不静默丢弃用户输入）。
+    供 characters 路由所有写入入口共用。
+    """
+    if not isinstance(data, dict) or not data:
+        return create_default_character("新角色", world_plugin)
+    out = data
+    try:
+        sv = str(out.get("schema_version") or out.get("meta", {}).get("schema_version") or "0")
+        if sv < "4":
+            out = migrate_v3_to_v4(out)
+        if not out.get("world_plugin"):
+            out["world_plugin"] = world_plugin
+        valid, errs = validate_character(out)
+        if not valid:
+            logger.warning("[characters%s] 角色卡 v4 校验未通过（保留数据）: %s",
+                           f":{source}" if source else "", errs[:5])
+    except Exception as e:
+        logger.warning("[characters%s] 角色卡 v4 归一化异常: %s",
+                       f":{source}" if source else "", e)
+    return out
 
 
 # ── Pydantic 模型 ─────────────────────────────────────────────────────────────
@@ -194,7 +224,7 @@ async def get_character_template(cid: str):
 async def create_character_template(req: CreateCharacterTemplateRequest):
     cid = str(uuid.uuid4())
     now = time.time()
-    raw_data = req.data_json or {}
+    raw_data = _normalize_to_v4(req.data_json or {}, req.world_plugin, source="create")
     async with get_db() as db:
         await db.execute(
             "INSERT INTO character_templates (id, name, world_plugin, data_json, schema_version, created_at, updated_at)"
@@ -215,8 +245,9 @@ async def update_character_template(cid: str, req: UpdateCharacterTemplateReques
         if req.name is not None: updates.append("name=?"); vals.append(req.name)
         if req.world_plugin is not None: updates.append("world_plugin=?"); vals.append(req.world_plugin)
         if req.data_json is not None:
+            norm = _normalize_to_v4(req.data_json, req.world_plugin or "crossover", source="update")
             updates.append("data_json=?")
-            vals.append(json.dumps(req.data_json, ensure_ascii=False))
+            vals.append(json.dumps(norm, ensure_ascii=False))
         if updates:
             vals += [time.time(), cid]
             await db.execute(f"UPDATE character_templates SET {','.join(updates)},updated_at=? WHERE id=?", vals)
@@ -247,6 +278,8 @@ async def import_character_png(file: UploadFile = File(...), world_plugin: str =
     name = str(payload.get("name") or payload.get("char_name") or "导入角色")
     cid = str(uuid.uuid4())
     now = time.time()
+    payload_wp = payload.get("world_plugin", world_plugin)
+    payload = _normalize_to_v4(payload, payload_wp, source="import-png")
     async with get_db() as db:
         await db.execute(
             "INSERT INTO character_templates (id, name, world_plugin, data_json, schema_version, created_at, updated_at)"
@@ -345,6 +378,9 @@ async def generate_character(req: GenerateCharacterRequest):
                     char_data = create_default_character(req.name or "新角色", req.world_plugin)
             except Exception:
                 char_data = create_default_character(req.name or "新角色", req.world_plugin)
+
+            # D7：LLM 产出归一化到 v4 并校验（失败仅告警，保留生成结果）
+            char_data = _normalize_to_v4(char_data, req.world_plugin, source="generate")
 
             # first_message 由用户直接指定，不交给 LLM 改写
             if req.first_message.strip():

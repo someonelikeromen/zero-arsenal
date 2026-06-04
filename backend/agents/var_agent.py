@@ -37,6 +37,19 @@ async def _var_impl(ctx: TurnContext) -> TurnContext:
     if not commands:
         return ctx
 
+    # conf_b04：触发 before_var_update（可由扩展修改/校验 commands）
+    try:
+        from ..hooks import hook_manager, HookEvent
+        _bvu = await hook_manager.fire(HookEvent.before_var_update, {
+            "session_id": ctx.session_id,
+            "agent_name": "var",
+            "commands": commands,
+        })
+        if isinstance(_bvu.get("commands"), list):
+            commands = _bvu["commands"]
+    except Exception as _e:
+        logger.debug("[var_agent] before_var_update hook failed: %s", _e)
+
     errors: list = []
 
     try:
@@ -103,6 +116,19 @@ async def _var_impl(ctx: TurnContext) -> TurnContext:
 
     ctx.var_updates = commands
     ctx.var_errors = errors
+
+    # conf_b04：触发 after_var_update（扩展可据变更做副作用结算，如经济/损耗）
+    try:
+        from ..hooks import hook_manager, HookEvent
+        await hook_manager.fire(HookEvent.after_var_update, {
+            "session_id": ctx.session_id,
+            "agent_name": "var",
+            "commands": commands,
+            "updated_state": updated_state,
+            "errors": errors,
+        })
+    except Exception as _e:
+        logger.debug("[var_agent] after_var_update hook failed: %s", _e)
 
     # 异步记忆提取：把本轮叙事加入提取队列
     if ctx.narrative_text and ctx.session_id:

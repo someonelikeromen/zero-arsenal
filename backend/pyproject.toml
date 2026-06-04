@@ -20,12 +20,16 @@ dependencies = [
     # 数据库
     "aiosqlite>=0.20.0",
     "alembic>=1.13.0",
-    # 记忆子系统
+    # 记忆子系统（GraphRAG：向量库 + 图 + 词法）
     "sentence-transformers>=3.0.0",
+    "chromadb>=0.5.0",
     "networkx>=3.3",
     "jieba>=0.42.1",
-    # 变量执行
+    # 变量执行 + 条件沙箱
     "RestrictedPython>=7.0",
+    "simpleeval>=0.9.13",
+    # 提示词模板渲染
+    "jinja2>=3.1.0",
     # 工具
     "pydantic>=2.8.0",
     "python-dotenv>=1.0.0",
@@ -37,6 +41,10 @@ dev = [
     "pytest>=8.0.0",
     "pytest-asyncio>=0.23.0",
     "httpx>=0.27.0",
+]
+# 多进程事件总线（Redis Pub/Sub fan-out + ZSET 续传），未安装则降级单进程
+redis = [
+    "redis>=5.0.0",
 ]
 
 [tool.hatch.build.targets.wheel]

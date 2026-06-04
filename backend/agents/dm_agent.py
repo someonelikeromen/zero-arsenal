@@ -103,10 +103,12 @@ def _build_dm_messages(ctx: TurnContext) -> list[dict]:
         plugin = _plug_reg.get(ctx.world_plugin)
         if plugin:
             plugin.apply_to_registry(_pr)
+        from ..prompts.token_budget import system_prompt_budget as _spb
         built = _pr.build_system_prompt(
             phase="dm",
             session_id=ctx.session_id,
             state={"world_plugin": ctx.world_plugin, "mode": ctx.mode},
+            token_budget=_spb("dm", ctx.mode),
         )
         if built.strip():
             system_content = built

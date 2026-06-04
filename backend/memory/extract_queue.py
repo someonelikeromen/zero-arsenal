@@ -5,8 +5,35 @@
 from __future__ import annotations
 
 import asyncio
+import re as _re
 from typing import Optional, Callable
 from loguru import logger
+
+
+# ── 5W1H tier 分层（轨道 B 启发式兜底）──────────────────────────────────────────
+# 集中定义，供 _process_task 与测试共享，避免在测试内重写同款逻辑（STUB-T10）。
+CORE_KEYWORDS = ("突破", "死亡", "觉醒", "获得", "失去", "叛变", "盟约", "任务完成",
+                 "境界", "武库", "宗师", "关键", "永久")
+SEMANTIC_PATTERNS = _re.compile(
+    r"(?:【|「|《)?([A-Z\u4e00-\u9fff]{2,8})(?:】|」|》)?"
+    r"(?:\s*[-—是：:为]+\s*)(.{5,40})"
+)
+
+# tier → 认知分区映射
+_TIER_PARTITION = {
+    "core": "core_facts",
+    "semantic": "world_knowledge",
+    "episodic": "objective_global",
+}
+
+
+def determine_tier(para: str) -> str:
+    """根据段落内容判定记忆 tier：core / semantic / episodic。"""
+    if any(kw in para for kw in CORE_KEYWORDS):
+        return "core"
+    if SEMANTIC_PATTERNS.search(para):
+        return "semantic"
+    return "episodic"
 
 
 class ExtractQueue:
@@ -99,10 +126,16 @@ class ExtractQueue:
 
     async def _process_task(self, task: dict) -> None:
         """
-        处理单个提取任务（5W1H 分层提取）：
-        1. episodic — 叙事段落（事件经过）
-        2. semantic  — 提取 NPC/地点/物品等实体（LIKE 启发式）
-        3. core      — 提取重大状态变化（包含「突破/死亡/获得」等关键词的段落）
+        处理单个提取任务，双轨写入（08-memory-system.md §4）：
+
+        轨道 A — LLM 图谱提取（生产主路径，C5-03/D5）：
+          当任务携带 messages + novel_id 时，调用 memory_extractor.extract_and_persist，
+          把 8 类结构化节点写入 NetworkX 图（+ 向量库，如可用），供 hybrid_recall 四级召回。
+          图写入仅依赖 networkx（无 chromadb 也可工作），向量写入在依赖缺失时自动降级。
+
+        轨道 B — 启发式 SQLite 兜底（5W1H 分层）：
+          始终执行，把叙事分段写入 memory_entries（episodic/semantic/core），
+          供 _fallback_recall 在无向量层时仍可关键词召回。
         """
         session_id     = task.get("session_id", "")
         chapter_id     = task.get("chapter_id", "")
@@ -110,41 +143,28 @@ class ExtractQueue:
         user_input     = task.get("user_input", "")
         source_agent   = task.get("source_agent", "narrator")
 
+        # ── 轨道 A：LLM 图谱提取（生产路径）─────────────────────────────────
+        await self._run_llm_extraction(task, session_id, chapter_id)
+
         if not session_id or not narrative_text.strip():
             return
 
         import uuid
         from datetime import datetime
-        import re as _re
 
         now = datetime.now().timestamp()
         paragraphs = [p.strip() for p in narrative_text.split("\n") if len(p.strip()) > 10]
         if not paragraphs:
             paragraphs = [narrative_text[:600]]
 
-        # 关键词集（用于 tier 判断）
-        CORE_KEYWORDS = ("突破", "死亡", "觉醒", "获得", "失去", "叛变", "盟约", "任务完成",
-                         "境界", "武库", "宗师", "关键", "永久")
-        SEMANTIC_PATTERNS = _re.compile(
-            r"(?:【|「|《)?([A-Z\u4e00-\u9fff]{2,8})(?:】|」|》)?"
-            r"(?:\s*[-—是：:为]+\s*)(.{5,40})"
-        )
-
         try:
             from ..db import get_db
             async with get_db() as db:
                 for para in paragraphs[:8]:  # 最多 8 段
 
-                    # 判断 tier
-                    if any(kw in para for kw in CORE_KEYWORDS):
-                        tier = "core"
-                        partition = "core_facts"
-                    elif SEMANTIC_PATTERNS.search(para):
-                        tier = "semantic"
-                        partition = "world_knowledge"
-                    else:
-                        tier = "episodic"
-                        partition = "objective_global"
+                    # 判断 tier（共享模块级逻辑）
+                    tier = determine_tier(para)
+                    partition = _TIER_PARTITION[tier]
 
                     entry_id = str(uuid.uuid4())
                     await db.execute(
@@ -179,6 +199,34 @@ class ExtractQueue:
         except Exception as e:
             logger.warning(f"[ExtractQueue] DB 写入失败: {e}")
 
+    async def _run_llm_extraction(
+        self, task: dict, session_id: str, chapter_id: str
+    ) -> None:
+        """
+        调用 LLM 驱动的 memory_extractor，把对话提取为 8 类图谱节点（轨道 A）。
+        仅当任务携带 messages 且能确定 novel_id 时执行；任何失败都不影响轨道 B。
+        """
+        messages = task.get("messages") or []
+        novel_id = task.get("novel_id") or session_id
+        if not messages or not novel_id:
+            return
+        try:
+            from .extractor import memory_extractor
+            created = await memory_extractor.extract_and_persist(
+                novel_id=novel_id,
+                world_key=task.get("world_key", ""),
+                chapter_id=chapter_id,
+                new_messages=messages,
+                novel_config=task.get("novel_config") or {},
+            )
+            if created:
+                logger.info(
+                    f"[ExtractQueue] LLM 图谱提取写入 {len(created)} 个节点 "
+                    f"(novel={str(novel_id)[:8]})"
+                )
+        except Exception as e:
+            logger.warning(f"[ExtractQueue] LLM 图谱提取失败（降级至 SQLite 兜底）: {e}")
+
     async def _maybe_auto_consolidate(self, session_id: str) -> None:
         """触发阈值自动固化（独立 Task，失败不影响主流程）。"""
         try:
@@ -210,3 +258,8 @@ class ExtractQueue:
 
 # ── 全局单例 ──────────────────────────────────────────────────────────────
 extract_queue = ExtractQueue(max_size=50)
+
+
+def get_extract_queue() -> ExtractQueue:
+    """返回全局提取队列单例（消除 engine.py 脆弱的双重 import 回退，R-D11）。"""
+    return extract_queue

@@ -102,14 +102,22 @@ class ExtensionHooks(Protocol):
 
 def discover_and_register_hooks() -> int:
     """
-    扫描 extensions/*/hooks.py，自动注册到 HookManager。
+    扫描三级扩展目录（内置/用户/项目）的 hooks.py，自动注册到 HookManager。
+
+    NEW-C8-02：复用 `discover_extensions()` 的 bundle 路径，天然跳过 `_` 前缀目录
+              （如 `_template`），不再用裸 glob 误加载骨架钩子。
+    NEW-C8-04：三级目录全部覆盖（此前硬编码仅扫描 backend/extensions/）。
+    NEW-C8-06：只实例化类名以 Hook/Hooks 结尾或显式 HOOKS 导出的类，避免盲目
+              实例化模块内任意类（含 import 进来的第三方类）。
+    NEW-C8-03/C9-04：hook_id 统一为 `ext.{ext_key}.{method}`，与
+              `HookManager.register_extension_hooks`（loader 路径）一致，使两条
+              注册路径产生相同 id → 后者覆盖前者 → 去重（消除 wuxia 等双重触发）。
     返回成功注册的钩子数量。
     """
     from ..hooks.hook_manager import hook_manager, HookEvent, HookDef
     import importlib.util
     import sys
 
-    ext_root = Path(__file__).parent
     count = 0
 
     # 协议方法名 → HookEvent 映射（完整 14 类）
@@ -143,8 +151,27 @@ def discover_and_register_hooks() -> int:
         "on_chapter_end":            HookEvent.on_chapter_end,
     }
 
-    for hooks_file in ext_root.glob("*/hooks.py"):
-        ext_key = hooks_file.parent.name
+    # NEW-C8-04：复用三级目录发现（含 user/project 级），而非硬编码内置目录。
+    try:
+        from .extension_loader import discover_extensions
+        bundles = list(discover_extensions().values())
+    except Exception as e:
+        logger.warning(f"[HookProtocol] discover_extensions 失败，回退仅扫描内置目录: {e}")
+        bundles = []
+
+    if bundles:
+        _iter = [(b.ext_id, b.path / "hooks.py") for b in bundles]
+    else:
+        # 回退：仅内置目录，仍跳过 `_` 前缀目录
+        ext_root = Path(__file__).parent
+        _iter = [
+            (f.parent.name, f) for f in ext_root.glob("*/hooks.py")
+            if not f.parent.name.startswith("_")
+        ]
+
+    for ext_key, hooks_file in _iter:
+        if not hooks_file.exists():
+            continue
         try:
             # 动态导入 extensions/{ext_key}/hooks.py
             module_name = f"zero_arsenal_ext_{ext_key}_hooks"
@@ -155,21 +182,32 @@ def discover_and_register_hooks() -> int:
             sys.modules[module_name] = module
             spec.loader.exec_module(module)  # type: ignore[union-attr]
 
-            # 查找实现了 ExtensionHooks 协议方法的类
-            for attr_name in dir(module):
-                obj = getattr(module, attr_name)
-                if not (isinstance(obj, type) and obj is not ExtensionHooks):
-                    continue
-                try:
-                    instance = obj()
-                except Exception:
-                    continue
+            # NEW-C8-06：优先用显式 HOOKS 导出；否则只取类名以 Hook/Hooks 结尾的类，
+            # 不再盲目实例化模块内任意类。
+            candidates: list[tuple[str, object]] = []
+            explicit = getattr(module, "HOOKS", None)
+            if explicit is not None and not isinstance(explicit, type):
+                candidates.append((type(explicit).__name__, explicit))
+            else:
+                for attr_name in dir(module):
+                    obj = getattr(module, attr_name)
+                    if not (isinstance(obj, type) and obj is not ExtensionHooks):
+                        continue
+                    if not (attr_name.endswith("Hook") or attr_name.endswith("Hooks")):
+                        continue
+                    try:
+                        candidates.append((attr_name, obj()))
+                    except Exception:
+                        continue
 
+            for attr_name, instance in candidates:
+                cls = type(instance)
                 # 为每个已实现的方法注册对应 HookEvent
                 for method_name, event in _EVENT_MAP.items():
                     method = getattr(instance, method_name, None)
-                    if method and callable(method) and method_name in obj.__dict__:
-                        hook_id = f"ext.{ext_key}.{attr_name}.{method_name}"
+                    if method and callable(method) and method_name in cls.__dict__:
+                        # NEW-C8-03：与 loader 路径 (register_extension_hooks) 同 id 以去重
+                        hook_id = f"ext.{ext_key}.{method_name}"
                         hook_def = HookDef(
                             id=hook_id,
                             event=event,
@@ -179,12 +217,10 @@ def discover_and_register_hooks() -> int:
                         )
                         hook_manager.register(hook_def)
                         count += 1
-                        logger.debug(
-                            f"[HookProtocol] registered {hook_id}"
-                        )
+                        logger.debug(f"[HookProtocol] registered {hook_id}")
 
         except Exception as e:
             logger.warning(f"[HookProtocol] failed to load {hooks_file}: {e}")
 
-    logger.info(f"[HookProtocol] discovered {count} hooks from extensions/*/hooks.py")
+    logger.info(f"[HookProtocol] discovered {count} hooks (3-tier scan)")
     return count

@@ -48,6 +48,10 @@ export interface CreateSessionReq {
   agent_profile?: string
   title?: string
   character_data?: Record<string, unknown>
+  /** 引用已建好的世界模板（NEW-C14-01：补齐后端已支持但前端缺失的字段） */
+  world_id?: string
+  /** 引用已建好的人物模板 */
+  character_template_id?: string
 }
 
 export interface DiceRollResult {
@@ -82,7 +86,12 @@ export interface RollRequest {
   message_id?: string
 }
 
-async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+/**
+ * 统一 HTTP 调用入口：拼接 BASE、注入默认 header、对 !res.ok 抛错（带 body）。
+ * 各 store 应复用本函数而非裸 fetch，保证 base URL / 鉴权头 / 错误语义一致
+ * （NEW-C13-03）。导出供 stores 直接调用。
+ */
+export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     headers: { 'Content-Type': 'application/json', ...init?.headers },
     ...init,
@@ -349,27 +358,7 @@ export const api = {
       body: JSON.stringify(req),
     }),
 
-  // NPC CRUD
-  listNpcs: (sessionId: string) =>
-    apiFetch<{ npcs: unknown[] }>(`/sessions/${sessionId}/npcs`),
-
-  createNpc: (sessionId: string, req: { name: string; key?: string; profile?: unknown }) =>
-    apiFetch<{ npc_id: string; key: string; name: string }>(
-      `/sessions/${sessionId}/npcs`,
-      { method: 'POST', body: JSON.stringify(req) }
-    ),
-
-  updateNpc: (sessionId: string, npcKey: string, req: { name?: string; profile?: unknown }) =>
-    apiFetch<{ ok: boolean; key: string; profile: unknown }>(
-      `/sessions/${sessionId}/npcs/${npcKey}`,
-      { method: 'PATCH', body: JSON.stringify(req) }
-    ),
-
-  deleteNpc: (sessionId: string, npcKey: string) =>
-    apiFetch<{ ok: boolean; deleted_key: string }>(
-      `/sessions/${sessionId}/npcs/${npcKey}`,
-      { method: 'DELETE' }
-    ),
+  // NPC CRUD：统一走上方 *SessionNpc 系列（已删除重复定义，NEW-C13-01）
 
   // 通用方法（供 OOC 指令和其他动态调用使用）
   patch: (path: string, body: unknown) =>

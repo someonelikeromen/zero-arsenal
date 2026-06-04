@@ -92,20 +92,56 @@ async def _reload_extension(ext_id: str) -> None:
 
     logger.info(f"[Watcher] 已重载扩展 '{ext_id}' 模块: {reloaded}")
 
-    # 刷新工具注册表
+    # 刷新 Tool / Hook / Agent / PromptFragment 注册表（NEW-C12-05：此前仅刷 Tool）
     try:
         from ..extensions.extension_loader import discover_extensions, load_extension
         from ..tools.registry import ToolRegistry
         bundles = discover_extensions()
-        if ext_id in bundles:
-            loaded = load_extension(bundles[ext_id])
-            if loaded.tools:
-                registry = ToolRegistry.get_instance()
-                for tool_def in loaded.tools:
-                    registry.register(tool_def)
-                logger.info(f"[Watcher] 扩展 '{ext_id}' 工具已刷新: {[t.name for t in loaded.tools]}")
+        if ext_id not in bundles:
+            return
+        loaded = load_extension(bundles[ext_id])
+
+        # ① 工具
+        if loaded.tools:
+            registry = ToolRegistry.get_instance()
+            for tool_def in loaded.tools:
+                registry.register(tool_def)
+            logger.info(f"[Watcher] 扩展 '{ext_id}' 工具已刷新: {[t.name for t in loaded.tools]}")
+
+        # ② Hook（register_extension_hooks 按 ext.{key}.{method} 覆盖去重，幂等）
+        if loaded.hooks:
+            try:
+                from ..hooks import hook_manager
+                ext_key = getattr(loaded, "key", "") or ext_id
+                n = hook_manager.register_extension_hooks(loaded.hooks, ext_key=str(ext_key))
+                logger.info(f"[Watcher] 扩展 '{ext_id}' Hook 已刷新: {n} 个")
+            except Exception as e:
+                logger.warning(f"[Watcher] 扩展 '{ext_id}' Hook 刷新失败: {e}")
+
+        # ③ Agent 节点
+        if loaded.agent_nodes:
+            try:
+                from ..agents.agent_node import register_node as _register_agent_node
+                for node in loaded.agent_nodes:
+                    _register_agent_node(node)
+                logger.info(f"[Watcher] 扩展 '{ext_id}' Agent 节点已刷新: {len(loaded.agent_nodes)} 个")
+            except Exception as e:
+                logger.warning(f"[Watcher] 扩展 '{ext_id}' Agent 刷新失败: {e}")
+
+        # ④ PromptFragment（.md 规则/技能变更后重新注入）
+        if loaded.prompt_fragments:
+            try:
+                from ..prompts.template_loader import load_prompt_fragment_file
+                from ..prompts.registry import registry as _pr
+                for frag_path in loaded.prompt_fragments:
+                    frag = load_prompt_fragment_file(frag_path)
+                    if frag:
+                        _pr.register(frag)
+                logger.info(f"[Watcher] 扩展 '{ext_id}' PromptFragment 已刷新: {len(loaded.prompt_fragments)} 个")
+            except Exception as e:
+                logger.warning(f"[Watcher] 扩展 '{ext_id}' PromptFragment 刷新失败: {e}")
     except Exception as e:
-        logger.warning(f"[Watcher] 扩展 '{ext_id}' 工具注册刷新失败: {e}")
+        logger.warning(f"[Watcher] 扩展 '{ext_id}' 注册表刷新失败: {e}")
 
 
 async def _watch_loop(

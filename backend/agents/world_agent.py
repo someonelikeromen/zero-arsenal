@@ -17,7 +17,8 @@ WORLD_SYSTEM_PROMPT = """\
 你是跑团世界的演变计算器。根据玩家行动，计算世界层面的自然演变。
 仅在有明显世界变化时输出，否则返回 []。
 输出格式（严格 JSON 数组，无 markdown 代码块）：
-[{"event_type": "time|weather|npc_move|faction", "description": "简短描述（1句话）", "affects": "影响范围"}]
+[{"event_type": "time|weather|npc_move|faction", "description": "简短描述（1句话）", "affects": "影响范围", "world_time": "（可选）变化后的世界时间", "location": "（可选）变化后的当前地点"}]
+当事件改变了时间或地点时，请填写对应的 world_time / location 字段（供数据流轴使用）。
 大多数普通行动不产生世界事件，请克制输出.\
 """
 
@@ -164,18 +165,36 @@ async def _world_impl(ctx: TurnContext) -> TurnContext:
 
         result = json.loads(raw)
         if isinstance(result, list):
-            ctx.world_events = [
-                {
+            events: list[dict] = []
+            for item in result:
+                if not isinstance(item, dict):
+                    continue
+                evt = {
                     "event_type": item.get("event_type", "unknown"),
                     "description": item.get("description", ""),
                     "affects": item.get("affects", ""),
                 }
-                for item in result
-                if isinstance(item, dict)
-            ]
+                # NEW-C4-02：透传可选的 world_time / location，使其与
+                # runtime_data_stream 的轴 12-13 读取键对齐（此前键不匹配，
+                # 世界时间/地点恒走 meta 回退）。
+                wt = item.get("world_time") or item.get("new_time")
+                loc = item.get("location") or item.get("new_location")
+                if wt:
+                    evt["world_time"] = str(wt)
+                if loc:
+                    evt["location"] = str(loc)
+                events.append(evt)
+            ctx.world_events = events
         else:
             ctx.world_events = []
-    except Exception:
+    except Exception as e:
+        # NEW-C2-05：世界事件本属可选，但失败需留日志以区分
+        # "克制不输出" 与 "调用/解析崩溃"。
+        import logging as _logging
+        _logging.getLogger(__name__).warning(
+            "[world_agent] LLM/JSON 解析失败，world_events 清空: %s: %s",
+            type(e).__name__, e,
+        )
         ctx.world_events = []
 
     # 发布 world_event Parts 并写入 world_archives
@@ -194,6 +213,10 @@ async def _world_impl(ctx: TurnContext) -> TurnContext:
                         "description": evt["description"],
                         "affects": evt.get("affects", ""),
                     }
+                    if evt.get("world_time"):
+                        content["world_time"] = evt["world_time"]
+                    if evt.get("location"):
+                        content["location"] = evt["location"]
                     await db.execute(
                         "INSERT OR IGNORE INTO message_parts "
                         "(id, message_id, session_id, type, content, status, agent, created_at, updated_at) "
@@ -227,7 +250,12 @@ async def _world_impl(ctx: TurnContext) -> TurnContext:
                     ctx.session_id, part_id, PartType.WORLD_EVENT, ctx.message_id, "world"
                 )
                 await bus.publish_part_done(ctx.session_id, part_id, content)
-        except Exception:
-            pass
+        except Exception as e:
+            # NEW-C2-05：发布失败补日志（此前 except: pass 完全无痕）。
+            import logging as _logging
+            _logging.getLogger(__name__).warning(
+                "[world_agent] world_event Part 发布失败: %s: %s",
+                type(e).__name__, e,
+            )
 
     return ctx

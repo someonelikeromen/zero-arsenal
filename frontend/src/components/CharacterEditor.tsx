@@ -15,6 +15,26 @@ const ATTR_LABELS: Record<string, string> = {
   charisma: '魅力', composure: '沉着',
 }
 
+const OCEAN_LABELS: Array<[string, string]> = [
+  ['openness', '开放性'],
+  ['conscientiousness', '尽责性'],
+  ['extraversion', '外向性'],
+  ['agreeableness', '宜人性'],
+  ['neuroticism', '神经质'],
+]
+
+const BODY_PART_LABELS: Array<[string, string]> = [
+  ['head', '头部'],
+  ['chest', '躯干'],
+  ['arms', '手臂'],
+  ['legs', '腿部'],
+]
+
+const EMOTION_STATES = [
+  'calm', 'anxious', 'angry', 'joyful', 'fearful',
+  'grieving', 'determined', 'numb', 'elated', 'despair',
+]
+
 const PSYCHE_TOOLTIPS: Record<string, string> = {
   core_values: '核心价值观（≥2 条）—— 驱动角色一切行为的内核，来源于 05-character-consistency 规则',
   knows: '角色「知道」的事项 —— 用于约束叙事，防止全知视角',
@@ -94,8 +114,42 @@ export function CharacterEditor({ data, onChange }: { data: Dict; onChange: (d: 
   const skills = (data.skills as Record<string, number>) || {}
   const inventory = (data.inventory as Array<{ name: string; quantity?: number }>) || []
 
+  // ── v4 结构字段（identity / psychology(OCEAN) / economy / energy_pools / body_parts / loadout / achievements）──
+  const identity = (data.identity as Dict) || {}
+  const setIdentity = (k: string, v: unknown) => set('identity', { ...identity, [k]: v })
+
+  const psychology = (data.psychology as Dict) || {}
+  const ocean = (psychology.ocean as Record<string, number>) || {}
+  const setPsychology = (k: string, v: unknown) => set('psychology', { ...psychology, [k]: v })
+  const setOcean = (k: string, v: number) =>
+    set('psychology', { ...psychology, ocean: { ...ocean, [k]: v } })
+
+  const economy = (data.economy as Dict) || {}
+  const setEconomy = (k: string, v: unknown) => set('economy', { ...economy, [k]: v })
+
+  type EnergyPool = { name?: string; current?: number; max?: number; type?: string; regen_per_turn?: number }
+  const energyPools = (data.energy_pools as EnergyPool[]) || []
+  const setPools = (next: EnergyPool[]) => set('energy_pools', next)
+
+  const physState = (data.physical_state as Dict) || {}
+  const bodyParts = (physState.body_parts as Record<string, { hp_ratio?: number }>) || {}
+  const setBodyPart = (part: string, ratio: number) =>
+    set('physical_state', {
+      ...physState,
+      body_parts: { ...bodyParts, [part]: { ...(bodyParts[part] || {}), hp_ratio: ratio } },
+    })
+
+  const loadout = (data.loadout as Dict) || {}
+  const equipped = (loadout.equipped as Array<{ name?: string }>) || []
+
+  type Achievement = { id?: string; name?: string; description?: string }
+  const achievements = (data.achievements as Achievement[]) || []
+  const setAchievements = (next: Achievement[]) => set('achievements', next)
+
   const [newSkill, setNewSkill] = useState('')
   const [newItem, setNewItem] = useState('')
+  const [newPool, setNewPool] = useState('')
+  const [newAch, setNewAch] = useState('')
 
   // 专家模式：直接编辑完整 JSON
   const enterExpert = () => {
@@ -196,6 +250,180 @@ export function CharacterEditor({ data, onChange }: { data: Dict; onChange: (d: 
           <textarea value={(psyche.emotional_triggers as string) || ''} onChange={e => setPsyche('emotional_triggers', e.target.value)} rows={2}
             className="w-full bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-xs resize-none focus:outline-none"
             placeholder="什么情况下脱离常规反应" />
+        </div>
+      </div>
+
+      {/* identity 身份信息（v4） */}
+      <div className="space-y-2 border border-zinc-800 rounded p-3">
+        <span className="text-xs font-medium text-zinc-300">身份 identity</span>
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <InfoLabel text="性别 gender" />
+            <select value={(identity.gender as string) || 'unknown'} onChange={e => setIdentity('gender', e.target.value)}
+              className="w-full bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-xs focus:outline-none">
+              {['male', 'female', 'other', 'unknown'].map(g => <option key={g} value={g}>{g}</option>)}
+            </select>
+          </div>
+          <div>
+            <InfoLabel text="年龄 age" />
+            <input value={(identity.age as string | number) ?? ''} onChange={e => setIdentity('age', e.target.value)}
+              className="w-full bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-xs focus:outline-none"
+              placeholder="如：约17岁" />
+          </div>
+        </div>
+        <div>
+          <InfoLabel text="别名 aliases" />
+          <ChipListEditor items={(identity.aliases as string[]) || []}
+            onChange={v => setIdentity('aliases', v)} placeholder="新增别名，回车确认" />
+        </div>
+      </div>
+
+      {/* psychology OCEAN 五维 + 状态（v4） */}
+      <div className="space-y-2 border border-zinc-800 rounded p-3">
+        <span className="text-xs font-medium text-zinc-300">五大人格 psychology.ocean（0-100）</span>
+        <div className="space-y-1.5">
+          {OCEAN_LABELS.map(([key, label]) => (
+            <div key={key} className="flex items-center gap-2">
+              <span className="text-[11px] text-zinc-400 w-14 shrink-0">{label}</span>
+              <input type="range" min={0} max={100} value={ocean[key] ?? 50}
+                onChange={e => setOcean(key, Number(e.target.value))}
+                className="flex-1 accent-indigo-500" />
+              <span className="text-xs text-indigo-300 w-8 text-right">{ocean[key] ?? 50}</span>
+            </div>
+          ))}
+        </div>
+        <div className="grid grid-cols-2 gap-2 pt-1">
+          <div>
+            <InfoLabel text="情绪状态 emotion_state" />
+            <select value={(psychology.emotion_state as string) || 'calm'} onChange={e => setPsychology('emotion_state', e.target.value)}
+              className="w-full bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-xs focus:outline-none">
+              {EMOTION_STATES.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+          <div>
+            <InfoLabel text="压力 stress（0-100）" />
+            <input type="number" min={0} max={100} value={(psychology.stress as number) ?? 0}
+              onChange={e => setPsychology('stress', Number(e.target.value))}
+              className="w-full bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-xs focus:outline-none" />
+          </div>
+        </div>
+      </div>
+
+      {/* 身体部位 HP（v4 四部位 hp_ratio） */}
+      <div className="space-y-2 border border-zinc-800 rounded p-3">
+        <span className="text-xs font-medium text-zinc-300">身体部位 HP（hp_ratio 0-1）</span>
+        <div className="grid grid-cols-2 gap-2">
+          {BODY_PART_LABELS.map(([key, label]) => {
+            const ratio = bodyParts[key]?.hp_ratio ?? 1
+            return (
+              <div key={key} className="flex items-center gap-2">
+                <span className="text-[11px] text-zinc-400 w-10 shrink-0">{label}</span>
+                <input type="range" min={0} max={100} value={Math.round(ratio * 100)}
+                  onChange={e => setBodyPart(key, Number(e.target.value) / 100)}
+                  className="flex-1 accent-rose-500" />
+                <span className="text-xs text-rose-300 w-9 text-right">{Math.round(ratio * 100)}%</span>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* economy 经济（points/badges/tier） */}
+      <div className="space-y-2 border border-zinc-800 rounded p-3">
+        <span className="text-xs font-medium text-zinc-300">经济 economy</span>
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <InfoLabel text="点数 points" />
+            <input type="number" min={0} value={(economy.points as number) ?? 0}
+              onChange={e => setEconomy('points', Number(e.target.value))}
+              className="w-full bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-xs focus:outline-none" />
+          </div>
+          <div>
+            <InfoLabel text="徽章 badges" />
+            <input type="number" min={0} value={(economy.badges as number) ?? 0}
+              onChange={e => setEconomy('badges', Number(e.target.value))}
+              className="w-full bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-xs focus:outline-none" />
+          </div>
+          <div>
+            <InfoLabel text="星级 tier（0-10）" />
+            <input type="number" min={0} max={10} value={(economy.tier as number) ?? 0}
+              onChange={e => setEconomy('tier', Number(e.target.value))}
+              className="w-full bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-xs focus:outline-none" />
+          </div>
+          <div>
+            <InfoLabel text="子段位 tier_sub" />
+            <select value={(economy.tier_sub as string) || ''} onChange={e => setEconomy('tier_sub', e.target.value)}
+              className="w-full bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-xs focus:outline-none">
+              {['', 'L', 'M', 'U'].map(s => <option key={s} value={s}>{s || '—'}</option>)}
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {/* energy_pools 能量池（v4） */}
+      <div className="space-y-2 border border-zinc-800 rounded p-3">
+        <span className="text-xs font-medium text-zinc-300">能量池 energy_pools</span>
+        <div className="space-y-1.5">
+          {energyPools.map((p, i) => (
+            <div key={i} className="flex items-center gap-1.5">
+              <input value={p.name || ''} onChange={e => setPools(energyPools.map((x, idx) => idx === i ? { ...x, name: e.target.value } : x))}
+                className="flex-1 bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-xs focus:outline-none" placeholder="名称" />
+              <input type="number" value={p.current ?? 0} onChange={e => setPools(energyPools.map((x, idx) => idx === i ? { ...x, current: Number(e.target.value) } : x))}
+                className="w-16 bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-xs focus:outline-none" placeholder="当前" />
+              <span className="text-zinc-500 text-xs">/</span>
+              <input type="number" value={p.max ?? 0} onChange={e => setPools(energyPools.map((x, idx) => idx === i ? { ...x, max: Number(e.target.value) } : x))}
+                className="w-16 bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-xs focus:outline-none" placeholder="上限" />
+              <button onClick={() => setPools(energyPools.filter((_, idx) => idx !== i))}
+                className="text-zinc-400 hover:text-red-400 text-xs">×</button>
+            </div>
+          ))}
+          {energyPools.length === 0 && <span className="text-xs text-zinc-600">（空）</span>}
+        </div>
+        <div className="flex gap-1">
+          <input value={newPool} onChange={e => setNewPool(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter' && newPool.trim()) { e.preventDefault(); setPools([...energyPools, { name: newPool.trim(), current: 100, max: 100, type: 'custom', regen_per_turn: 0 }]); setNewPool('') } }}
+            className="flex-1 bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-xs focus:outline-none"
+            placeholder="新增能量池（如：内力/法力），回车确认" />
+          <button onClick={() => { if (newPool.trim()) { setPools([...energyPools, { name: newPool.trim(), current: 100, max: 100, type: 'custom', regen_per_turn: 0 }]); setNewPool('') } }}
+            className="text-xs bg-zinc-700 hover:bg-zinc-600 px-2 rounded">+</button>
+        </div>
+      </div>
+
+      {/* loadout 装备配置（v4，已装备列表只读统计 + 删除） */}
+      <div className="space-y-2 border border-zinc-800 rounded p-3">
+        <span className="text-xs font-medium text-zinc-300">装备配置 loadout.equipped（{equipped.length}）</span>
+        <div className="flex flex-wrap gap-1">
+          {equipped.map((it, i) => (
+            <span key={i} className="inline-flex items-center gap-1 bg-zinc-800 text-zinc-300 text-xs px-2 py-0.5 rounded">
+              {it.name || '未命名装备'}
+              <button onClick={() => set('loadout', { ...loadout, equipped: equipped.filter((_, idx) => idx !== i) })}
+                className="text-zinc-400 hover:text-red-400">×</button>
+            </span>
+          ))}
+          {equipped.length === 0 && <span className="text-xs text-zinc-600">（空，可在道具栏管理普通物品）</span>}
+        </div>
+      </div>
+
+      {/* achievements 成就（v4） */}
+      <div className="space-y-2 border border-zinc-800 rounded p-3">
+        <span className="text-xs font-medium text-zinc-300">成就 achievements</span>
+        <div className="flex flex-wrap gap-1 mb-1">
+          {achievements.map((a, i) => (
+            <span key={i} className="inline-flex items-center gap-1 bg-zinc-800 text-amber-300 text-xs px-2 py-0.5 rounded">
+              {a.name || '未命名成就'}
+              <button onClick={() => setAchievements(achievements.filter((_, idx) => idx !== i))}
+                className="text-zinc-400 hover:text-red-400">×</button>
+            </span>
+          ))}
+          {achievements.length === 0 && <span className="text-xs text-zinc-600">（空）</span>}
+        </div>
+        <div className="flex gap-1">
+          <input value={newAch} onChange={e => setNewAch(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter' && newAch.trim()) { e.preventDefault(); setAchievements([...achievements, { name: newAch.trim() }]); setNewAch('') } }}
+            className="flex-1 bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-xs focus:outline-none"
+            placeholder="新增成就，回车确认" />
+          <button onClick={() => { if (newAch.trim()) { setAchievements([...achievements, { name: newAch.trim() }]); setNewAch('') } }}
+            className="text-xs bg-zinc-700 hover:bg-zinc-600 px-2 rounded">+</button>
         </div>
       </div>
 

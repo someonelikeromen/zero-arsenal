@@ -116,6 +116,40 @@ export const SessionPage: React.FC<Props> = ({ sessionId, onNavigateSession }) =
   // Phase 7D：输入栏系统状态
   const [systemState, setSystemState] = useState<SystemState>('ready')
 
+  // NEW-C14-02：SSE 活动计数 + 兜底解锁看门狗（替代固定 10s 无条件解锁）
+  const sseActivityRef = useRef(0)
+  const safetyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const clearSafetyTimer = useCallback(() => {
+    if (safetyTimerRef.current) {
+      clearTimeout(safetyTimerRef.current)
+      safetyTimerRef.current = null
+    }
+  }, [])
+  /**
+   * 启动空闲看门狗：仅当输入仍处于禁用态、且 IDLE_GUARD_MS 内未收到任何新 SSE 活动时
+   * 才软解锁（视为后端无响应）。长耗时生成会持续产生 part.updated 等活动，故不会误放开；
+   * 正常结束由 session.idle/error 立即解锁，看门狗见 inputDisabled=false 后自行停止。
+   */
+  const IDLE_GUARD_MS = 30_000
+  const startSafetyWatchdog = useCallback(() => {
+    clearSafetyTimer()
+    let lastSeen = sseActivityRef.current
+    const tick = () => {
+      if (!useUIStore.getState().inputDisabled) { safetyTimerRef.current = null; return }
+      const now = sseActivityRef.current
+      if (now === lastSeen) {
+        setInputDisabled(false)
+        setActiveAgent(null)
+        notify.warning('生成超时或后端无响应，已解锁输入')
+        safetyTimerRef.current = null
+        return
+      }
+      lastSeen = now
+      safetyTimerRef.current = setTimeout(tick, IDLE_GUARD_MS)
+    }
+    safetyTimerRef.current = setTimeout(tick, IDLE_GUARD_MS)
+  }, [clearSafetyTimer, setInputDisabled])
+
   const handleStop = useCallback(() => {
     api.cancelStream(sessionId).catch(() => {})
     setInputDisabled(false)
@@ -201,6 +235,7 @@ export const SessionPage: React.FC<Props> = ({ sessionId, onNavigateSession }) =
       addDiceRoll,
       setSending: setInputDisabled,
       setActiveAgent: handleSetActiveAgent, setChapterRefreshKey,
+      onActivity: () => { sseActivityRef.current += 1 },
     })
 
     // 加载 session 基础信息（获取 worldPlugin）
@@ -210,7 +245,7 @@ export const SessionPage: React.FC<Props> = ({ sessionId, onNavigateSession }) =
     refreshStats()
 
     connectSSE(sessionId, onEvent)
-    return () => disconnectSSE()
+    return () => { disconnectSSE(); clearSafetyTimer() }
   }, [sessionId])
 
   // Phase 7D：检测 LLM 配置 / 世界 / 角色就绪状态
@@ -350,9 +385,9 @@ export const SessionPage: React.FC<Props> = ({ sessionId, onNavigateSession }) =
     setPipeline([])
     try {
       await api.sendMessage(sessionId, content)
-      // inputDisabled=true 保持到 session.idle / session.error SSE 到达时清除
-      // 如果 10 秒内没有响应，自动超时解锁（防止后端无响应导致 UI 永久 loading）
-      setTimeout(() => setInputDisabled(false), 10_000)
+      // inputDisabled=true 保持到 session.idle / session.error SSE 到达时清除（NEW-C14-02）。
+      // 兜底：仅在「30s 内无任何新 SSE 活动」时软解锁，避免长生成被提前放开导致并发重发。
+      startSafetyWatchdog()
     } catch {
       setInputDisabled(false)
     }

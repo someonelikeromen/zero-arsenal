@@ -28,7 +28,6 @@ active_tools:
   - query_world_rules
   - check_skill_trigger
   - query_character_summary
-  - roll_check
   - generate_action_options
   - load_skill
   - update_character_state
@@ -47,8 +46,8 @@ permissions:
     action: allow
   - pattern: "query_*"
     action: allow
-  - pattern: "roll_*"
-    action: allow
+  # D2: plan 模式绝不掷骰 —— 骰子工具不在 active_tools 中暴露给 LLM，
+  # 且权限不再放行 roll_*（落到末尾 catch-all "*" → ask，需人工确认）。
   # 写操作需确认
   - pattern: "write_*"
     action: ask

@@ -59,10 +59,12 @@ def _build_rules_messages(ctx: TurnContext) -> list[dict]:
         if plugin:
             plugin.apply_to_registry(_pr)
 
+        from ..prompts.token_budget import system_prompt_budget as _spb
         built = _pr.build_system_prompt(
             phase="rules",
             session_id=ctx.session_id,
             state={"world_plugin": ctx.world_plugin, "mode": ctx.mode},
+            token_budget=_spb("rules", ctx.mode),
         )
         if built.strip():
             system_content = built

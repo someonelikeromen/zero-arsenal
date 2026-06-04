@@ -9,6 +9,12 @@ import logging
 from dataclasses import dataclass, field
 from typing import Callable, Optional, Union, Type
 
+# 分级超时常量（D19 / 设计 07 §7.2）
+try:
+    from timeouts import GLOBAL_TOOL_TIMEOUT
+except ImportError:  # cwd=repo root
+    from backend.timeouts import GLOBAL_TOOL_TIMEOUT
+
 logger = logging.getLogger(__name__)
 
 
@@ -48,13 +54,50 @@ class ToolContext:
 
 @dataclass
 class ToolResult:
-    """工具执行结果的结构化载体（供 tool_loop 内部使用）。"""
+    """
+    工具执行结果的标准化契约（07-tool-registry.md §1.2）。
+
+    工具 handler 可以：
+      - 返回纯 dict（向后兼容，绝大多数内置工具走此路径）；
+      - 返回 ToolResult 实例（推荐，结构化契约）。
+    `ToolRegistry.execute` 会通过 `normalize_result()` 把任意返回统一成 dict，
+    确保上层 tool_loop 始终拿到一致结构（含 `ok`/`error` 字段）。
+    """
     content: str = ""                               # 返回给 LLM 的文本
     data: dict = field(default_factory=dict)        # 结构化数据
     part_type: str = ""                             # 触发 Part 的类型（空=不触发）
     should_memorize: bool = False
     needs_continuation: bool = False
     error: str = ""                                 # 非空表示失败
+
+    def to_dict(self) -> dict:
+        """序列化为标准 dict 契约。"""
+        return {
+            "ok": not self.error,
+            "content": self.content,
+            "data": self.data,
+            "part_type": self.part_type,
+            "should_memorize": self.should_memorize,
+            "needs_continuation": self.needs_continuation,
+            "error": self.error,
+        }
+
+
+def normalize_result(result) -> dict:
+    """
+    把工具 handler 的任意返回值规整为标准 dict 契约。
+    - ToolResult        → result.to_dict()
+    - dict              → 原样返回（补 ok 字段，若缺失）
+    - 其他（str/None）  → 包装进 {"ok": True, "result": ...}
+    """
+    if isinstance(result, ToolResult):
+        return result.to_dict()
+    if isinstance(result, dict):
+        if "ok" not in result:
+            # 约定：含非空 error 字段视为失败
+            result = {**result, "ok": not result.get("error")}
+        return result
+    return {"ok": True, "result": result}
 
 
 @dataclass
@@ -69,10 +112,18 @@ class ToolDef:
     handler: Callable         # async function
     permission_required: str = "allow"   # allow | ask | deny
     tags: list[str] = field(default_factory=list)  # ["read", "write", "dice", "memory"]
-    timeout_seconds: float = 15.0                   # 工具执行超时（秒）
+    timeout_seconds: float = GLOBAL_TOOL_TIMEOUT    # 工具执行超时（秒，D19 全局默认 30s）
     group: str = "general"                          # engine | narrative | character | economy | chapter
     requires_permission: bool = False               # 是否需要权限检查
     execution_mode: str = "parallel"                # parallel（幂等，可并发）| sequential（副作用，串行）
+    # 扩展工具元数据（backend/extensions/*/tools.py 在构造 ToolDef 时会传入这些 kwargs）：
+    #   display_name —— UI 展示名（可选，留空时回落到 name）
+    #   world_plugin —— 工具所属世界插件键（如 "muv_luv" / "gundam_seed"；空=通用）
+    # 历史上 ToolDef 不接受这两个字段，导致 extensions/*/tools.py 在 import 阶段抛
+    #   TypeError: ToolDef.__init__() got an unexpected keyword argument 'world_plugin'/'display_name'
+    # 这里显式声明字段以兼容扩展工具加载（conf_b07）。
+    display_name: str = ""
+    world_plugin: str = ""
     # 工具级别中间件钩子（优先于全局 HookEvent，仅对此工具生效）
     # before_hooks: list of async(args: dict, ctx: ToolContext) -> dict | None
     #   返回 dict 时替换 args；返回 None 时使用原始 args
@@ -137,6 +188,17 @@ class ToolRegistry:
         """注册一个工具。"""
         self._tools[tool.name] = tool
         logger.debug(f"Tool registered: {tool.name}")
+
+    def unregister(self, name: str) -> bool:
+        """
+        注销一个工具（07-tool-registry.md §6，用于 MCP 服务断开 / 热卸载）。
+        返回 True 表示确实移除了一个已注册工具，False 表示该工具不存在。
+        """
+        if name in self._tools:
+            del self._tools[name]
+            logger.debug(f"Tool unregistered: {name}")
+            return True
+        return False
 
     def get(self, name: str) -> Optional[ToolDef]:
         """获取工具定义，不存在时返回 None。"""
@@ -216,9 +278,8 @@ class ToolRegistry:
                 tool.handler(**call_args),
                 timeout=tool.timeout_seconds,
             )
-            if isinstance(result, dict):
-                return result
-            return {"result": result}
+            # 标准化返回契约（ToolResult / dict / 其他 → 统一 dict，含 ok 字段）
+            return normalize_result(result)
         except asyncio.TimeoutError:
             logger.warning(f"Tool {name} timed out after {tool.timeout_seconds}s")
             return {"error": f"tool timeout after {tool.timeout_seconds}s", "tool_name": name}

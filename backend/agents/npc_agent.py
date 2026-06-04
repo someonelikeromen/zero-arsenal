@@ -182,6 +182,19 @@ async def _npc_impl(ctx: TurnContext) -> TurnContext:
         ctx.npc_reactions = []
         return ctx
 
+    # conf_b04：触发 before_npc_response（扩展可裁剪/调整出场 NPC 列表）
+    try:
+        from ..hooks import hook_manager, HookEvent
+        _bnr = await hook_manager.fire(HookEvent.before_npc_response, {
+            "session_id": ctx.session_id,
+            "agent_name": "npc",
+            "npc_list": npc_list,
+        })
+        if isinstance(_bnr.get("npc_list"), list) and _bnr["npc_list"]:
+            npc_list = _bnr["npc_list"]
+    except Exception as _e:
+        logger.debug("[npc_agent] before_npc_response hook failed: %s", _e)
+
     # 并发为每个 NPC 运行独立 tool_loop（携带 profile 供 psyche 模型使用）
     tasks = [
         _run_single_npc(ctx, npc_name, npc_profiles.get(npc_name, {}), cfg)
@@ -206,6 +219,20 @@ async def _npc_impl(ctx: TurnContext) -> TurnContext:
         })
 
     ctx.npc_reactions = reactions
+
+    # conf_b04：触发 after_npc_response（扩展可后处理/记录 NPC 反应）
+    try:
+        from ..hooks import hook_manager, HookEvent
+        _anr = await hook_manager.fire(HookEvent.after_npc_response, {
+            "session_id": ctx.session_id,
+            "agent_name": "npc",
+            "reactions": reactions,
+        })
+        if isinstance(_anr.get("reactions"), list):
+            ctx.npc_reactions = _anr["reactions"]
+            reactions = ctx.npc_reactions
+    except Exception as _e:
+        logger.debug("[npc_agent] after_npc_response hook failed: %s", _e)
 
     # 发布 npc_action Parts（每个有响应的 NPC）
     if ctx.npc_reactions and ctx.session_id and ctx.message_id:
@@ -239,7 +266,9 @@ async def _npc_impl(ctx: TurnContext) -> TurnContext:
                     ctx.session_id, part_id, PartType.NPC_ACTION, ctx.message_id, "npc"
                 )
                 await bus.publish_part_done(ctx.session_id, part_id, content)
-        except Exception:
-            pass
+        except Exception as e:
+            # 降级补日志：npc_action Part 发布失败此前完全无痕。
+            logger.warning("[npc_agent] npc_action Part 发布失败: %s: %s",
+                           type(e).__name__, e)
 
     return ctx

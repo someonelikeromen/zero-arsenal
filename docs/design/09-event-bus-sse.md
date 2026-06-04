@@ -1,8 +1,10 @@
 # 09 — 事件总线与 SSE 推送设计（Event Bus & SSE）
 
-> **版本**：v1.0  
+> **版本**：v1.1（2026-06 对齐实现）  
 > **参考来源**：opencode `bus/` + `server/routes/event.ts`（先订阅再返回 Response 防丢事件）、pi TUI 差分渲染思想  
-> **状态**：设计稿，待实现
+> **状态**：已实现（InMemory 单进程链路全量落地并接线生效；Redis 多进程分支有已知缺陷见 conf_b09）
+>
+> 注：本文档已于 2026-06 对齐实现（D0 以代码为准）。原「设计稿，待实现」横幅已撤销——`backend/bus/`、`backend/api/routers/stream.py`、`frontend/src/lib/sse.ts` 的单进程全链路（先订阅后响应、SSE 端点、续传、内存+DB 持久化、7 天清理）均已实现。下文若干样例与字段名已按实现修正。
 
 ---
 
@@ -116,7 +118,17 @@ class IEventBus(ABC):
 
 ### 2.2 InMemoryEventBus 实现
 
+> ⚠️ **过时样例（2026-06）**：下方代码块为早期草案，与实现**不一致**，仅作历史参考。
+> 实际实现见 `backend/bus/event_bus.py`：
+> - 类名为 **`EventBus`**（非 `InMemoryEventBus`）；
+> - 订阅对象为 **`Subscription`**（非 `BusSubscriber`，且**无 `subscriber_id`**）；`unsubscribe(session_id, queue)` 第二参为 queue 对象，`Subscription.close()` 间接调用；
+> - `publish(event)` 签名（session_id 内嵌于 BusEvent），非草案的 `publish(session_id, event)`；
+> - **心跳由 `Subscription.__aiter__` 在 `queue.get()` 空闲超时 10s 时就地 yield `heartbeat`**，而非草案的「哨兵 None 退出 + 独立心跳协程」；
+> - `get_subscriber_count` 为同步方法（见 §2.1，下方草案误写为 `async`）；
+> - `EventBus` 另实现了 §2「接口扩展」中的 `get_events_after()/get_events_after_from_db()`（断线续传）与 `publish_part_created/_delta/_done/_agent/_session_done` 语义化快捷发布方法（设计接口表应一并登记）。
+
 ```python
+# 【过时草案，保留供对照；实际以 backend/bus/event_bus.py 的 EventBus/Subscription 为准】
 import asyncio
 import uuid
 import time
@@ -270,13 +282,18 @@ class BusEvent:
     timestamp: float = field(default_factory=time.time)
 
     def to_sse(self) -> str:
-        """序列化为 SSE 格式字符串。"""
+        """序列化为 SSE 格式字符串。
+
+        ⚠️ 实现（2026-06 对齐）：`data` 字段**嵌套**而非展开到顶层。
+        实际载荷为 {"type", "session_id", "timestamp", "data": self.data}，
+        前端按 `event.data.xxx` 读取（见 §5 / frontend/src/lib/sse.ts 与 bindSSEToStores.ts）。
+        """
         import json
         payload = {
             "type": self.type,
             "session_id": self.session_id,
             "timestamp": self.timestamp,
-            **self.data,
+            "data": self.data,   # 嵌套，不展开
         }
         return f"id: {self.id}\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"
 
@@ -287,6 +304,8 @@ EVENT_TYPES = Literal[
     "session.started",      # 会话初始化完成
     "session.done",         # 会话全部处理完毕（最终事件）
     "session.error",        # 会话级错误
+    "session.idle",         # （2026-06 新增）一轮处理完毕、等待下一轮；不关流（多回合常驻）
+    "session.mode_changed", # （2026-06 新增）模式切换（play/plan/review）广播
 
     # Agent 生命周期
     "agent.started",        # Agent 开始处理
@@ -296,6 +315,10 @@ EVENT_TYPES = Literal[
     # 对话轮次
     "turn.started",         # 新一轮 LLM 推理开始
     "turn.ended",           # 本轮 LLM 推理结束（含所有 tool_call）
+    "turn.complete",        # （2026-06 新增）回合 anchor 写入完成（与 turn.ended 语义区分）
+
+    # 章节
+    "chapter.consolidated", # （2026-06 新增）章节固化完成
 
     # Part 生命周期（最高频事件）
     "part.created",         # Part 创建（叙事/工具结果/状态变更等）
@@ -317,6 +340,13 @@ EVENT_TYPES = Literal[
 ```
 
 ### 3.2 各事件类型的 data 字段定义
+
+> ⚠️ **字段名对齐（2026-06）**：实现的语义化发布方法（`backend/bus/interface.py`）与下列早期草案的字段命名不同，前后端一致采用实现版：
+> - `part.created` data = `{part_id, part_type, message_id, agent}` —— 用 **`agent`**（非 `agent_name`），且不含 `content`/`is_streaming`；
+> - `part.done` data = `{part_id, content}` —— 用 **`content`**（非 `final_content`），不含 `metadata`/`should_memorize`；
+> - `part.updated` data = `{part_id, delta}` —— 用 `delta`（`full_content` 未发送）。
+>
+> 下方草案注释保留供对照，实际以上述实现字段为准。
 
 ```python
 # ── session.started ──────────────────────────────────────────────────
@@ -1145,25 +1175,29 @@ export const createNarrativeSlice = (set: any): NarrativeSlice => ({
 
 ### 7.2 数据库表结构
 
+> ⚠️ **实现列名对齐（2026-06）**：实际表（`backend/db/schema.py`）列名与下列草案不同，且**无 `size_bytes`**。
+> 以下为实现版（读写代码 `event_bus.py` 与之自洽）：
+
 ```sql
-CREATE TABLE event_log (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    event_id    TEXT NOT NULL UNIQUE,
+-- 实现版（backend/db/schema.py）
+CREATE TABLE IF NOT EXISTS event_log (
+    id          TEXT PRIMARY KEY,    -- = BusEvent.id（UUID）
     session_id  TEXT NOT NULL,
-    event_type  TEXT NOT NULL,
-    data        TEXT NOT NULL,       -- JSON 序列化的 event.data
-    timestamp   REAL NOT NULL,
-    size_bytes  INTEGER DEFAULT 0    -- 用于容量监控
+    type        TEXT NOT NULL,       -- 事件类型（草案曾名 event_type）
+    data_json   TEXT,                -- JSON 序列化的 event.data（草案曾名 data）
+    created_at  REAL NOT NULL        -- 事件时间戳（草案曾名 timestamp）
+    -- 无 size_bytes 字段
 );
 
-CREATE INDEX idx_event_session_time  ON event_log (session_id, timestamp);
-CREATE INDEX idx_event_id            ON event_log (event_id);
+CREATE INDEX idx_eventlog_session ON event_log (session_id, created_at);
 
 -- 自动清理：保留最近 7 天的事件
--- 通过定时任务或 SQLite trigger 执行
+-- 实现位置：backend/main.py 的 _event_log_cleanup_loop（每天 04:00 DELETE，见 §7.3 注）
 ```
 
 ### 7.3 事件持久化写入器
+
+> ⚠️ **实现差异（2026-06）**：实际**无独立 `EventLogWriter` 批量写入器**。`EventBus.publish` 内对每个事件 `asyncio.create_task(self._persist_event(event))` 逐条 `INSERT OR IGNORE`（无批处理，失败静默吞掉）；7 天清理由 `backend/main.py` 的 `_event_log_cleanup_loop` 后台循环执行（非下方静态方法）；`SKIP_TYPES` 实际仅 `{heartbeat}`（`server.connected`/`replay.*` 因从不经 `bus.publish` 故也不会持久化，结果等效）。下方为草案，保留供对照。
 
 ```python
 class EventLogWriter:

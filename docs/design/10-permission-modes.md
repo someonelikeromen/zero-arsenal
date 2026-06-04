@@ -1,6 +1,14 @@
 # 10 · Permission Modes（权限模式系统）
 
 > **来源灵感**：opencode `agent/agent.ts` 的 Permission Ruleset 设计——plan / build / explore Agent 各持不同权限集合，不写 if/else 而是用规则表（ruleset）驱动权限决策。
+>
+> 注：本文档已于 2026-06 对齐实现（D0 以代码为准）。
+>
+> **基准裁定（2026-06）**：本文档历史上 §2「设计草案 vs 实现差异对照」与 §3「原始设计意图」自相矛盾。现按 D0 裁定：
+> - **数据结构 / 算法形态** 一律以实现为准（§2 的 list[ToolPermission] + glob + `apply_plugin_overlay` 深拷贝模型生效，详见 §2/§4 修订注）。
+> - **`play` 默认权限** 以实现为准：**`default_permission=ALLOW` + 末位 `*→allow`**（产品取向「尽量不打扰」，属有意为之）。§3.1 已据此修订。
+> - **`plan` 允许 `roll_*` 掷骰** 与 **`review` 的 `style_check`/`purity_check` 被 `*→deny` 误拒**（NEW-B10-01）**不属于良性偏离，而是待修复的实现缺陷**。本文档保留 §3.2/§3.3 的原始设计意图作为「应然」目标，**不**将其改写为现状（见对应小节的 ⚠️ 注与 `docs/review/fix_report_docs.md`）。
+> - **`ask` 超时语义** 以设计/实现一致的 **deny（fail-closed）** 为准；代码注释中「60s 默认允许 / fail-open」为陈旧误导注释，应以 deny 为准。
 
 ---
 
@@ -33,6 +41,7 @@
 > | `_overlay: dict[str, PermissionValue]` | `apply_plugin_overlay(profile, overlay)` 函数 | 不在实例上存储 overlay；改为创建深拷贝并插入额外 ToolPermission，避免污染全局 Profile |
 > | 无 `visible_part_types` | `visible_part_types: list[str]` | 实现新增；控制该模式下哪些 Part 类型对玩家可见 |
 > | 无 `max_tokens_per_turn` | `max_tokens_per_turn: int = 2048` | 实现新增；模式级 token 预算上限 |
+> | 无 `allowed_groups` | `allowed_groups: list[str] \| None` | 实现新增；按工具 group 批量放行（07-tool-registry §3 配套使用） |
 >
 > YAML Profile 文件（`agents/profiles/*.yaml`）优先级高于内置 Python Profile，可在不改代码的情况下覆盖。
 
@@ -109,6 +118,7 @@ class AgentProfile:
 | `active_tools` | `list \| None` | 控制传入 LLM 的工具描述列表（减少 token 消耗），None=不限制 |
 | `visible_part_types` | `list[str]` | 该模式下对玩家可见的 Part 类型（实现扩展字段） |
 | `max_tokens_per_turn` | `int` | 单回合 token 上限（实现扩展字段） |
+| `allowed_groups` | `list[str] \| None` | 按工具 group 批量放行（实现扩展字段） |
 
 ---
 
@@ -116,10 +126,12 @@ class AgentProfile:
 
 ### 3.1 `play` 模式（正常跑团）
 
-**设计意图**：玩家输入后 Agent 自主推进叙事，大多数操作无需打断，
-仅对"有副作用的消费行为"（角色大改、道具购买）保留 `ask` 确认。
+**实现现状（2026-06 对齐，以代码为准）**：`play` 采用 **`default_permission=ALLOW` + 末位 `*→allow`** 的「尽量不打扰」产品取向（`backend/agents/permission.py` / `agents/profiles/play.yaml`）。**消费/写入类工具（`purchase_*`、`update_character_state`、`earn_*`/`award_*`、`fork_chapter`、`consolidate_chapter`、`mcp_*`）在 play 下均为 `allow`**，不再弹 `ask`；play 模式下唯一保留 `ask` 的是 `delete_*` / `reset_*` / `draw_gacha`。
+
+> 早期设计意图（仅历史参考）：对「角色大改 / 道具购买」等消费行为保留 `ask` 确认。该意图已被产品决策放弃；如未来需恢复消费确认，应在 play.yaml 显式为 `purchase_*`/`update_character_state` 等加 `ask` 规则。
 
 ```python
+# 【过时草案：消费类 ask 版本，保留供对照；实际 play 见 play.yaml（allow-by-default）】
 PLAY_PROFILE = AgentProfile(
     name="play",
     description="正常跑团模式——Agent 可自由写叙事、掷骰、生成 NPC，"
@@ -168,6 +180,8 @@ PLAY_PROFILE = AgentProfile(
 撰写**计划文本**，绝不能写入正文、触发骰点或消费资源。
 用 `"*": "deny"` 作为默认阻断，再逐一开放白名单工具。
 
+> ⚠️ **实现偏离（缺陷，非良性，待修复）**：当前 `plan.yaml` 实际 `default_permission=ask`、末位 `*→ask`（非设计的 deny 双保险），且 **`roll_* → allow` 并把 `roll_check` 放进 `active_tools`，违反「绝不能触发骰点」**。本小节保留为「应然」设计目标，**不**按现状改写；修复方向：plan 改回 deny-by-default 白名单并移除 `roll_*` allow（见 `docs/review/fix_report_docs.md`）。
+
 ```python
 PLAN_PROFILE = AgentProfile(
     name="plan",
@@ -204,6 +218,8 @@ PLAN_PROFILE = AgentProfile(
 **设计意图**：人工或 AI 审校已生成的章节内容，检查文风一致性与 AI 纯净度，
 不允许任何写入操作。
 
+> ⚠️ **实现缺陷 NEW-B10-01（非良性，待修复）**：`review.yaml` 的 allow pattern 为 `check_*`，而 `style_check`/`purity_check` 以 `style`/`purity` 开头**不匹配**，落到末位 `*→deny` 被静默拒绝；且 `review.yaml` 的 `active_tools` 未包含这两项。结果 review 模式两个核心审校工具反被自身规则禁掉，与本节设计直接冲突。本小节保留为「应然」设计目标，**不**按现状改写；修复方向：review permissions 显式加 `style_check → allow`、`purity_check → allow`，并在 `review.yaml` 的 active_tools 补回 `read_chapter/style_check/purity_check`。
+
 ```python
 REVIEW_PROFILE = AgentProfile(
     name="review",
@@ -226,8 +242,10 @@ REVIEW_PROFILE = AgentProfile(
 
 ### 3.4 内置模式注册表
 
+> **实现差异（2026-06）**：实际为 `ProfileRegistry` 实例（非 ClassVar 类方法），注册 play/plan/review 后再用 YAML 覆盖。`get(name)` 对**未注册名返回 `PLAY_PROFILE` 兜底**（非草案的 `raise KeyError`）——容错优先，但可能掩盖错误模式名；模式切换 API 另有 400 校验把关（见 §7.4）。
+
 ```python
-# profiles/registry.py
+# profiles/registry.py（草案；实际 get 改为 fallback 到 play，见上注）
 from typing import ClassVar
 
 class AgentProfileRegistry:
@@ -257,6 +275,12 @@ AgentProfileRegistry.register(REVIEW_PROFILE)
 ---
 
 ## 4. 权限匹配算法
+
+> **实现差异（2026-06，以代码为准）**：
+> - 实际 `check_tool` 按 `permissions` **列表顺序首次匹配**（glob），无显式「精确优先于通配」分级——靠把具体规则排在 `*` 之前来近似（YAML 顺序写错会失效）。
+> - overlay 经 `apply_plugin_overlay` **插入列表头部 = 最高优先级**（高于一切，含精确规则），与下方草案「overlay 低于精确匹配」相反。最终优先级实为：**overlay（置顶）> 列表顺序首次匹配 > default_permission**。
+> - `check_and_gate` 对 `deny` **返回 error dict**（`{"error": ...}`，由 `tools/registry.py` 处理）而非抛 `PermissionDeniedError`；行为等价但不符下方草案的异常契约。
+> - **`deny 不可被 overlay 上调为 allow` 的安全底线当前未强制**（`extensions/plugin.py` 的 overlay 可覆盖 deny）——属待补实现的安全加固项，非文档滞后。
 
 ### 4.1 匹配优先级（精确 > 通配符 > 默认）
 
@@ -478,6 +502,9 @@ class PermissionAskData:
 
 ### 6.3 超时处理
 
+> **权威语义（2026-06）**：`ask` 超时 = **deny（fail-closed）**。实现 `backend/agents/ask_handler.py`（`ASK_TIMEOUT_SECONDS = 60`）超时后 `_decision = "deny"`。
+> ⚠️ 代码中 `tools/registry.py` 与 `play.yaml` 残留的「超时后默认允许 / 60s 自动允许（fail-open）」注释**为陈旧误导注释**，与实际 deny 行为矛盾，以本节 deny 为准（应清理注释）。
+
 ```python
 async def wait_for_permission_decision(
     event_id: str,
@@ -610,6 +637,8 @@ async def switch_mode(session_id: str, new_mode: str) -> dict:
   "details": { "available_modes": ["play", "plan", "review"] }
 }
 ```
+
+> **实现差异（2026-06）**：当前校验为硬编码字面量 `req.mode not in ("play","plan","review")`，返回 400 但 body 为纯文本 `detail`（缺结构化 `details.available_modes`），且新增 YAML 自定义模式无法通过校验。上方为「应然」结构化错误体；修复方向：改为查 `profile_registry.list_profiles()` 校验并返回结构化 body。
 
 ---
 

@@ -199,7 +199,7 @@ async def test_browser():
     try:
         from playwright.async_api import async_playwright
     except ImportError:
-        print("\n[Browser] playwright 未安装，跳过浏览器测试")
+        pytest.skip("playwright 未安装，跳过浏览器测试")
         return
 
     print("\n[Browser] 启动 Playwright 浏览器测试...")

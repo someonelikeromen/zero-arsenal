@@ -189,10 +189,13 @@ def _build_from_registry(
         if plugin:
             plugin.apply_to_registry(registry)
 
+        from ..prompts.token_budget import system_prompt_budget as _spb
+        _profile = (state or {}).get("mode", "play")
         return registry.build_system_prompt(
             phase=phase,
             session_id=session_id,
             state=state,
+            token_budget=_spb(phase, _profile),
         )
     except Exception as e:
         logger.error(f"[PromptAssembler] registry build failed for phase={phase}: {e}")

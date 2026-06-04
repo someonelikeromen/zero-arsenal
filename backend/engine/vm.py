@@ -135,17 +135,73 @@ class VariableVM:
                 logger.warning("VM execution timed out")
                 return state
             except Exception as e:
-                logger.warning(f"VM execution error: {e}")
+                # NEW-C4-01: 不再静默丢弃；记录脚本失败原因（含异常类型），
+                # 便于区分 "脚本无变更" 与 "沙箱执行报错"。
+                logger.warning("VM execution error (state change discarded): %s: %s",
+                               type(e).__name__, e)
                 return state
 
-    def _run_restricted(self, code: str, state: dict) -> dict:
-        from RestrictedPython import compile_restricted, safe_globals, safe_builtins
-        local_state = copy.deepcopy(state)
+    @staticmethod
+    def _build_restricted_globals(local_state: dict) -> dict:
+        """
+        构建 RestrictedPython 执行所需的全局命名空间。
+
+        NEW-C4-01：compile_restricted 生成的字节码依赖一组 guard 函数
+        （`_getitem_` / `_getiter_` / `_write_` / `_inplacevar_` / `_getattr_` 等）。
+        若不注入这些 guard，任何 `state['x'] = 1`、`state['x'] += 1`、`for ... in ...`
+        等操作都会在运行时抛 NameError 并被吞掉 —— 即使装了 RestrictedPython，
+        状态变更脚本也会静默失效。此处补齐全部必需 guard。
+        """
+        from RestrictedPython import safe_globals, safe_builtins
+        from RestrictedPython.Guards import (
+            guarded_iter_unpack_sequence,
+            guarded_unpack_sequence,
+            safer_getattr,
+            full_write_guard,
+        )
+        from RestrictedPython.Eval import (
+            default_guarded_getitem,
+            default_guarded_getiter,
+        )
+
+        def _inplacevar_(op: str, value, operand):
+            """支持受限脚本中的增强赋值（+=、-= 等）。"""
+            if op == "+=":
+                return value + operand
+            if op == "-=":
+                return value - operand
+            if op == "*=":
+                return value * operand
+            if op == "/=":
+                return value / operand
+            if op == "//=":
+                return value // operand
+            if op == "%=":
+                return value % operand
+            if op == "**=":
+                return value ** operand
+            raise NotImplementedError(f"in-place op not supported: {op}")
+
         glb = {
             **safe_globals,
             "__builtins__": safe_builtins,
+            # ── RestrictedPython 必需 guard ──────────────────────────────
+            "_getattr_": safer_getattr,
+            "_getitem_": default_guarded_getitem,
+            "_getiter_": default_guarded_getiter,
+            "_write_": full_write_guard,
+            "_inplacevar_": _inplacevar_,
+            "_unpack_sequence_": guarded_unpack_sequence,
+            "_iter_unpack_sequence_": guarded_iter_unpack_sequence,
+            # ── 脚本可见变量 ─────────────────────────────────────────────
             "state": local_state,
         }
+        return glb
+
+    def _run_restricted(self, code: str, state: dict) -> dict:
+        from RestrictedPython import compile_restricted
+        local_state = copy.deepcopy(state)
+        glb = self._build_restricted_globals(local_state)
         byte_code = compile_restricted(code, "<vm>", "exec")
         exec(byte_code, glb)  # noqa: S102
         return local_state

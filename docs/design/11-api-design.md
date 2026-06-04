@@ -2,6 +2,18 @@
 
 > **技术栈**：FastAPI + SSE（Server-Sent Events）；OpenAPI 文档由 FastAPI 自动生成，可在 `/docs`（Swagger）和 `/redoc` 访问。
 > **版本前缀**：所有接口以 `/api/` 开头（实现已对齐，不使用 `/api/v1/` 子版本前缀）。
+>
+> 注：本文档已于 2026-06 对齐实现（D0 以代码为准）。**28 个设计端点全部已实现（缺失 0）**；下列字段命名/响应包装按实现修正，并补登记代码已有、本文档未记的端点。
+>
+> **实现对齐总览（2026-06，`backend/api/routers/`）**
+> - **`POST /sessions`**：创建即生成默认/模板角色卡并整体返回 `character`（**非示例的 `null`**），且多返回 `chapter_id`；状态码为 200（非 201）。属合理增强。
+> - **`PATCH /sessions/{id}`**（元数据重命名）：**实现已存在**（`sessions.py`，支持 `title`，返回 `{ok, session_id, title}`），本文档原未记录——见 §2 补注。
+> - **`GET /sessions/{id}/character`**：实际返回 `{character, schema_version}`（**非** `{session_id, character_version, snapshot_message_id, data}`）；角色内层为 v4 schema。
+> - **`PATCH /sessions/{id}/character`**：请求体字段为 `patches: list[dict]` + `raw_json`（**非** `commands`），无 `message_id`，响应多 `validation_warnings`。
+> - **`POST /engine/roll`**：请求用 `threshold`（非 `difficulty`）、`reason`（非 `label`），无 `reroll_tens`；响应用 `rolls`（非 `detail`）、`verdict`（非 `outcome`），无 `reroll_detail/label/rolled_at`（WtA 实际 schema）。
+> - **`POST /sessions/{id}/mode`**：主实现为 `PATCH`（`POST` 为别名）；响应用 `mode`（非 `current_mode`），缺 `switched_at`，多 `ok`。
+> - **§9 错误码**：422 验证错误 `details` 直接用 FastAPI 原生 `exc.errors()` 结构（非自定义 `{errors:[{field,value,hint}]}`）；实现额外引入 **410 gone**（`session_deleted`）/`confirm_required`。
+> - **反向缺口**：实现路由约 103 个，**约 75 个未进本文档**（会话扩展/引擎扩展/全局模板管理 worlds/characters/assets/prompts）——见文末「附：实现已有、本文档未记端点」清单。
 
 ---
 
@@ -1100,3 +1112,30 @@ app.add_middleware(
     expose_headers=["X-Session-Id", "X-Request-Id"],
 )
 ```
+
+---
+
+## 附：实现已有、本文档未记的端点（2026-06 补登记）
+
+实现路由约 103 个，超出本规范 28 个端点约 75 个。以下分域登记，避免 API 规范与实现脱节（详细行号见 `docs/review/conf_b11.md`）：
+
+**会话域扩展（`sessions.py`）**
+- `PATCH /sessions/{id}` — 元数据重命名（title）
+- `GET /sessions/{id}/chapters/{chap_id}/summary`
+- `GET/PUT /sessions/{id}/writing-styles`
+- `POST /sessions/{id}/world-archives`（本文档仅记 GET）
+- `GET/POST /sessions/{id}/npcs`、`PATCH/DELETE /sessions/{id}/npcs/{npc_key}`
+- `GET/POST /sessions/{id}/memory`、`POST /sessions/{id}/memory/consolidate`、`POST /sessions/{id}/memory/rollback`
+- `GET /sessions/{id}/dice-history`、`GET /sessions/{id}/stats`、`GET /sessions/{id}/replay`、`POST /sessions/{id}/compact`
+
+**流式域（`stream.py`）**：`POST /sessions/{id}/opening`、`DELETE /sessions/{id}/stream`（中止流）
+
+**引擎扩展域（`engine.py`）**：`POST /engine/combat`、`GET /engine/economy/{session_id}`、`GET /engine/rules`、`POST /engine/rules/{rule_id}/activate`、`GET /prompts/fragments`、`GET /agents/profiles`、`GET /agents/profiles/{profile_name}/check`、`GET /tools`、`POST /tools/{tool_name}`
+
+**配置/系统域（`config.py`）**：`GET /hooks`、`GET /system/info`、`GET /system/memory-health`、`GET /mcp/servers`、`GET /config/llm-routes`（本文档仅记 PUT）、`GET/PUT /config/api-keys`
+
+**全局模板管理（属其他设计文档范畴，此处交叉引用）**
+- `worlds.py`（约 15 个）：`/worlds`、`/worlds/{wid}/archives`、`/worlds/{wid}/fetch-lore`、`/worlds/{wid}/parse-document`、`/worlds/{wid}/confirm-lore`、`/scraper-rules*`
+- `characters.py`（约 9 个）：`/characters*`、`import-png`、`export-png`、`generate*`
+- `assets.py`（约 10 个）：`/assets/npcs*`、`/assets/items*`、`grant`、`import`
+- `prompts.py`（约 5 个）：`/prompts*`、`reset`

@@ -146,9 +146,11 @@ async def _run_agent_pipeline(session_id: str, message_id: str, content: str) ->
     }
     try:
         from ...hooks import hook_manager, HookEvent
+        # conf_b04：会话生命周期 on_session_start 在管线开始前触发
+        await hook_manager.fire(HookEvent.on_session_start, hook_ctx)
         await hook_manager.fire(HookEvent.before_turn, hook_ctx)
     except Exception as _e:
-        logger.warning("[stream] before_turn hook 失败: %s", _e)
+        logger.warning("[stream] on_session_start / before_turn hook 失败: %s", _e)
 
     from ...agents.cancellation import TurnCancelled, clear_cancel as _clear_cancel
     pipeline_error: str = ""
@@ -176,14 +178,17 @@ async def _run_agent_pipeline(session_id: str, message_id: str, content: str) ->
     try:
         from ...hooks import hook_manager, HookEvent
         if pipeline_error:
-            await hook_manager.fire(HookEvent.on_error, {
-                **hook_ctx, "error": pipeline_error, "agent": "pipeline",
-            })
+            # conf_b04：异常路径同时触发 on_error 与会话级 on_session_error
+            err_ctx = {**hook_ctx, "error": pipeline_error, "agent": "pipeline"}
+            await hook_manager.fire(HookEvent.on_error, err_ctx)
+            await hook_manager.fire(HookEvent.on_session_error, err_ctx)
         else:
             after_ctx = {**hook_ctx, "narrative": getattr(ctx, "narrative_text", "")}
             await hook_manager.fire(HookEvent.after_turn, after_ctx)
+            # conf_b04：成功路径触发会话级 on_session_end
+            await hook_manager.fire(HookEvent.on_session_end, after_ctx)
     except Exception as _e:
-        logger.warning("[stream] after_turn / on_error hook 失败: %s", _e)
+        logger.warning("[stream] after_turn / on_error / on_session_* hook 失败: %s", _e)
 
     try:
         if _plugin_obj:

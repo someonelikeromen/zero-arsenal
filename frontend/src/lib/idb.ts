@@ -41,17 +41,92 @@ function openDB(): Promise<IDBDatabase> {
   })
 }
 
+/**
+ * 每个 store 的最大条目数（D22：LRU 驱逐上限）。
+ * 超过上限时，按 `ts`（最后访问时间）升序删除最久未访问的条目。
+ */
+const STORE_LIMITS: Record<StoreName, number> = {
+  sessions: 200,
+  messages: 2000,
+  parts: 5000,
+  character: 200,
+}
+
 async function idbPut<S extends StoreName>(
   store: S,
   value: IDBStore[S]
 ): Promise<void> {
   const db = await openDB()
-  return new Promise((resolve, reject) => {
+  await new Promise<void>((resolve, reject) => {
     const tx = db.transaction(store, 'readwrite')
     tx.objectStore(store).put(value)
     tx.oncomplete = () => resolve()
     tx.onerror = () => reject(tx.error)
   })
+  // 写入后异步执行 LRU 驱逐（不阻塞主流程）
+  void enforceLimit(store, STORE_LIMITS[store]).catch(() => {})
+}
+
+/**
+ * LRU 驱逐：将 store 条目数压缩到 limit 以内，优先删除 `ts` 最小（最久未访问）者。
+ * `sse_cursor:` 前缀的续传游标条目永不驱逐。
+ */
+async function enforceLimit(store: StoreName, limit: number): Promise<void> {
+  const db = await openDB()
+  const rows: Array<{ ts: number; key: IDBValidKey; protect: boolean }> = await new Promise(
+    (resolve, reject) => {
+      const tx = db.transaction(store, 'readonly')
+      const os = tx.objectStore(store)
+      const keyPath = os.keyPath as string
+      const req = os.getAll()
+      req.onsuccess = () => {
+        const list = (req.result as Array<Record<string, unknown>>).map((r) => {
+          const key = r[keyPath] as IDBValidKey
+          return {
+            ts: typeof r.ts === 'number' ? r.ts : 0,
+            key,
+            protect: typeof key === 'string' && key.startsWith('sse_cursor:'),
+          }
+        })
+        resolve(list)
+      }
+      req.onerror = () => reject(req.error)
+    }
+  )
+  const evictable = rows.filter((r) => !r.protect)
+  if (evictable.length <= limit) return
+  evictable.sort((a, b) => a.ts - b.ts)
+  const toDelete = evictable.slice(0, evictable.length - limit)
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(store, 'readwrite')
+    const os = tx.objectStore(store)
+    for (const d of toDelete) os.delete(d.key)
+    tx.oncomplete = () => resolve()
+    tx.onerror = () => reject(tx.error)
+  })
+}
+
+/** 触碰条目：更新 `ts` 为当前时间，使 LRU 反映最后访问而非仅写入时间。 */
+async function idbTouch(store: StoreName, key: IDBValidKey): Promise<void> {
+  try {
+    const db = await openDB()
+    await new Promise<void>((resolve) => {
+      const tx = db.transaction(store, 'readwrite')
+      const os = tx.objectStore(store)
+      const req = os.get(key)
+      req.onsuccess = () => {
+        const row = req.result as Record<string, unknown> | undefined
+        if (row) {
+          row.ts = Date.now()
+          os.put(row)
+        }
+        resolve()
+      }
+      req.onerror = () => resolve()
+    })
+  } catch {
+    // 触碰失败不影响主流程
+  }
 }
 
 async function idbGet<S extends StoreName>(
@@ -105,6 +180,7 @@ export const cache = {
   async getSession(id: string): Promise<unknown | null> {
     const row = await idbGet('sessions', id)
     if (!row || Date.now() - row.ts > STALE_MS) return null
+    void idbTouch('sessions', id)
     return row.data
   },
 
@@ -116,6 +192,7 @@ export const cache = {
   async getCharacter(session_id: string): Promise<unknown | null> {
     const row = await idbGet('character', session_id)
     if (!row || Date.now() - row.ts > STALE_MS) return null
+    void idbTouch('character', session_id)
     return row.data
   },
 
@@ -126,8 +203,10 @@ export const cache = {
 
   async getPartsBySession(session_id: string): Promise<unknown[]> {
     const rows = await idbGetByIndex('parts', 'by_session', session_id)
-    return rows
-      .filter(r => Date.now() - r.ts < STALE_MS * 6)
+    const fresh = rows.filter(r => Date.now() - r.ts < STALE_MS * 6)
+    // 触碰命中的 parts，使其在 LRU 中保持「最近访问」
+    for (const r of fresh) void idbTouch('parts', r.id)
+    return fresh
       .sort((a, b) => a.ts - b.ts)
       .map(r => r.data)
   },

@@ -24,11 +24,18 @@ class CrossoverPlugin(WorldPlugin):
         meta = char.setdefault("meta", {})
 
         # 只在首次创建时初始化（避免覆盖已有数据）
-        meta.setdefault("points", 1000)
-        meta.setdefault("badges", [])
+        # crossover_points 为经济工具（crossover/tools.py、infinite_arsenal/tools.py）实际读写的键
+        meta.setdefault("crossover_points", 1000)
         meta.setdefault("world_cycle", 1)
         meta.setdefault("survival_count", 0)
         meta.setdefault("world_plugin", "crossover")
+
+        # D7：与角色卡 v4 economy 结构对齐（points/badges/tier），保留 crossover_points 兼容工具
+        economy = char.setdefault("economy", {})
+        economy.setdefault("points", meta["crossover_points"])
+        economy.setdefault("badges", 0)
+        economy.setdefault("tier", 0)
+        economy.setdefault("tier_sub", "")
 
         # 补全 extra_attributes（luck/loyalty）
         attrs = char.setdefault("attributes", {})

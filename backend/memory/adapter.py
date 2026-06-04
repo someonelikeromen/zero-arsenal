@@ -166,12 +166,17 @@ class MemoryAdapter:
         - npc：仅 objective_global + objective_local（不看玩家隐私）
         - narrator/default：无额外限制
         """
-        # 认知分区白名单（按 viewer_agent 限制可见范围）
-        _partition_filter: str | None = None
-        if viewer_agent in ("world", "rules"):
-            _partition_filter = "objective_global"
-        elif viewer_agent == "npc":
-            _partition_filter = "objective_global"  # NPC 不可见玩家内心
+        # D6 认知分区白名单（按 viewer_agent 的 5 分区可见集合限制可见范围）
+        # 全分区视角（chronicler/narrator）不过滤；受限视角按 allowed 集合构造 IN 白名单。
+        partition_cond = ""
+        try:
+            from memory.retriever import viewer_allowed_partitions, ALL_PARTITIONS
+            _allowed = viewer_allowed_partitions(viewer_agent)
+            if _allowed and _allowed < ALL_PARTITIONS:
+                _inlist = ",".join(f"'{p}'" for p in sorted(_allowed))
+                partition_cond = f" AND cognitive_partition IN ({_inlist})"
+        except Exception as _vf_err:
+            logger.debug(f"[_fallback_recall] viewer filter unavailable: {_vf_err}")
         try:
             from ..db import get_db
             import re as _re
@@ -197,10 +202,7 @@ class MemoryAdapter:
                     if r["content"]
                 ]
 
-                # ── POV 分区约束（viewer_agent 限制可见认知分区） ──────────
-                partition_cond = ""
-                if _partition_filter:
-                    partition_cond = f" AND cognitive_partition='{_partition_filter}'"
+                # ── POV 分区约束已在上方按 viewer_agent 计算为 partition_cond ──
 
                 # ── Layer 1: semantic tier（NPC/设定/lore）+ 关键词过滤 ──
                 semantic_like = ""
@@ -354,28 +356,70 @@ class MemoryAdapter:
                 )
                 await db.commit()
 
-            # 写向量引擎
-            if _engine_available and _engine:
-                try:
-                    from memory.schema import MemoryNode, NodeType  # type: ignore
-                    node = MemoryNode(
-                        id=entry_id,
-                        novel_id=session_id,
-                        world_key=world_plugin,
-                        type=NodeType(node_type) if node_type in [n.value for n in NodeType] else NodeType.EVENT,
-                        content=content,
-                        chapter_id=chapter_id or "",
-                        metadata=metadata or {},
-                    )
-                    _engine.graph_manager.add_node(node)
-                    await _engine.vector_manager.add_node_async(node)
-                except Exception as ve:
-                    logger.debug(f"Vector write failed (non-critical): {ve}")
+            # 写图谱 + 向量（C5-05：使用模块级单例 + 正确字段名 + 端到端 embedding）
+            # 图写入仅依赖 networkx，无 chromadb 也可工作；向量写入在依赖缺失时优雅降级。
+            await self._write_node_to_engine(
+                entry_id, session_id, world_plugin, content, node_type,
+                chapter_id or "", metadata or {},
+            )
 
             return True
         except Exception as e:
             logger.warning(f"add_memory failed: {e}")
             return False
+
+    @staticmethod
+    async def _write_node_to_engine(
+        entry_id: str,
+        session_id: str,
+        world_plugin: str,
+        content: str,
+        node_type: str,
+        chapter_id: str,
+        metadata: dict,
+    ) -> None:
+        """
+        将一条记忆写入图谱（NetworkX）与向量库（ChromaDB/FAISS，可用时）。
+        C5-05：对齐向量写入全链路——
+          - 使用模块级 graph_manager / vector_manager 单例（MemoryEngine 无这两属性）
+          - MemoryNode 使用正确字段名 node_id / node_type / extra
+          - embedding 经 get_embedding_client().embed() 生成（缺失时返回 []，跳过向量写）
+        任何一步失败都不影响 SQLite 主写入。
+        """
+        try:
+            from memory.schema import MemoryNode, NodeType
+            from memory.graph import graph_manager
+            from memory.vector import vector_manager
+            from utils.llm_client import get_embedding_client
+            from datetime import datetime, timezone
+
+            valid_types = {n.value for n in NodeType}
+            nt = NodeType(node_type) if node_type in valid_types else NodeType.EVENT
+            now_iso = datetime.now(timezone.utc).isoformat()
+            node = MemoryNode(
+                node_id=entry_id,
+                novel_id=session_id,
+                node_type=nt,
+                world_key=world_plugin,
+                title=(metadata.get("title", "") if isinstance(metadata, dict) else "") or content[:30],
+                content=content,
+                summary=content[:200],
+                chapter_id=chapter_id,
+                created_at=now_iso,
+                updated_at=now_iso,
+                extra=metadata if isinstance(metadata, dict) else {},
+            )
+
+            # 图写入（无 chromadb 也可工作）
+            await graph_manager.add_node(session_id, node)
+
+            # 向量写入（embedding 缺失则跳过，不报错）
+            emb_client = get_embedding_client()
+            embedding = await emb_client.embed(content or node.summary or node.title)
+            if embedding:
+                await vector_manager.upsert_node(session_id, node, embedding)
+        except Exception as ve:
+            logger.debug(f"Engine node write failed (non-critical): {ve}")
 
     def enqueue_extraction(
         self,
@@ -384,12 +428,41 @@ class MemoryAdapter:
         chapter_id: str,
         messages: list[dict],
         narrative_text: str = "",
+        novel_config: Optional[dict] = None,
     ) -> bool:
         """
-        将后台记忆提取任务加入队列。
-        优先使用 full engine；不可用时降级到内置 ExtractQueue（写 episodic entries）。
+        将后台记忆提取任务加入队列（生产主路径，C5-03/D5）。
+
+        无论 full engine 是否可用，入队的任务都携带完整 payload
+        （messages / novel_id / world_key / novel_config），使队列消费者
+        extract_queue._process_task 能够运行 LLM 图谱提取（轨道 A，写 NetworkX 图，
+        图写入不依赖 chromadb），同时保留启发式 SQLite 兜底（轨道 B）。
         """
-        # 尝试 full engine
+        # 拼接 narrative 文本（轨道 B 兜底用）
+        text = narrative_text
+        if not text:
+            text = "\n".join(
+                m.get("content", "")
+                for m in messages
+                if m.get("role") in ("assistant", "narrator")
+            )
+        # 提取 user_input（第一条 user 消息）
+        user_input = next(
+            (m.get("content", "") for m in messages if m.get("role") == "user"), ""
+        )
+        task = {
+            "session_id":     session_id,
+            "novel_id":       session_id,   # session 体系中 novel_id == session_id
+            "world_key":      world_plugin,
+            "chapter_id":     chapter_id,
+            "narrative_text": text,
+            "user_input":     user_input,
+            "messages":       messages,
+            "novel_config":   novel_config or {},
+            "source_agent":   "auto_extraction",
+        }
+
+        # 优先 full engine（其 enqueue 也会带上 messages）
         if _engine_available and _engine:
             try:
                 return _engine.enqueue_extraction(
@@ -397,32 +470,15 @@ class MemoryAdapter:
                     world_key=world_plugin,
                     chapter_id=chapter_id,
                     messages=messages,
+                    novel_config=novel_config or {},
                 )
             except Exception as e:
                 logger.warning(f"enqueue_extraction (engine) failed: {e}")
 
-        # 降级：用内置 ExtractQueue 写 episodic 记忆
+        # 降级/默认：内置 ExtractQueue（双轨：LLM 图谱 + SQLite 兜底）
         try:
             from .extract_queue import extract_queue
-            # 拼接 narrative 文本
-            text = narrative_text
-            if not text:
-                text = "\n".join(
-                    m.get("content", "")
-                    for m in messages
-                    if m.get("role") in ("assistant", "narrator")
-                )
-            # 提取 user_input（第一条 user 消息）
-            user_input = next(
-                (m.get("content", "") for m in messages if m.get("role") == "user"), ""
-            )
-            return extract_queue.enqueue({
-                "session_id": session_id,
-                "chapter_id": chapter_id,
-                "narrative_text": text,
-                "user_input": user_input,
-                "source_agent": "auto_extraction",
-            })
+            return extract_queue.enqueue(task)
         except Exception as e:
             logger.warning(f"enqueue_extraction (fallback) failed: {e}")
             return False

@@ -200,8 +200,8 @@ def test_arsenal_tools(sid: str):
     log(f"GET /world-archives → {r3.status_code} 数量={len(r3.json()) if r3.ok else '?'}")
 
     # 3.4 记忆检索（武器/战斗相关）
-    r4 = requests.get(f"{BACKEND}/api/sessions/{sid}/memory?query=长剑&limit=5", timeout=5)
-    log(f"GET /memory?query=长剑 → {r4.status_code} 记忆数={len(r4.json()) if r4.ok else '?'}")
+    r4 = requests.get(f"{BACKEND}/api/sessions/{sid}/memory?q=长剑&top_k=5", timeout=5)
+    log(f"GET /memory?q=长剑 → {r4.status_code} 记忆数={len(r4.json()) if r4.ok else '?'}", ok=r4.ok)
 
     # 3.5 章节树
     r5 = requests.get(f"{BACKEND}/api/sessions/{sid}/chapters", timeout=5)
@@ -220,7 +220,7 @@ def test_browser_ui(sid: str):
     try:
         from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
     except ImportError:
-        log("playwright 未安装，跳过浏览器测试", ok=False)
+        pytest.skip("playwright 未安装，跳过浏览器测试")
         return
 
     frontend = "http://localhost:5174"

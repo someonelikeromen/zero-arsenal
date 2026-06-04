@@ -4,17 +4,21 @@ import sys
 import inspect
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 
+@pytest.mark.stub
 def test_load_all_extensions_imported_in_main():
-    """main.py 必须 import load_all_extensions。"""
+    """main.py 必须 import load_all_extensions。（静态源码子串检查 · stub）"""
     main_src = (Path(__file__).parent.parent.parent / "backend" / "main.py").read_text(encoding="utf-8")
     assert "load_all_extensions" in main_src, (
         "main.py 没有引用 load_all_extensions"
     )
 
 
+@pytest.mark.stub
 def test_load_all_extensions_called_in_lifespan():
     """main.py lifespan 函数必须调用 load_all_extensions()。"""
     import backend.main as m

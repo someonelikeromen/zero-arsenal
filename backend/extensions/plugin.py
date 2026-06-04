@@ -161,7 +161,16 @@ class WorldPlugin:
                 prompt_reg.register(frag)
 
     def apply_permission_overlay(self, profile_name: str, profile_registry) -> None:
-        """将插件的权限覆盖规则应用到对应的 AgentProfile。失败时静默跳过。"""
+        """
+        将插件的权限覆盖规则应用到对应的 AgentProfile。
+
+        D3：此前实现直接 `profile.permissions.insert(0, ...)` 修改 profile_registry
+        返回的对象 —— 但该对象往往是模块级单例（PLAY_PROFILE 等），就地修改会
+        永久污染全局基础 Profile，且多个世界插件叠加时规则会累积串台。
+        现改为：深拷贝基础 Profile → 在副本上插入 overlay 规则 → 重新注册副本，
+        全局基础 Profile 保持纯净。失败时静默跳过（不影响启动）。
+        """
+        import copy
         if not self.permission_overlay:
             return
         overlay_rules = self.permission_overlay.get(profile_name, [])
@@ -169,9 +178,11 @@ class WorldPlugin:
             return
         try:
             from ..agents.permission import PermissionAction, ToolPermission
-            profile = profile_registry.get(profile_name)
-            if not profile:
+            base = profile_registry.get(profile_name)
+            if not base:
                 return
+            cloned = copy.deepcopy(base)
+            overlay_perms = []
             for rule in overlay_rules:
                 pattern = rule.get("pattern", "*")
                 action_str = rule.get("action", "allow")
@@ -179,10 +190,10 @@ class WorldPlugin:
                     action = PermissionAction(action_str)
                 except ValueError:
                     continue
-                # 插入到权限列表最前（优先级最高）
-                profile.permissions.insert(0, ToolPermission(
-                    tool_pattern=pattern, action=action
-                ))
+                overlay_perms.append(ToolPermission(tool_pattern=pattern, action=action))
+            # overlay 规则置于列表最前（优先级最高，允许放宽 deny）
+            cloned.permissions = overlay_perms + list(cloned.permissions)
+            profile_registry.register(cloned)
         except Exception:
             pass
 

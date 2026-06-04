@@ -119,19 +119,43 @@ def _parse_frontmatter(text: str) -> tuple[dict, str]:
                 for line in parts[1].strip().splitlines():
                     if ":" in line:
                         k, _, v = line.partition(":")
-                        meta[k.strip()] = v.strip()
+                        v = v.strip()
+                        # NEW-C8-07：回退解析下显式转 bool，否则 "false" 非空字符串
+                        # 恒真 → enabled:false 失效（被停用的规则仍被注入）。
+                        if v.lower() in ("true", "false"):
+                            meta[k.strip()] = (v.lower() == "true")
+                        else:
+                            meta[k.strip()] = v
             body = parts[2].strip()
     return meta, body
 
 
-def _scan_and_load(registry: RuleRegistry) -> int:
-    """扫描 extensions/*/rules/*.md，注册到 registry，返回数量。"""
+def _iter_rules_dirs() -> list[tuple[str, Path]]:
+    """
+    NEW-C8-04：返回三级目录（内置/用户/项目）下所有 (extension_key, rules_dir)。
+    复用 extension_loader.discover_extensions() 的 bundle 路径，使 user/project 级
+    扩展的 rules/*.md 也能被加载（此前硬编码仅扫 backend/extensions/）。
+    """
+    try:
+        from .extension_loader import discover_extensions
+        bundles = discover_extensions().values()
+        dirs = [(b.ext_id, b.path / "rules") for b in bundles]
+        if dirs:
+            return [(k, d) for k, d in dirs if d.is_dir()]
+    except Exception as e:
+        logger.warning(f"[RuleRegistry] discover_extensions 失败，回退仅扫描内置目录: {e}")
+    # 回退：仅内置目录（跳过 `_` 前缀目录）
     ext_root = Path(__file__).parent
+    return [
+        (rd.parent.name, rd) for rd in ext_root.glob("*/rules")
+        if rd.is_dir() and not rd.parent.name.startswith("_")
+    ]
+
+
+def _scan_and_load(registry: RuleRegistry) -> int:
+    """扫描三级目录的 */rules/*.md，注册到 registry，返回数量。"""
     count = 0
-    for rules_dir in ext_root.glob("*/rules"):
-        if not rules_dir.is_dir():
-            continue
-        extension_key = rules_dir.parent.name
+    for extension_key, rules_dir in _iter_rules_dirs():
         for md_file in sorted(rules_dir.glob("*.md")):
             try:
                 text = md_file.read_text(encoding="utf-8")

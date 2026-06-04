@@ -9,6 +9,7 @@ EventType 常量和 BusEvent 数据类已抽离到 bus/event_types.py，
 """
 import asyncio
 import json
+import logging
 from datetime import datetime
 from typing import AsyncIterator, Optional
 
@@ -16,11 +17,18 @@ from .interface import IEventBus  # noqa: E402
 # 重新导出（向后兼容）
 from .event_types import EventType, BusEvent  # noqa: F401
 
+logger = logging.getLogger(__name__)
+
 
 # ── EventBus ─────────────────────────────────────────────────────────────────
 
 # 每个订阅者队列最大容量（超出后丢弃最旧事件，保护 publish 不被慢消费者阻塞）
 _QUEUE_MAX_SIZE = 200
+
+# 持久化队列容量（NEW-C7-09：批量持久化，复用连接）
+_PERSIST_QUEUE_MAX = 2000
+# 单批最多写入的事件数
+_PERSIST_BATCH_MAX = 100
 
 # 不写 DB 的事件类型（heartbeat 频率高，无需持久化）
 _NO_PERSIST_TYPES = frozenset({EventType.HEARTBEAT})
@@ -41,6 +49,11 @@ class EventBus(IEventBus):
         self._subscribers: dict[str, list[asyncio.Queue]] = {}
         self._event_log: list[BusEvent] = []   # 内存日志，供 Last-Event-ID 补偿
         self._lock = asyncio.Lock()
+        # NEW-C7-09：持久化队列 + 单一后台写入任务（复用 DB 连接，批量提交）
+        self._persist_queue: Optional[asyncio.Queue] = None
+        self._persist_task: Optional[asyncio.Task] = None
+        self._persist_dropped = 0   # 队列溢出丢弃计数（可观测）
+        self._persist_failures = 0  # 持久化失败计数（R-M17：不再静默吞）
 
     async def publish(self, event: BusEvent) -> None:
         """
@@ -79,29 +92,78 @@ class EventBus(IEventBus):
                         subs.remove(dq)
 
         # 异步持久化到 DB（heartbeat 等高频事件跳过，失败不影响实时推送）
+        # NEW-C7-09：入队由单一后台 worker 批量写入，复用连接，避免每事件新开连接。
         if event.type not in _NO_PERSIST_TYPES:
-            asyncio.create_task(self._persist_event(event))
+            self._enqueue_persist(event)
 
-    async def _persist_event(self, event: BusEvent) -> None:
-        """把 BusEvent 持久化到 event_log 表，支持服务重启后的 Last-Event-ID 补偿。"""
+    def _enqueue_persist(self, event: BusEvent) -> None:
+        """把事件放入持久化队列，并确保后台写入任务已启动。"""
         try:
-            from ..db import get_db
-            async with get_db() as db:
-                await db.execute(
-                    "INSERT OR IGNORE INTO event_log "
-                    "(id, session_id, type, data_json, created_at) "
-                    "VALUES (?, ?, ?, ?, ?)",
-                    (
-                        event.id,
-                        event.session_id,
-                        event.type,
-                        json.dumps(event.data, ensure_ascii=False),
-                        event.timestamp,
-                    ),
+            if self._persist_queue is None:
+                self._persist_queue = asyncio.Queue(maxsize=_PERSIST_QUEUE_MAX)
+            q = self._persist_queue
+            try:
+                q.put_nowait(event)
+            except asyncio.QueueFull:
+                # 丢弃最旧，保证最新事件入队（持久化是补偿，可容忍少量丢失）
+                try:
+                    q.get_nowait()
+                    self._persist_dropped += 1
+                except asyncio.QueueEmpty:
+                    pass
+                try:
+                    q.put_nowait(event)
+                except asyncio.QueueFull:
+                    self._persist_dropped += 1
+            # 懒启动后台 worker
+            if self._persist_task is None or self._persist_task.done():
+                self._persist_task = asyncio.create_task(self._persist_worker())
+        except RuntimeError:
+            # 无运行中的事件循环（极少见，如同步上下文）：跳过持久化
+            pass
+
+    async def _persist_worker(self) -> None:
+        """
+        后台持久化 worker：批量从队列取事件，复用单个 DB 连接写入。
+        失败时记录日志与失败计数（R-M17：不再静默吞），不影响实时推送。
+        """
+        from ..db import get_db
+        assert self._persist_queue is not None
+        q = self._persist_queue
+        while True:
+            first = await q.get()
+            batch = [first]
+            # 尽量凑批（不阻塞）
+            while len(batch) < _PERSIST_BATCH_MAX:
+                try:
+                    batch.append(q.get_nowait())
+                except asyncio.QueueEmpty:
+                    break
+            try:
+                async with get_db() as db:  # 单连接写整批
+                    await db.executemany(
+                        "INSERT OR IGNORE INTO event_log "
+                        "(id, session_id, type, data_json, created_at) "
+                        "VALUES (?, ?, ?, ?, ?)",
+                        [
+                            (
+                                ev.id, ev.session_id, ev.type,
+                                json.dumps(ev.data, ensure_ascii=False),
+                                ev.timestamp,
+                            )
+                            for ev in batch
+                        ],
+                    )
+                    await db.commit()
+            except Exception as e:
+                self._persist_failures += len(batch)
+                logger.warning(
+                    "[EventBus] 持久化批次失败（%d 条，累计失败 %d）: %s",
+                    len(batch), self._persist_failures, e,
                 )
-                await db.commit()
-        except Exception:
-            pass  # 持久化失败不影响实时推送
+            finally:
+                for _ in batch:
+                    q.task_done()
 
     async def subscribe(self, session_id: str) -> "Subscription":
         """
@@ -117,10 +179,14 @@ class EventBus(IEventBus):
         return Subscription(session_id=session_id, queue=q, bus=self)
 
     async def unsubscribe(self, session_id: str, queue: asyncio.Queue) -> None:
+        # NEW-C7-04：移除队列后若该 session 已无订阅者，删除空列表键，
+        # 避免 _subscribers 字典随 SSE 断连无界增长，并保证订阅者计数精确。
         async with self._lock:
             subs = self._subscribers.get(session_id, [])
             if queue in subs:
                 subs.remove(queue)
+            if not subs:
+                self._subscribers.pop(session_id, None)
 
     def get_subscriber_count(self, session_id: str) -> int:
         """
@@ -216,6 +282,9 @@ class Subscription:
                 )
 
     async def close(self) -> None:
+        # 幂等：重复 close 不重复退订（NEW-C7-04）
+        if self._closed:
+            return
         self._closed = True
         await self._bus.unsubscribe(self.session_id, self.queue)
 

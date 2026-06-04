@@ -75,17 +75,10 @@ class HealResult:
     removed_status_effects: list[str] = field(default_factory=list)
 
 
-@dataclass
-class CombatRoundResult:
-    """一轮战斗的完整结算结果。"""
-    attacker: str
-    defender: str
-    damage_results: list[DamageResult] = field(default_factory=list)
-    total_actual_damage: int = 0
-    defender_alive: bool = True
-    combat_over: bool = False
-    winner: str = ""
-    round_narrative: str = ""
+# R-M15：原 `CombatRoundResult`（整轮聚合结算）已移除 —— 全仓无任何生产者/消费者。
+# 战斗实际按「单次施害」粒度结算：`apply_damage` 工具（builtin_tools.py）与
+# /engine/combat 路由直接消费 `DamageResult` / `HealResult`，无回合聚合需求。
+# 若未来引入回合制聚合，应在有明确消费方时再重新引入并接线，而非留死结构。
 
 
 # ── 伤害计算引擎 ──────────────────────────────────────────────────────────────

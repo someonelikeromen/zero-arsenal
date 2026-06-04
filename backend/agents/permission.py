@@ -42,6 +42,24 @@ class AgentProfile:
     allowed_groups: Optional[list[str]] = None
     # 权限列表无匹配时的默认行为（设计 §10 default_permission）
     default_permission: PermissionAction = PermissionAction.DENY
+    # ── D11 多模型角色映射（设计 §7.2 AgentProfile.llm_role）────────────────────
+    # llm_role：该 Profile 默认使用的 agents.json 角色键（None=由调用方按 agent_name 解析）
+    # llm_overrides：直接覆盖 provider/model/temperature/max_tokens（None=不覆盖，用单模型默认）
+    llm_role: Optional[str] = None
+    llm_overrides: Optional[dict] = None
+
+    def resolve_llm(self, agent_name: Optional[str] = None) -> dict:
+        """
+        解析该 Profile 的有效 LLM 配置（D11）。
+        优先级：llm_overrides > agents.json[llm_role 或 agent_name] > 统一默认 > 硬编码。
+        未设置任何多模型字段时，等价于按 agent_name 走单模型默认（向后兼容）。
+        """
+        from .llm import load_agent_config
+        role = self.llm_role or agent_name or self.name
+        cfg = dict(load_agent_config(role))
+        if isinstance(self.llm_overrides, dict):
+            cfg.update(self.llm_overrides)
+        return cfg
 
     def check_tool(self, tool_name: str) -> PermissionAction:
         """
@@ -229,6 +247,8 @@ def _load_profile_from_yaml(yaml_path: Path) -> Optional[AgentProfile]:
             active_tools=data.get("active_tools"),
             allowed_groups=data.get("allowed_groups"),  # 07-tool-registry.md §3
             default_permission=default_perm,
+            llm_role=data.get("llm_role"),            # D11 多模型角色映射
+            llm_overrides=data.get("llm_overrides"),
         )
     except Exception as e:
         _log.warning("[Permission] 解析 %s 失败: %s", yaml_path, e)

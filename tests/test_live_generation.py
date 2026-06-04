@@ -1,8 +1,16 @@
-"""测试真实 LLM 生成流程：世界观提炼 + 人物创建 + URL 抓取"""
+"""测试真实 LLM 生成流程：世界观提炼 + 人物创建 + URL 抓取
+
+注：脚本式伪 E2E（test_ 函数带返回值/位置参数、依赖运行中的后端 + 真实 LLM），
+非标准 pytest 用例，标注 stub；CI 以 `-m "not stub"` 排除。
+"""
 import requests
 import json
 import time
 import sys
+
+import pytest
+
+pytestmark = pytest.mark.stub
 
 BACKEND = "http://127.0.0.1:8000"
 
@@ -157,7 +165,7 @@ def test_fetch_lore_url():
     return entries
 
 
-def test_save_and_confirm(wid: str, entries: list):
+def _save_and_confirm(wid: str, entries: list):
     if not entries:
         print("\n  跳过 confirm-lore（无条目）")
         return
@@ -195,7 +203,7 @@ if __name__ == "__main__":
     assert isinstance(url_entries, list), "fetch-lore 失败：返回非列表数据"
 
     if wid and doc_entries:
-        test_save_and_confirm(wid, doc_entries)
+        _save_and_confirm(wid, doc_entries)
 
     print("\n" + "=" * 60)
     print("  全部通过")

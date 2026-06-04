@@ -1,9 +1,10 @@
 /**
  * MessageThread — 故事流（Part 消息列表）
  * 参考 12-frontend-architecture.md §3 StoryCanvas
- * 独立组件，负责：Part 过滤（按 Mode 可见性）+ 虚拟滚动（当前简单实现）+ 自动滚底
+ * 独立组件，负责：Part 过滤（按 Mode 可见性）+ 全量渲染 + 智能自动滚底
+ * 注：当前为全量渲染（非虚拟滚动）；自动滚底会跟随流式增量，且仅在用户贴近底部时触发。
  */
-import React, { useRef, useEffect, useMemo } from 'react'
+import React, { useRef, useEffect, useMemo, useCallback } from 'react'
 import { MessagePart } from '../stores/story'
 import { PartRenderer } from './parts/PartRenderer'
 
@@ -53,11 +54,29 @@ export const MessageThread: React.FC<Props> = ({
   sending = false,
 }) => {
   const bottomRef = useRef<HTMLDivElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+  // 用户是否贴近底部（向上翻阅历史时为 false，避免被强拉到底）
+  const nearBottomRef = useRef(true)
 
-  // 自动滚底（仅当在底部时）
+  const handleScroll = useCallback(() => {
+    const el = containerRef.current
+    if (!el) return
+    const dist = el.scrollHeight - el.scrollTop - el.clientHeight
+    nearBottomRef.current = dist < 120
+  }, [])
+
+  // 流式增量签名：累加各 part 的 streamBuffer 长度，使单条叙事流式输出也能触发跟随
+  const streamSignature = useMemo(
+    () => parts.reduce((n, p) => n + (p.streamBuffer?.length ?? 0), 0),
+    [parts]
+  )
+
+  // 自动滚底：内容（条数或流式增量）变化时，仅当用户当前贴近底部才滚动
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [parts.length])
+    if (nearBottomRef.current) {
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }
+  }, [parts.length, streamSignature])
 
   const visible = VISIBLE_PARTS[mode]
 
@@ -76,7 +95,7 @@ export const MessageThread: React.FC<Props> = ({
   const visibleParts = parts.filter((p) => visible.has(p.type))
 
   return (
-    <div className={`overflow-y-auto px-4 py-4 space-y-1 ${className}`}>
+    <div ref={containerRef} onScroll={handleScroll} className={`overflow-y-auto px-4 py-4 space-y-1 ${className}`}>
       {visibleParts.map((p) => (
         <PartRenderer
           key={p.id}

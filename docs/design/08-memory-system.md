@@ -1,8 +1,28 @@
 # 08 记忆系统（Memory System）设计文档
 
-> **版本**：v1.0  
+> **版本**：v1.1（2026-06 对齐实现）  
 > **设计来源**：直接复用 `ai-vn-system-backend/backend/memory/`（向量 65% + Bigram 35% + 图扩散 + 认知分区权重）  
-> **状态**：设计稿
+> **状态**：部分实现（核心算法管线存在；默认环境降级 + 生产写入链路断裂使其大面积空跑）
+>
+> 注：本文档已于 2026-06 对齐实现（D0 以代码为准）。下文结构/命名按实现修正；但**多处属待修复缺陷而非文档滞后，不改文档来迁就现状**。
+>
+> **实现对齐总览（2026-06，`backend/memory/`）**
+> - **§1 类封装**：实现**无 `MemoryManager`/`MemoryConfig` 类**；职责拆为 `MemoryEngine`（门面）+ `MemoryAdapter` + 各 manager 单例。§9 的集中配置类未实现（参数散落硬编码）。
+> - **§1.2 tier 分层**：实现 tier 集合为 `working/episodic/semantic/**core**`——用 `core` 取代设计顶层 `semantic` 语义，且**完全无 `procedural` 层**（owned_items→procedural 注入链路不存在）。
+> - **§2 四层混合召回**：`retriever.hybrid_recall` 忠实实现四级链路，但仅 `full` 模式调用，且依赖图/向量库被填充。
+> - **§2.1 向量层**：经 ChromaDB（非 `memory_entries.embedding` BLOB）；VECTOR_WEIGHT=0.65 一致。
+> - **§2.2 词法层**：实现为 jieba+bigram 的**分级 max() 匹配权重**（非 BM25/TF-IDF）；fallback 仅 LIKE 前几词元。LEXICAL_WEIGHT=0.35 一致。
+> - **§2.4 认知分区权重**：✅ 完整且数值一致（默认环境唯一真正生效的一层）。
+> - **§2.5 混合公式**：实现用**时序分桶离散加成**（TEMPORAL_BUCKET_PRIORITY×0.05）替代 `1/(1+days_ago*0.1)` 连续衰减，并多乘 importance。
+> - **§3 viewer_agent**：实现视角枚举为 `chronicler/dm/planner/protagonist/npc_*`（**非**设计的 dm/npc/narrator/world/player），且退化为 pov_memory 布尔可见性，无 tier 白名单/乘数表；GET /memory 不传 viewer_agent。
+> - **§7 Schema**：本文档此节已与实现对齐（content_type→cognitive_partition 等差异已记）。
+>
+> 🔴 **待修复缺陷（非文档滞后，登记于 `docs/review/fix_report_docs.md`）**：
+> 1. **默认环境四层仅 1 层生效**：`pyproject.toml` 未声明 chromadb → `_engine_available=False` → 召回全走 SQLite fallback，向量/真Bigram/图扩散全失活（NEW-B08-05）。
+> 2. **生产写入链路断裂**：生产走 SQLite 正则启发式（`extract_queue`），LLM `MemoryExtractor`/图/向量写入**从不触发**（NEW-B08-04）；故图与向量库在生产热路径永不被填充。
+> 3. `_EmbeddingClient` 无 `embed_batch`（NEW-B08-01）；`extractor.py`/`rollback.py` 误把 `get_db()`（asynccontextmanager）当对象调用（NEW-B08-02）。
+> 4. `node_sync_status` 表无建表（NEW-B08-03，亦见 06 §5）。
+> 5. 存在两个冲突的 consolidator 单例（其一为死代码）；回滚无 confirm 护栏；`add_memory` 引擎写入分支为永久失败的死分支。
 
 ---
 

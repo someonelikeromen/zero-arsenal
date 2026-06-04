@@ -46,64 +46,34 @@ interface Character {
   [key: string]: unknown
 }
 
-/** 快照条目（用于 state_patch 回滚）。 */
-interface CharacterSnapshot {
-  /** 快照时间戳（Date.now()） */
-  ts: number
-  /** 快照时的 character 深克隆 */
-  character: Character
-}
-
-/** 快照队列最大长度（保留最近 N 次 state_patch 前的状态）。 */
-const SNAPSHOT_LIMIT = 20
-
 interface CharacterStore {
   character: Character | null
   schemaVersion: string
   loading: boolean
   inventory: InventoryItem[]
-  activeSkills: string[]
-  /** 历史快照队列（最新在末尾），配合 state_patch Part 使用。 */
-  snapshotHistory: CharacterSnapshot[]
 
   loadCharacter: (sessionId: string) => Promise<void>
   updateLocal: (data: Character) => void
   applyPatch: (patches: Array<{ cmd: string; key: string; value: string; delta: number | null }>) => void
   setPsyche: (psycheData: Record<string, unknown>) => void
-  /**
-   * 手动推入一个快照（一般在 applyPatch 前由外部调用，
-   * 或通过 applyPatch 第二个参数 `snapshot=true` 自动触发）。
-   */
-  pushSnapshot: () => void
-  /**
-   * 回滚到上一个快照（弹出末尾快照并恢复）。
-   * 若历史为空则无操作，返回 false。
-   */
-  restoreSnapshot: () => boolean
-  /** 清空快照历史（切换 session 时调用）。 */
-  clearSnapshots: () => void
 }
 
 export const useCharacterStore = create<CharacterStore>()(
   devtools(
-    (set, get) => ({
+    (set) => ({
       character: null,
       schemaVersion: '4.0',
       loading: false,
       inventory: [],
-      activeSkills: [],
-      snapshotHistory: [],
 
       loadCharacter: async (sessionId) => {
         set({ loading: true })
         try {
           const res = await api.getCharacter(sessionId) as { character: Character; schema_version: string }
           const char = res.character
-          // 同步 inventory 和 activeSkills 从 character 数据（归一化字段）
+          // 同步 inventory 从 character 数据（归一化字段）
           const inventory = normalizeInventory(char?.inventory)
-          const skills = char?.skills as Record<string, unknown> | undefined
-          const activeSkills = skills ? Object.keys(skills) : []
-          set({ character: char, schemaVersion: res.schema_version, inventory, activeSkills })
+          set({ character: char, schemaVersion: res.schema_version, inventory })
         } catch {
           // no character yet
         } finally {
@@ -116,13 +86,6 @@ export const useCharacterStore = create<CharacterStore>()(
       applyPatch: (patches) =>
         set((s) => {
           if (!s.character) return s
-          // 应用前自动推入快照，供回滚使用
-          const snapshot: CharacterSnapshot = {
-            ts: Date.now(),
-            character: JSON.parse(JSON.stringify(s.character)),
-          }
-          const snapshotHistory = [...s.snapshotHistory, snapshot].slice(-SNAPSHOT_LIMIT)
-
           // 深克隆避免 immer-like 问题
           const updated: Character = JSON.parse(JSON.stringify(s.character))
 
@@ -167,7 +130,7 @@ export const useCharacterStore = create<CharacterStore>()(
               parent[leaf] = lst
             }
           }
-          return { character: updated, snapshotHistory, inventory: normalizeInventory(updated.inventory) }
+          return { character: updated, inventory: normalizeInventory(updated.inventory) }
         }),
 
       setPsyche: (psycheData) =>
@@ -176,31 +139,6 @@ export const useCharacterStore = create<CharacterStore>()(
             ? { ...s.character, psyche: psycheData }
             : s.character,
         })),
-
-      pushSnapshot: () =>
-        set((s) => {
-          if (!s.character) return s
-          const snapshot: CharacterSnapshot = {
-            ts: Date.now(),
-            character: JSON.parse(JSON.stringify(s.character)),
-          }
-          return {
-            snapshotHistory: [...s.snapshotHistory, snapshot].slice(-SNAPSHOT_LIMIT),
-          }
-        }),
-
-      restoreSnapshot: () => {
-        const { snapshotHistory } = get()
-        if (!snapshotHistory.length) return false
-        const prev = snapshotHistory[snapshotHistory.length - 1]
-        set({
-          character: JSON.parse(JSON.stringify(prev.character)),
-          snapshotHistory: snapshotHistory.slice(0, -1),
-        })
-        return true
-      },
-
-      clearSnapshots: () => set({ snapshotHistory: [] }),
     }),
     { name: 'characterStore' }
   )

@@ -4,13 +4,7 @@
  */
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
-
-interface NpcProfile {
-  id: string
-  key: string
-  name: string
-  profile_json: Record<string, unknown>
-}
+import { api } from '../lib/api'
 
 interface WorldArchive {
   id: string
@@ -25,7 +19,6 @@ interface WorldState {
   sessionId: string | null
   worldPlugin: string
   archives: WorldArchive[]
-  npcs: NpcProfile[]
   isLoading: boolean
   error: string | null
 
@@ -33,18 +26,18 @@ interface WorldState {
   setSessionId: (id: string) => void
   setWorldPlugin: (plugin: string) => void
   loadArchives: (sessionId: string) => Promise<void>
-  addArchive: (archive: WorldArchive) => void
-  loadNpcs: (sessionId: string) => Promise<void>
   reset: () => void
 }
 
+// 注：NPC 列表已由 WorldPanel 本地 state（api.listSessionNpcs）管理，
+// 故移除 store 层无消费者的 npcs / loadNpcs / addArchive（T-D18 / NEW-C13-02）。
+
 export const useWorldStore = create<WorldState>()(
   devtools(
-    (set, get) => ({
+    (set) => ({
       sessionId: null,
       worldPlugin: 'crossover',
       archives: [],
-      npcs: [],
       isLoading: false,
       error: null,
 
@@ -54,39 +47,21 @@ export const useWorldStore = create<WorldState>()(
       loadArchives: async (sessionId) => {
         set({ isLoading: true, error: null })
         try {
-          const res = await fetch(`/api/sessions/${sessionId}/world-archives`)
-          if (!res.ok) throw new Error(`HTTP ${res.status}`)
-          const data = await res.json() as { archives?: WorldArchive[] } | WorldArchive[]
-          const archives = Array.isArray(data)
+          // 统一走 apiFetch（NEW-C13-03）
+          const data = await api.getWorldArchives(sessionId)
+          const archives = (Array.isArray(data)
             ? data
-            : (data as { archives?: WorldArchive[] }).archives ?? []
+            : data.archives ?? []) as unknown as WorldArchive[]
           set({ archives, isLoading: false })
         } catch (e) {
           set({ error: String(e), isLoading: false })
         }
       },
 
-      addArchive: (archive) =>
-        set((s) => ({ archives: [archive, ...s.archives] })),
-
-      loadNpcs: async (_sessionId) => {
-        const { archives } = get()
-        const npcArchives = archives.filter((a) => a.archive_type === 'npc')
-        set({
-          npcs: npcArchives.map((a) => ({
-            id: a.id,
-            key: a.id,
-            name: a.title,
-            profile_json: { content: a.content },
-          })),
-        })
-      },
-
       reset: () =>
         set({
           sessionId: null,
           archives: [],
-          npcs: [],
           isLoading: false,
           error: null,
         }),

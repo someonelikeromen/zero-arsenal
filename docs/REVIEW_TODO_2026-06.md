@@ -1,5 +1,11 @@
 # Zero-Arsenal 复审 · 修复总清单（2026-06）
 
+> ✅ **修复执行已完成（2026-06-04）**：基于本清单 + 24 条裁定的修复 plan 已全部执行。
+> 逐点核查结论见 **`docs/FIX_VERIFICATION_2026-06.md`**（权威台账，含 file:line 证据与收尾验证）。
+> 结论：P0 + 全部 24 条裁定项均已实现并核查为 ✅；仅 2 项为部分实现（⚠️，见台账「未完全实现汇总」）：
+> ①叙事/路由降级补日志（路由侧 R-D02/03/04/08、T-D09/11 未全覆盖）；②前端真·虚拟滚动 windowing（已做智能滚底，windowing 暂缓）。
+> 收尾验证：`pytest --collect-only`=61(EXIT0)、`-m "not stub"`=4 passed/6 skipped、前端 `npm run build` EXIT0、init_db CHECK/FK 通过、记忆引擎 full mode。
+>
 > 复审基准日期：**2026-06-03**
 > 来源：`docs/REVIEW_2026-06.md`（代码缺陷）+ `docs/DESIGN_CONFORMANCE_2026-06.md`（设计符合度）
 > 证据明细：`docs/review/def_c1~c16.md`、`conf_b02~b12.md`

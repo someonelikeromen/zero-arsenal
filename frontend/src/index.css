@@ -1,6 +1,7 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/* Tailwind v4：单条 @import 取代 v3 的三条 @tailwind 指令 */
+@import "tailwindcss";
+/* 沿用既有 JS 配置（content 扫描范围 / theme）— v4 通过 @config 显式加载 */
+@config "../tailwind.config.js";
 
 @layer base {
   /* color-scheme 由 applyTheme() 在运行时根据用户主题设置注入到 <html> */

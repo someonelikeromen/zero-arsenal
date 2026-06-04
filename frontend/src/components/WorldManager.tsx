@@ -234,16 +234,19 @@ function LorePreview({
 
 // ── 子组件：世界创建/编辑 Modal ───────────────────────────────────────────────
 function WorldModal({
-  worldId, onClose, onSaved,
+  worldId, initial, onClose, onSaved,
 }: {
   worldId: string | null
+  /** 编辑已有世界时用于预填基础信息（NEW-C14-04） */
+  initial?: { name?: string; world_plugin?: string; description?: string }
   onClose: () => void
   onSaved: () => void
 }) {
-  const [tab, setTab] = useState<CreationTab>('manual')
-  const [name, setName] = useState('')
-  const [plugin, setPlugin] = useState('crossover')
-  const [desc, setDesc] = useState('')
+  // 编辑已有世界时默认进入「URL 抓取」（补充抓取是该入口的核心诉求）
+  const [tab, setTab] = useState<CreationTab>(worldId ? 'url' : 'manual')
+  const [name, setName] = useState(initial?.name ?? '')
+  const [plugin, setPlugin] = useState(initial?.world_plugin ?? 'crossover')
+  const [desc, setDesc] = useState(initial?.description ?? '')
   const [url, setUrl] = useState('')
   const [docText, setDocText] = useState('')
   const [generating, setGenerating] = useState(false)
@@ -355,7 +358,7 @@ function WorldModal({
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div className="bg-zinc-900 border border-zinc-700 rounded-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between p-4 border-b border-zinc-800">
-          <h3 className="font-semibold">新建世界</h3>
+          <h3 className="font-semibold">{worldId ? '补充世界档案（再次抓取/解析）' : '新建世界'}</h3>
           <button onClick={onClose} className="text-zinc-500 hover:text-zinc-300">×</button>
         </div>
         <div className="p-4 space-y-4">
@@ -502,7 +505,8 @@ function WorldInlineEditor({
 export const WorldManager: React.FC = () => {
   const [worlds, setWorlds] = useState<World[]>([])
   const [loading, setLoading] = useState(true)
-  const [showModal, setShowModal] = useState(false)
+  // null = 关闭；{worldId:null} = 新建；{worldId:'x'} = 对已有世界补充抓取（NEW-C14-04）
+  const [modalState, setModalState] = useState<{ worldId: string | null; initial?: { name?: string; world_plugin?: string; description?: string } } | null>(null)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [archives, setArchives] = useState<Record<string, WorldArchiveEntry[]>>({})
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -599,7 +603,7 @@ export const WorldManager: React.FC = () => {
     <div className="h-full flex flex-col">
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-lg font-semibold">世界库</h2>
-        <button onClick={() => setShowModal(true)}
+        <button onClick={() => setModalState({ worldId: null })}
           className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-1.5 rounded text-sm">
           + 新建世界
         </button>
@@ -608,7 +612,7 @@ export const WorldManager: React.FC = () => {
       {worlds.length === 0 ? (
         <div className="flex-1 flex flex-col items-center justify-center text-zinc-500 gap-3">
           <p className="text-sm">暂无世界模板</p>
-          <button onClick={() => setShowModal(true)} className="text-indigo-400 hover:text-indigo-300 text-sm">
+          <button onClick={() => setModalState({ worldId: null })} className="text-indigo-400 hover:text-indigo-300 text-sm">
             创建第一个世界 →
           </button>
         </div>
@@ -639,6 +643,14 @@ export const WorldManager: React.FC = () => {
                   <button onClick={e => { e.stopPropagation(); setEditingId(w.id) }}
                     className="text-xs text-zinc-400 hover:text-zinc-200 px-1">
                     编辑
+                  </button>
+                  <button onClick={e => {
+                      e.stopPropagation()
+                      setModalState({ worldId: w.id, initial: { name: w.name, world_plugin: w.world_plugin, description: w.description } })
+                    }}
+                    className="text-xs text-indigo-400 hover:text-indigo-300 px-1"
+                    title="对该世界再次进行 URL 抓取 / 文档解析">
+                    补充抓取
                   </button>
                   <button onClick={e => { e.stopPropagation(); handleDelete(w.id) }}
                     className="text-xs text-red-500 hover:text-red-400 px-1">
@@ -698,8 +710,13 @@ export const WorldManager: React.FC = () => {
         </div>
       )}
 
-      {showModal && (
-        <WorldModal worldId={null} onClose={() => setShowModal(false)} onSaved={load} />
+      {modalState && (
+        <WorldModal
+          worldId={modalState.worldId}
+          initial={modalState.initial}
+          onClose={() => setModalState(null)}
+          onSaved={() => { load(); if (modalState.worldId) loadArchives(modalState.worldId) }}
+        />
       )}
     </div>
   )

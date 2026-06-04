@@ -68,6 +68,79 @@ TEMPORAL_TUNE_COEFF = 0.05
 
 
 # ════════════════════════════════════════════════════════════════════════════
+# D6 — viewer_agent 5 认知分区视角隔离
+# ════════════════════════════════════════════════════════════════════════════
+# 5 个认知分区（与 DB schema cognitive_partition 枚举 / SCOPE_WEIGHTS 对齐）：
+#   character_pov | objective_global | world_state | relationship | objective_local
+ALL_PARTITIONS: set[str] = {
+    "character_pov", "objective_global", "world_state", "relationship", "objective_local",
+}
+
+# 每个视角 → {allowed: 可见分区集合, multipliers: 分区召回权重乘数}
+# 设计 §3 的 5 视角（dm/npc/narrator/world/player）+ 本仓实际 Agent 命名（chronicler/planner/protagonist）
+VIEWER_PARTITION_FILTERS: dict[str, dict] = {
+    # 上帝视角：全部 5 分区可见
+    "chronicler":  {"allowed": set(ALL_PARTITIONS), "multipliers": {}},
+    # 叙事者：全分区可见（默认视角，保持原召回行为），偏向主观与对话
+    "narrator":    {"allowed": set(ALL_PARTITIONS),
+                    "multipliers": {"character_pov": 1.2, "objective_global": 0.7}},
+    # 裁判 DM：不看主角主观 POV（避免裁判被主观感受污染）
+    "dm":          {"allowed": ALL_PARTITIONS - {"character_pov"}, "multipliers": {}},
+    # 规划者：关注世界态势与关系网，不看主观 POV
+    "planner":     {"allowed": ALL_PARTITIONS - {"character_pov"},
+                    "multipliers": {"world_state": 1.15, "relationship": 1.15}},
+    # 世界视角：只见客观事实（全局/局部/世界态势）
+    "world":       {"allowed": {"objective_global", "world_state", "objective_local"},
+                    "multipliers": {"objective_global": 1.3, "world_state": 1.2}},
+    "rules":       {"allowed": {"objective_global", "world_state"},
+                    "multipliers": {"objective_global": 1.4}},
+    # 主角视角：主观 POV + 当前局部 + 关系 + 世界态势
+    "protagonist": {"allowed": {"character_pov", "objective_local", "relationship", "world_state"},
+                    "multipliers": {"character_pov": 1.25}},
+    # 玩家视角：只见活跃/主观相关记忆
+    "player":      {"allowed": {"character_pov", "objective_local", "relationship"},
+                    "multipliers": {}},
+    # NPC 视角：客观事实 + 关系（不看主角内心），具体 NPC 由 scope_owner 再过滤
+    "npc":         {"allowed": {"objective_global", "objective_local", "relationship", "world_state"},
+                    "multipliers": {"relationship": 1.2}},
+}
+
+_DEFAULT_VIEWER = "narrator"
+
+
+def resolve_viewer_filter(viewer_agent: str) -> dict:
+    """归一化 viewer_agent（npc_<name> → npc），返回其分区过滤配置。"""
+    key = viewer_agent or _DEFAULT_VIEWER
+    if key.startswith("npc_"):
+        key = "npc"
+    return VIEWER_PARTITION_FILTERS.get(key, VIEWER_PARTITION_FILTERS[_DEFAULT_VIEWER])
+
+
+def viewer_allowed_partitions(viewer_agent: str) -> set[str]:
+    """返回该视角可见的认知分区集合（供 SQLite fallback 构造白名单）。"""
+    return set(resolve_viewer_filter(viewer_agent).get("allowed", ALL_PARTITIONS))
+
+
+def viewer_partition_multiplier(viewer_agent: str, partition: str) -> float:
+    """返回该视角对某分区的召回权重乘数（默认 1.0）。"""
+    return float(resolve_viewer_filter(viewer_agent).get("multipliers", {}).get(partition, 1.0))
+
+
+def partition_visible_to_viewer(partition: str, viewer_agent: str) -> bool:
+    """
+    判断某认知分区是否对该视角可见。
+    未知/非 5 类分区（如启发式写入的 core_facts）对 narrator/chronicler 等全分区视角放行，
+    对受限视角则按 allowed 集合判定。
+    """
+    allowed = viewer_allowed_partitions(viewer_agent)
+    if allowed >= ALL_PARTITIONS:
+        return True  # 全分区视角不过滤
+    if partition in ALL_PARTITIONS:
+        return partition in allowed
+    return False  # 受限视角下，非标准分区一律不可见
+
+
+# ════════════════════════════════════════════════════════════════════════════
 # Bigram 词法工具
 # ════════════════════════════════════════════════════════════════════════════
 
@@ -183,6 +256,84 @@ def check_pov_visibility(node_meta: dict, viewer_agent: str) -> bool:
 
 
 # ════════════════════════════════════════════════════════════════════════════
+# 词法-only 兜底召回（C5-04）
+# ════════════════════════════════════════════════════════════════════════════
+
+async def _lexical_only_recall(
+    novel_id: str,
+    world_key: str,
+    query_bigrams: list[str],
+    viewer_agent: str,
+    protagonist_location: str,
+    seen_ids: set[str],
+    top_k: int,
+) -> list[dict]:
+    """
+    向量层不可用时的独立词法召回通道：
+    直接从图中拉取 recalled 类型节点（event/character/location/reflection/pov_memory），
+    用 Bigram 词法分（compute_lexical_score）打分，叠加时序/分区权重与视角隔离。
+    依赖 networkx，无需 embedding/chromadb。
+    """
+    from memory.graph import graph_manager
+
+    try:
+        candidates = await graph_manager.get_nodes_by_type(
+            novel_id, NodeType.recalled_types(), world_key=world_key
+        )
+    except Exception as e:
+        logger.warning(f"[Retriever] 词法兜底取节点失败: {e}")
+        return []
+
+    out: list[dict] = []
+    for data in candidates:
+        nid = data.get("node_id", "")
+        if not nid or nid in seen_ids:
+            continue
+        if not check_pov_visibility(data, viewer_agent):
+            continue
+
+        scope_key = determine_scope_key(data, protagonist_location)
+        if not partition_visible_to_viewer(scope_key, viewer_agent):
+            continue
+
+        title = data.get("title", "")
+        content = data.get("content", "") or data.get("summary", "")
+        lexical_score = compute_lexical_score(query_bigrams, title, content[:100])
+        if lexical_score <= 0.0:
+            continue
+
+        # 词法-only：得分仅来自词法层（无向量分量）
+        score = LEXICAL_WEIGHT * lexical_score
+
+        bucket = data.get("temporal_bucket", "undated")
+        temporal_prio = TEMPORAL_BUCKET_PRIORITY.get(bucket, 3)
+        score *= (1 + temporal_prio * TEMPORAL_TUNE_COEFF)
+
+        if data.get("node_type") == NodeType.POV_MEMORY.value:
+            score *= SCOPE_WEIGHTS.get(scope_key, 0.75)
+        score *= viewer_partition_multiplier(viewer_agent, scope_key)
+
+        seen_ids.add(nid)
+        out.append({
+            "content":  content,
+            "metadata": {
+                "node_id":         nid,
+                "node_type":       data.get("node_type", ""),
+                "node_title":      title,
+                "temporal_bucket": bucket,
+                "scope_owner":     data.get("scope_owner", ""),
+                "cognitive_partition": scope_key,
+                "importance":      data.get("importance", 0.5),
+            },
+            "score":    score,
+        })
+
+    # 词法分降序，限制候选规模（避免大图全量进入后续图扩散/排序）
+    out.sort(key=lambda x: x["score"], reverse=True)
+    return out[: top_k * 2]
+
+
+# ════════════════════════════════════════════════════════════════════════════
 # 主召回管线
 # ════════════════════════════════════════════════════════════════════════════
 
@@ -245,6 +396,11 @@ async def hybrid_recall(
         if not check_pov_visibility(meta, viewer_agent):
             continue
 
+        # D6：认知分区视角隔离——分区不可见则跳过
+        scope_key = determine_scope_key(meta, protagonist_location)
+        if not partition_visible_to_viewer(scope_key, viewer_agent):
+            continue
+
         vector_score = hit.get("score", 0.0)
         node_title   = meta.get("node_title", "")
         content_snip = (hit.get("content", ""))[:100]
@@ -259,10 +415,10 @@ async def hybrid_recall(
         temporal_prio = TEMPORAL_BUCKET_PRIORITY.get(bucket, 3)
         hybrid_score *= (1 + temporal_prio * TEMPORAL_TUNE_COEFF)
 
-        # 认知分区权重（pov_memory 节点专属）
+        # 认知分区权重（pov_memory 节点专属）+ D6 视角分区乘数
         if meta.get("node_type") == NodeType.POV_MEMORY.value:
-            scope_key = determine_scope_key(meta, protagonist_location)
             hybrid_score *= SCOPE_WEIGHTS.get(scope_key, 0.75)
+        hybrid_score *= viewer_partition_multiplier(viewer_agent, scope_key)
 
         seen_ids.add(node_id)
         scored_nodes.append({
@@ -270,6 +426,22 @@ async def hybrid_recall(
             "metadata": meta,
             "score":    hybrid_score,
         })
+
+    # ── Step 2B-bis：词法-only 兜底召回（C5-04）────────────────────────────
+    # 当向量层不可用/为空（embedding 缺失或向量库为空）导致 scored_nodes 为空时，
+    # 直接扫描图中 recalled 类型节点，用 Bigram 词法独立召回，保证无 embedding 也能召回。
+    if not scored_nodes:
+        scored_nodes.extend(
+            await _lexical_only_recall(
+                novel_id=novel_id,
+                world_key=world_key,
+                query_bigrams=query_bigrams,
+                viewer_agent=viewer_agent,
+                protagonist_location=protagonist_location,
+                seen_ids=seen_ids,
+                top_k=top_k,
+            )
+        )
 
     # ── Step 2C：图扩散（沿关系边扩展）──────────────────────────────────
     seed_ids = [
@@ -290,6 +462,10 @@ async def hybrid_recall(
             if not nid or nid in seen_ids:
                 continue
             if not check_pov_visibility(neighbor, viewer_agent):
+                continue
+            # D6：邻居节点同样受视角分区隔离约束
+            n_scope = determine_scope_key(neighbor, protagonist_location)
+            if not partition_visible_to_viewer(n_scope, viewer_agent):
                 continue
             seen_ids.add(nid)
             scored_nodes.append({

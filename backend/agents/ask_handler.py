@@ -12,8 +12,12 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-# ask 请求超时秒数（超时视为 deny）
-ASK_TIMEOUT_SECONDS = 60
+# ask 请求超时秒数（超时视为 deny，fail-closed）。分级常量见 timeouts.PERMISSION_ASK_TIMEOUT（D19）。
+try:
+    from timeouts import PERMISSION_ASK_TIMEOUT
+except ImportError:  # cwd=repo root
+    from backend.timeouts import PERMISSION_ASK_TIMEOUT
+ASK_TIMEOUT_SECONDS = PERMISSION_ASK_TIMEOUT
 
 
 @dataclass
@@ -68,6 +72,14 @@ class AskManager:
         del self._pending[ask_id]
         return True
 
+    def discard(self, ask_id: str) -> None:
+        """
+        NEW-C3-02：无论决策来源（用户 resolve / 超时自动 deny），
+        请求结束后都必须从 _pending 移除，避免超时项变成僵尸 ——
+        否则 list_pending 持续返回失效项且字典在长会话中无限增长。
+        """
+        self._pending.pop(ask_id, None)
+
     def list_pending(self, session_id: str) -> list[dict]:
         return [
             {"ask_id": a.ask_id, "tool_name": a.tool_name,
@@ -119,6 +131,10 @@ async def check_permission_and_ask(
 
     decision = await ask.wait()
     logger.info(f"ask {ask.ask_id} resolved: {decision}")
+
+    # NEW-C3-02：超时分支不会经过 resolve()，需在此显式回收，
+    # 防止 _pending 泄漏 + list_pending 返回僵尸项。
+    ask_manager.discard(ask.ask_id)
 
     # 发布 permission.granted 或 permission.denied SSE
     result_event_type = (

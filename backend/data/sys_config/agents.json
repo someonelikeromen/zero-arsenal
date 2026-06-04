@@ -62,13 +62,6 @@
       "temperature": 0.4,
       "max_tokens": 1024,
       "description": "章节固化与记忆压缩"
-    },
-    "memory_extract": {
-      "provider": "deepseek",
-      "model": "deepseek-chat",
-      "temperature": 0.3,
-      "max_tokens": 512,
-      "description": "记忆提取队列"
     }
   },
   "providers": {

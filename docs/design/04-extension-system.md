@@ -1,7 +1,24 @@
 # 04 — 统一扩展体系完整设计
 
-> **版本**：0.1.0 · **最后更新**：2026-05-31  
+> **版本**：0.2.0（2026-06 对齐实现） · **最后更新**：2026-05-31  
 > **关联文件**：`01-architecture-overview.md`、`03-agent-system.md`
+>
+> 注：本文档已于 2026-06 对齐实现（D0 以代码为准）。三级目录优先级、热加载、注册表生成、工具/Agent/WorldPlugin 扩展、扫描算法均落地；下列接口/schema 按实现修正。
+>
+> **实现对齐总览（2026-06，`backend/extensions/` + `backend/hooks/`）**
+> - **§1.2 三级目录**：实现额外支持 `ZERO_ARSENAL_EXTENSIONS_OVERRIDE` 环境变量追加搜索路径（增强）。
+> - **§2.8 / §5 Hook 接口**：实现的 `ExtensionHooks` Protocol 统一为 `async def xxx(self, ctx: dict) -> dict` **弱类型 ctx 字典**签名（非草案的多参数 + 强类型返回 `BeforeToolAction/AfterToolAction/...`）；`HookManager.fire` 只做 `context.update(result)`，**不实现 block 短路 / terminate 终止**。
+> - **§5 Hook 事件**：`HookEvent` 枚举实际定义 **20 个值**（设计 14），属能力增强。
+> - **§2.4 / §6.1 WorldPlugin**：实现为 `@dataclass`（需实例化 `PLUGIN = WorldPlugin(key=..., name=...)`），import 路径为 `backend.extensions.plugin`（非草案的子类 + `from core.world_plugin import`）。
+> - **§6.1 manifest schema**：实现仅强校验 `id/display_name/description/version`；内置世界 manifest **三套 schema 不统一**（crossover/infinite_arsenal 合规；gundam_seed/muv_luv 缺 `type`/`min_engine_version`，muv_luv 用 `name` 而非 `display_name`），应统一并补缺字段校验。
+> - **§3.1 扫描算法**：实现用 `importlib.util.spec_from_file_location`（草案伪代码的 `importlib.import_module_from_path` 不存在）；额外支持 `PLUGIN`/`HOOKS` 缺失时自动找 `*Plugin`/`*Hooks` 类（增强）。
+> - **§4.1 内置世界文件清单**：实际 skills/rules 文件名（infinite_flow_rules/combat_crossover/economy_rules 等）与设计列举（world-rules/dice-protocol/capability-realism 等）不一致，应更新为实际清单（并补列 gundam_seed/muv_luv/web_scraper/_template）。
+>
+> 🔴 **待修复缺陷（非文档滞后，登记于 `docs/review/fix_report_docs.md`）**
+> 1. **4/5 内置世界 hooks 永不注册**：`crossover/infinite_arsenal/gundam_seed/muv_luv` 的 `hooks.py` 在模块顶层 `from ..hook_protocol import BaseHook` + `from ..registry import hook_registry`，而 `BaseHook`/`hook_registry`/`backend/registry.py` **均不存在** → 永久 ImportError 静默失败。仅 `wuxia/hooks.py`（协议式、无顶层相对导入）生效。修复：改为 wuxia 同款纯协议类，删 `BaseHook`/`hook_registry`/`register_hooks()`。
+> 2. **18 类 hook 仅 9 类被 fire**：`on_session_*`、`before/after_var_update`、`before/after_npc_response`、`after_narrative_generated`、`after_style_applied`、`before_memory_compress`、`on_part_done` 共 11 类为死事件，无触发点。
+> 3. **§1.2/§3.2 同名冲突 5 细则**（data 合并、SKILL append、可追溯替换）未实现，仅整包覆盖（可改文档降级为「整包覆盖」）。
+> 4. **§2.5 PromptFragment 独立文件机制未启用**（无内置扩展含 `prompts/`，实际走 `WorldPlugin.system_prompt_fragments`）；§2.7 Rules `on_demand` 激活 API 缺失；§2.6 MCP 配置 schema 两套不一（`MCPConfig` vs `{name,url,enabled}`）。
 
 ---
 

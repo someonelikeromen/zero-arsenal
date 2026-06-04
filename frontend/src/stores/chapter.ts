@@ -4,6 +4,7 @@
  */
 import { create } from 'zustand'
 import { immer } from 'zustand/middleware/immer'
+import { api } from '../lib/api'
 
 export interface ChapterNode {
   id: string
@@ -63,9 +64,9 @@ export const useChapterStore = create<ChapterStore>()(
     loadChapters: async (sessionId) => {
       set((state) => { state.loading = true })
       try {
-        const res = await fetch(`/api/sessions/${sessionId}/chapters`)
-        const data = await res.json()
-        const raw: Record<string, unknown>[] = data.chapters ?? data ?? []
+        // 统一走 apiFetch（NEW-C13-03/04：消除裸 fetch + 复活 api.getChapters）
+        const data = await api.getChapters(sessionId) as { chapters?: Record<string, unknown>[] }
+        const raw: Record<string, unknown>[] = data.chapters ?? []
         const flat = flattenTree(raw)
         set((state) => {
           state.chapters = flat

@@ -47,10 +47,12 @@ async def _p1_plan(ctx: TurnContext) -> tuple[str, dict]:
         plugin = _plug_reg.get(ctx.world_plugin)
         if plugin:
             plugin.apply_to_registry(_pr)
+        from ..prompts.token_budget import system_prompt_budget as _spb
         built = _pr.build_system_prompt(
             phase="p1",
             session_id=ctx.session_id,
             state={"world_plugin": ctx.world_plugin, "mode": ctx.mode},
+            token_budget=_spb("p1", ctx.mode),
         )
         if built.strip():
             p1_system = built
@@ -207,17 +209,23 @@ def _get_writing_style_prefix(ctx: TurnContext) -> str:
 
 def _get_write_system(world_plugin: str = "crossover", state_snapshot: dict | None = None) -> str:
     """从 PromptRegistry 构建 P3 系统提示词（含世界插件片段 + Skill Layer 5）。"""
+    # D9：P3 只负责叙事正文，变量结算（VariableBlock / TavernCommand）由 P4 统一提取，
+    # 因此此处不再指示 LLM 在文末输出 {{SET/ADD}} 标记，避免双重来源与正文污染。
     base = """\
 你是跑团式小说的叙事者。根据场景目标和玩家行动，用第三人称描写本轮发生的事情。
 叙事驱动，不写主观形容词。对话用引号，动作用简洁动词。
-每轮 150-400 字。文末用 {{SET: key=value}} 或 {{ADD: key=+N}} 标记状态变化。"""
+每轮 150-400 字。只输出叙事正文，不要输出任何状态标记或变量块。"""
     try:
         from ..prompts import registry
         from ..extensions import plugin_registry
         plugin = plugin_registry.get(world_plugin)
         if plugin:
             plugin.apply_to_registry(registry)
-        base = registry.build_system_prompt("p3") or base
+        from ..prompts.token_budget import system_prompt_budget as _spb
+        _profile = (state_snapshot or {}).get("mode", "play")
+        base = registry.build_system_prompt(
+            "p3", token_budget=_spb("p3", _profile)
+        ) or base
     except Exception:
         pass
 
@@ -575,6 +583,20 @@ async def _narrator_impl(ctx: TurnContext) -> TurnContext:
     # patches 保存在 ctx.state_patches，供 var_agent 结算时使用
     if patches:
         ctx.state_patches = patches  # var_agent 会读取并执行
+
+    # conf_b04：触发 after_narrative_generated（扩展可读取/记录最终叙事正文）
+    try:
+        from ..hooks import hook_manager, HookEvent
+        _ang = await hook_manager.fire(HookEvent.after_narrative_generated, {
+            "session_id": ctx.session_id,
+            "agent_name": "narrator",
+            "narrative_text": ctx.narrative_text,
+            "patches": patches,
+        })
+        if isinstance(_ang.get("narrative_text"), str) and _ang["narrative_text"]:
+            ctx.narrative_text = _ang["narrative_text"]
+    except Exception as _e:
+        logger.debug("[narrator] after_narrative_generated hook failed: %s", _e)
 
     return ctx
 

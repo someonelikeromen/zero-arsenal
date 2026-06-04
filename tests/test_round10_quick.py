@@ -1,8 +1,16 @@
 # -*- coding: utf-8 -*-
-"""Round 10 quick smoke tests."""
+"""Round 10 quick smoke tests.
+
+注：t2~t7 多为静态源码子串检查 / 测试内重写业务逻辑，依赖前后端源码路径，
+属脚本式桩用例，标注 stub；CI 以 `-m "not stub"` 排除。
+"""
 import sys
 import re
 from pathlib import Path
+
+import pytest
+
+pytestmark = pytest.mark.stub
 
 ROOT = Path(__file__).parent.parent
 BACKEND = ROOT / "backend"
@@ -11,7 +19,7 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(BACKEND))
 
 
-def t1_turn_context_fields():
+def test_turn_context_fields():
     from backend.agents.state import TurnContext
     import dataclasses
     fnames = [f.name for f in dataclasses.fields(TurnContext)]
@@ -25,7 +33,7 @@ def t1_turn_context_fields():
     print("t1 OK: TurnContext fields clean")
 
 
-def t2_tier_logic():
+def test_tier_logic():
     CORE_KW = ("突破", "死亡", "觉醒", "获得", "失去", "任务完成", "境界", "永久")
     SEM = re.compile(r"[\u4e00-\u9fff]{2,8}[\s\-—是：:为]+.{5,40}")
     def tier(p):
@@ -38,7 +46,7 @@ def t2_tier_logic():
     print("t2 OK: tier classification logic")
 
 
-def t3_fallback_recall_tiers():
+def test_fallback_recall_tiers():
     src = (BACKEND / "memory" / "adapter.py").read_text(encoding="utf-8")
     fn_start = src.index("async def _fallback_recall")
     segment = src[fn_start:fn_start + 5000]
@@ -47,7 +55,7 @@ def t3_fallback_recall_tiers():
     print("t3 OK: SQLite 4-tier fallback recall")
 
 
-def t4_get_session_enriched():
+def test_get_session_enriched():
     src = (BACKEND / "api" / "routes.py").read_text(encoding="utf-8")
     idx = src.index("async def get_session")
     seg = src[idx:idx + 900]
@@ -56,7 +64,7 @@ def t4_get_session_enriched():
     print("t4 OK: GET /sessions/{id} enriched")
 
 
-def t5_world_panel_npc():
+def test_world_panel_npc():
     src = (FRONTEND / "components" / "panels" / "WorldPanel.tsx").read_text(encoding="utf-8")
     assert "NpcProfile" in src
     assert "npcs" in src
@@ -64,7 +72,7 @@ def t5_world_panel_npc():
     print("t5 OK: WorldPanel NPC tab present")
 
 
-def t6_character_panel_extras():
+def test_character_panel_extras():
     src = (FRONTEND / "components" / "panels" / "CharacterPanel.tsx").read_text(encoding="utf-8")
     assert "skills" in src
     assert "inventory" in src
@@ -72,7 +80,7 @@ def t6_character_panel_extras():
     print("t6 OK: CharacterPanel renders skills + inventory + meta")
 
 
-def t7_llm_routes_max_tokens():
+def test_llm_routes_max_tokens():
     src = (FRONTEND / "pages" / "SettingsPage.tsx").read_text(encoding="utf-8")
     assert "max_tokens" in src, "LlmRoutesTab missing max_tokens field"
     assert "PUT" in src, "LlmRoutesTab missing PUT save"
@@ -80,11 +88,11 @@ def t7_llm_routes_max_tokens():
 
 
 if __name__ == "__main__":
-    t1_turn_context_fields()
-    t2_tier_logic()
-    t3_fallback_recall_tiers()
-    t4_get_session_enriched()
-    t5_world_panel_npc()
-    t6_character_panel_extras()
-    t7_llm_routes_max_tokens()
+    test_turn_context_fields()
+    test_tier_logic()
+    test_fallback_recall_tiers()
+    test_get_session_enriched()
+    test_world_panel_npc()
+    test_character_panel_extras()
+    test_llm_routes_max_tokens()
     print("\nAll round-10 tests passed!")

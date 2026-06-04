@@ -60,6 +60,8 @@ class RedisEventBus(IEventBus):
         self._pubsub: object | None = None
         # 本地 fallback 队列（未连接 Redis 时降级为进程内队列）
         self._local_queues: dict[str, list[asyncio.Queue]] = {}
+        # NEW-C7-04：每个订阅队列对应的后台转发任务与 pubsub，供退订时回收
+        self._sub_meta: dict[asyncio.Queue, dict] = {}
         self._lock = asyncio.Lock()
         logger.info(
             "[RedisEventBus] 初始化，将在首次 publish/subscribe 时连接 %s", redis_url
@@ -80,7 +82,7 @@ class RedisEventBus(IEventBus):
         except Exception as e:
             logger.error(f"[RedisEventBus] 连接失败: {e}")
 
-    # ── IEventBus 抽象方法实现（桩）───────────────────────────────────────────
+    # ── IEventBus 抽象方法实现 ────────────────────────────────────────────────
 
     async def publish(self, event: BusEvent) -> None:
         """
@@ -137,20 +139,34 @@ class RedisEventBus(IEventBus):
         q: asyncio.Queue = asyncio.Queue(maxsize=200)
         async with self._lock:
             self._local_queues.setdefault(session_id, []).append(q)
+            self._sub_meta[q] = {"task": None, "pubsub": None}
 
         if self._redis is not None:
-            # 启动后台任务从 Redis Pub/Sub 转发到本地 queue
-            asyncio.create_task(
+            # 启动后台任务从 Redis Pub/Sub 转发到本地 queue，并登记任务供退订回收
+            task = asyncio.create_task(
                 self._redis_to_queue(f"session:{session_id}", q),
                 name=f"redis_sub_{session_id[:8]}"
             )
+            async with self._lock:
+                meta = self._sub_meta.get(q)
+                if meta is not None:
+                    meta["task"] = task
 
         return Subscription(session_id=session_id, queue=q, bus=self)  # type: ignore[arg-type]
 
     async def _redis_to_queue(self, channel: str, q: asyncio.Queue) -> None:
-        """从 Redis Pub/Sub 读取消息并转发到本地 asyncio.Queue。"""
+        """从 Redis Pub/Sub 读取消息并转发到本地 asyncio.Queue。
+
+        NEW-C7-04：使用 try/finally 确保被取消/退订时主动 unsubscribe channel 并
+        close pubsub，避免 pubsub 连接与后台任务泄漏。
+        """
+        pubsub = None
         try:
             pubsub = self._redis.pubsub()  # type: ignore[union-attr]
+            # 登记 pubsub，使 unsubscribe 也能直接关闭（双保险）
+            meta = self._sub_meta.get(q)
+            if meta is not None:
+                meta["pubsub"] = pubsub
             await pubsub.subscribe(channel)
             async for message in pubsub.listen():
                 if message.get("type") == "message":
@@ -164,14 +180,50 @@ class RedisEventBus(IEventBus):
                             pass
                     except Exception:
                         pass
+        except asyncio.CancelledError:
+            raise
         except Exception as e:
             logger.warning(f"[RedisEventBus] redis_to_queue error on {channel}: {e}")
+        finally:
+            if pubsub is not None:
+                try:
+                    await pubsub.unsubscribe(channel)
+                except Exception:
+                    pass
+                try:
+                    await pubsub.aclose()
+                except AttributeError:
+                    try:
+                        await pubsub.close()  # 兼容旧版 redis-py
+                    except Exception:
+                        pass
+                except Exception:
+                    pass
 
     async def unsubscribe(self, session_id: str, queue: asyncio.Queue) -> None:
+        # NEW-C7-04：幂等退订 — 移除队列、回收后台任务/pubsub，并删除空 session 键，
+        # 避免 _local_queues 随 SSE 断连无界增长，保证订阅者计数精确。
+        meta = None
         async with self._lock:
             subs = self._local_queues.get(session_id, [])
             if queue in subs:
                 subs.remove(queue)
+            if not subs:
+                self._local_queues.pop(session_id, None)
+            meta = self._sub_meta.pop(queue, None)
+
+        if meta is not None:
+            task = meta.get("task")
+            if task is not None and not task.done():
+                task.cancel()
+                try:
+                    await task
+                except (asyncio.CancelledError, Exception):
+                    pass
+
+    def get_subscriber_count(self, session_id: str) -> int:
+        """返回当前 session 的活跃本地转发队列数量（精确计数，覆盖默认 -1）。"""
+        return len(self._local_queues.get(session_id, []))
 
     def get_events_after(self, session_id: str, last_event_id: str) -> list[BusEvent]:
         """

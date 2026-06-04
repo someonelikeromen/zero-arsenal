@@ -121,6 +121,7 @@ async def _style_impl(ctx: TurnContext) -> TurnContext:
                 await _replace_narrative_in_db(ctx)
         except Exception as e:
             logger.warning(f"[style_agent] polish fallback failed: {e}")
+        await _fire_after_style_applied(ctx)
         return ctx
 
     cfg = load_agent_config("style")
@@ -129,10 +130,12 @@ async def _style_impl(ctx: TurnContext) -> TurnContext:
     style_system = STYLE_SYSTEM
     try:
         from ..prompts.registry import registry as _pr
+        from ..prompts.token_budget import system_prompt_budget as _spb
         built = _pr.build_system_prompt(
             phase="style",
             session_id=ctx.session_id,
             state={"world_plugin": ctx.world_plugin, "mode": ctx.mode},
+            token_budget=_spb("style", ctx.mode),
         )
         if built.strip():
             style_system = built
@@ -164,7 +167,11 @@ async def _style_impl(ctx: TurnContext) -> TurnContext:
         ctx.polished_narrative = result.get("polished", "")
     except Exception as e:
         logger.warning(f"[style_agent] parse error, skipping: {e}")
-        # 失败时保持原样，不影响游戏流程
+        # def_c2：LLM 解析失败时此前直接 return，丢弃了程序化预扫描结果。
+        # 改为持久化 pre_score/pre_warnings，保证文风分数不因 LLM 异常而归零失踪。
+        ctx.purity_score = pre_score
+        ctx.style_warnings = pre_warnings
+        await _fire_after_style_applied(ctx)
         return ctx
 
     # ── 重度违规（<0.5）：用润色版替换正文 ────────────────────────────────────────
@@ -192,7 +199,23 @@ async def _style_impl(ctx: TurnContext) -> TurnContext:
         except Exception as e:
             logger.warning(f"[style_agent] failed to write part: {e}")
 
+    await _fire_after_style_applied(ctx)
     return ctx
+
+
+async def _fire_after_style_applied(ctx: TurnContext) -> None:
+    """conf_b04：触发 after_style_applied（扩展可读取最终文风分数/正文）。"""
+    try:
+        from ..hooks import hook_manager, HookEvent
+        await hook_manager.fire(HookEvent.after_style_applied, {
+            "session_id": ctx.session_id,
+            "agent_name": "style",
+            "purity_score": getattr(ctx, "purity_score", None),
+            "warnings": getattr(ctx, "style_warnings", []),
+            "narrative_text": ctx.narrative_text,
+        })
+    except Exception as _e:
+        logger.debug("[style_agent] after_style_applied hook failed: %s", _e)
 
 
 async def _paragraph_rewrite(

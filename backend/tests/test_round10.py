@@ -48,23 +48,8 @@ def test_turn_context_no_duplicates():
 # ── Test 2: ExtractQueue 5W1H tier 分层 ─────────────────────────────────────
 
 def test_extract_queue_tier_logic():
-    import re
-
-    # 模拟 _process_task 中的 tier 判断逻辑
-    CORE_KEYWORDS = ("突破", "死亡", "觉醒", "获得", "失去", "叛变", "盟约", "任务完成",
-                     "境界", "武库", "宗师", "关键", "永久")
-    SEMANTIC_PATTERNS = re.compile(
-        r"(?:【|「|《)?([A-Z\u4e00-\u9fff]{2,8})(?:】|」|》)?"
-        r"(?:\s*[-—是：:为]+\s*)(.{5,40})"
-    )
-
-    def determine_tier(para: str) -> str:
-        if any(kw in para for kw in CORE_KEYWORDS):
-            return "core"
-        elif SEMANTIC_PATTERNS.search(para):
-            return "semantic"
-        else:
-            return "episodic"
+    # 导入被测真实业务逻辑（不再在测试内重写副本，见 STUB-T10）
+    from memory.extract_queue import determine_tier
 
     # 核心关键词应分到 core
     assert determine_tier("林劫突破了第三境界，获得了神秘能力") == "core", "突破/获得 应为 core"

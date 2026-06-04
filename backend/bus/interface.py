@@ -103,6 +103,16 @@ class IEventBus(abc.ABC):
             type=EventType.PART_DONE, session_id=session_id,
             data={"part_id": part_id, "content": content},
         ))
+        # conf_b04：每个 Part 结束时触发 on_part_done hook（懒导入，失败不影响发布）
+        try:
+            from ..hooks import hook_manager, HookEvent
+            await hook_manager.fire(HookEvent.on_part_done, {
+                "session_id": session_id,
+                "part_id": part_id,
+                "content": content,
+            })
+        except Exception:
+            pass
 
     async def publish_agent(
         self, session_id: str, agent: str, started: bool,

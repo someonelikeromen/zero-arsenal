@@ -423,12 +423,16 @@ class RuntimeDataStreamBuilder:
         }
 
         # ── 轴 12-13：世界状态 ───────────────────────────────────────────────
+        # NEW-C4-02：与 world_agent 输出的事件 schema 对齐（world_time/location，
+        # 兼容 new_time/new_location 别名）。后出现的事件覆盖先前值。
         for ev in world_events:
             if isinstance(ev, dict):
-                if "world_time" in ev:
-                    stream.world_time = str(ev["world_time"])
-                if "location" in ev:
-                    stream.current_location = str(ev["location"])
+                wt = ev.get("world_time") or ev.get("new_time")
+                loc = ev.get("location") or ev.get("new_location")
+                if wt:
+                    stream.world_time = str(wt)
+                if loc:
+                    stream.current_location = str(loc)
         if not stream.world_time:
             stream.world_time = meta.get("world_time", "未知时间")
         if not stream.current_location:

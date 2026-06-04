@@ -25,10 +25,6 @@ _AUDIT_ENABLED: bool = os.getenv("ZERO_ARSENAL_PROMPT_AUDIT", "0") == "1"
 
 logger = logging.getLogger(__name__)
 
-VALID_LAYERS = ("core", "agent", "world", "skill", "runtime")
-VALID_PHASES = ("all", "p1", "p2", "p3", "p4", "dm")
-VALID_TRIGGERS = ("always", "auto", "on_demand")
-
 
 @dataclass
 class PromptFragment:
@@ -123,9 +119,25 @@ class PromptRegistry:
         return list(self._runtime.get(session_id, {}).values())
 
     def _evaluate_condition(self, condition: str, state: dict) -> bool:
-        """安全评估 condition 字段（Python 表达式）。"""
+        """
+        安全评估 condition 字段（表达式）。
+
+        D18：此前用裸 `eval()`（即便清空 __builtins__，属性访问 / dunder 仍可能
+        被滥用）。改用 simpleeval 沙箱；simpleeval 不可用时降级为受限 eval
+        （清空 builtins）并记录一次告警，绝不静默放行任意代码。
+        """
         try:
-            return bool(eval(condition, {"__builtins__": {}}, {"state": state}))  # noqa: S307
+            from simpleeval import simple_eval
+            return bool(simple_eval(condition, names={"state": state}))
+        except ImportError:
+            logger.warning(
+                "[PromptRegistry] simpleeval 未安装，condition 降级为受限 eval（建议安装 simpleeval）"
+            )
+            try:
+                return bool(eval(condition, {"__builtins__": {}}, {"state": state}))  # noqa: S307
+            except Exception:
+                logger.warning("[PromptRegistry] condition eval failed: %s — skipping fragment", condition)
+                return False
         except Exception:
             logger.warning("[PromptRegistry] condition eval failed: %s — skipping fragment", condition)
             return False  # 条件求值失败时跳过，不注入
@@ -184,7 +196,9 @@ class PromptRegistry:
 
         result = sorted(result, key=lambda x: x.priority)
 
-        # TokenBudget 裁剪（P2）：按 priority 升序保留，累计 token_estimate 不超过 budget
+        # TokenBudget 裁剪（P2 / NEW-C12-02）：按 priority 升序保留，
+        # 累计 token_estimate 不超过 budget。NEW-C12-06：先判断是否放得下再纳入，
+        # 避免「先 append 后减」造成的 off-by-one 过量包含。
         if token_budget is not None and token_budget > 0:
             try:
                 from .token_budget import TokenBudget as _TB
@@ -193,13 +207,21 @@ class PromptRegistry:
                 remaining = token_budget
                 for frag in result:
                     est = _tb.estimate_tokens(frag.content)
-                    if remaining <= 0:
+                    if est > remaining:
+                        # 高优先级（已排序靠前）片段优先；放不下则停止纳入后续低优先级片段
                         break
                     kept.append(frag)
                     remaining -= est
+                if len(kept) < len(result):
+                    logger.debug(
+                        "[PromptRegistry] token_budget=%d 裁剪片段 %d → %d",
+                        token_budget, len(result), len(kept),
+                    )
                 result = kept
-            except Exception:
-                pass  # TokenBudget 不可用时退化为无裁剪
+            except Exception as e:
+                logger.warning(
+                    "[PromptRegistry] TokenBudget 裁剪异常，退化为无裁剪: %s", e
+                )
 
         return result
 
@@ -220,19 +242,20 @@ class PromptRegistry:
         audit_log: True 时将使用的 fragment ID 列表写入 prompt_log.jsonl。
         token_budget: 非 None 时按 TokenBudget 裁剪 fragment 总量（P2）。
         """
-        frags = self.get_for_phase(phase, inject_as="system",
-                                   session_id=session_id, state=state,
-                                   agent_name=agent_name,
-                                   token_budget=token_budget)
-        parts = [self._interpolate(f.content, extra_vars or {}) for f in frags]
-        result = "\n\n".join(p for p in parts if p.strip())
+        # NEW-C12-04：统一经规范入口 build()（设计 §5.3）构建 messages，
+        # 再抽取 system 角色内容，使 build() 不再是死代码而成为主路径核心。
         _do_audit = _AUDIT_ENABLED if audit_log is None else audit_log
-        if _do_audit:
-            self._write_prompt_log(phase=phase, agent_name=agent_name or "",
-                                   session_id=session_id or "",
-                                   frag_ids=[f.id for f in frags],
-                                   char_count=len(result))
-        return result
+        messages = self.build(
+            phase=phase,
+            agent_id=agent_name or "",
+            state=state,
+            extra_vars=extra_vars,
+            session_id=session_id,
+            audit_log=_do_audit,
+            token_budget=token_budget,
+        )
+        system_parts = [m["content"] for m in messages if m.get("role") == "system"]
+        return "\n\n".join(p for p in system_parts if p.strip())
 
     def build_user_prefix(
         self,
@@ -257,6 +280,7 @@ class PromptRegistry:
         extra_vars: dict | None = None,
         session_id: Optional[str] = None,
         audit_log: bool = False,
+        token_budget: Optional[int] = None,
     ) -> list[dict[str, str]]:
         """
         设计文档 05-prompt-architecture.md §5.3 PromptRegistry.build()
@@ -283,6 +307,7 @@ class PromptRegistry:
             session_id=session_id,
             state=state,
             agent_name=agent_id,
+            token_budget=token_budget,
         )
         vars_ = extra_vars or {}
 

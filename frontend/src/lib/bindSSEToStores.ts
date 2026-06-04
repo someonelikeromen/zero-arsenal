@@ -42,6 +42,8 @@ export interface SSEHandlerDeps {
   setSending: (v: boolean) => void
   setActiveAgent: (agent: string | null) => void
   setChapterRefreshKey: (updater: (k: number) => number) => void
+  /** 任意 SSE 事件到达时触发（用于兜底解锁的「活动心跳」判定，NEW-C14-02） */
+  onActivity?: () => void
 }
 
 // ── 事件处理工厂 ──────────────────────────────────────────────────────────────
@@ -58,9 +60,13 @@ export function createSSEHandler(deps: SSEHandlerDeps): (e: BusEvent) => void {
     addPendingAsk, removePendingAsk, setMode,
     addDiceRoll,
     setSending, setActiveAgent, setChapterRefreshKey,
+    onActivity,
   } = deps
 
   return function onEvent(e: BusEvent): void {
+    // 记录一次 SSE 活动（除 connection.failed 这类终止性事件外都算进度）
+    if (onActivity && e.type !== 'connection.failed') onActivity()
+
     switch (e.type) {
 
       // ── Part 生命周期 ──────────────────────────────────────────────────────
@@ -172,6 +178,29 @@ export function createSSEHandler(deps: SSEHandlerDeps): (e: BusEvent) => void {
       case 'session.mode_changed': {
         const d = e.data as { mode: string; previous_mode?: string; active_tools?: string[] }
         setMode(d.mode as 'play' | 'plan' | 'review')
+        break
+      }
+
+      // ── 连接彻底失败（conf_b09 §5/§9：4xx 终止 或 超过最大重试）─────────────
+      case 'connection.failed': {
+        const d = e.data as { reason?: string; terminal?: boolean }
+        setSending(false)
+        setActiveAgent(null)
+        addPart({
+          id: `conn-failed-${Date.now()}`,
+          message_id: '',
+          type: 'dm_note',
+          content: {
+            note: d.terminal
+              ? '连接已断开（会话不存在或无访问权限），已停止重连。请返回会话列表或刷新页面。'
+              : '连接多次重试仍失败，已暂停重连。请检查网络后刷新页面手动重连。',
+            error: true,
+          },
+          status: 'done',
+          agent: 'system',
+        })
+        // 派发窗口事件，便于上层提供「手动重连」入口
+        window.dispatchEvent(new CustomEvent('sse.connection.failed', { detail: d }))
         break
       }
 

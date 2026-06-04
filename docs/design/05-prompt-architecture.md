@@ -1,8 +1,24 @@
 # 提示词架构完整设计文档
 
-**文档版本**：v1.0  
+**文档版本**：v1.1（2026-06 对齐实现）  
 **创建日期**：2026-05-31  
 **归属系统**：zero-arsenal / AI-VN 互动叙事引擎  
+
+> 注：本文档已于 2026-06 对齐实现（D0 以代码为准）。Layer4 BackendDataStream（18 轴）逐字落地、Registry 字段/过滤/runtime/审计核心机制齐备、Layer0 Core HARD-GATE 内容完整；下列 priority 区间/字段/相位枚举按实现修正（本文档 §2.1 已建立「差异对照」惯例，此处延伸覆盖）。
+>
+> **实现对齐总览（2026-06，`backend/prompts/` + `backend/engine/`）**
+> - **priority 区间**：实现实际区间为 **core 0–29 / agent 100–199 / world 200–299 / runtime 400+**（`registry.py`），统一以此为准；§3 各层小节仍写的旧区间（0-9/10-19/20-49/50-79/80-99）已作废，按差异表口径理解。
+> - **§2.1b token_estimate**：Fragment **无 `token_estimate` 字段**，裁剪改为运行时对 `content` 现场估算（`TokenBudget.estimate_tokens`）。
+> - **§2.2 AgentState**：实现**无 `AgentState` 数据类**，condition 求值直接接收普通 `dict`（约定 `state[...]` 访问）。
+> - **§4.1 相位枚举**：实现相位混用 agent 名与阶段名（`dm/rules/style/narrator` + `p1/p3/p4`），`VALID_PHASES=("all","p1","p2","p3","p4","dm")`；设计的「P1=DM 单一规划阶段」实际拆为 rules/dm/p1 多节点。
+> - **§3.2/§3.3 机制**：Agent 片段用 `phase` 区分（非 `agent_filter` + trigger=always）；WorldPlugin 接口名为 `get_rules_skills()`（非 `get_rules_fragments()`），规则经 `system_prompt_fragments` 注入，WorldPlugin 为 `@dataclass`（非 ABC）。
+> - **§5.3 组装主路径**：主链路走 `build_system_prompt()`（str）+ `assemble_with_data_stream()`（system+user 两条消息），`registry.build()`（按 inject_as 分组）近乎死代码；prefix/standalone/append 组合未落地。
+> - **§3.5b 文风层**：作为 Skill（`SkillMeta`）经 `on_demand` 注入（非独立 Registry 层 / trigger=always），无 `agent_filter`。
+>
+> 🔴 **待修复缺陷 / 真缺口（非文档滞后，登记于 `docs/review/fix_report_docs.md`）**
+> 1. **§2.3 condition AST 白名单沙箱未实现**：`registry.py`/`skill_loader.py` 为裸 `eval(__builtins__={})`，无 `_ALLOWED_AST_NODES`，存在表达式注入风险。
+> 2. **§5.1/§5.2 SKILL.md 格式严重简化**：解析器键为 `name`（非 `id`），缺 `id/role/source/version/requires/conflicts/tags`；正文五节结构（决策图/铁律/执行流程/集成/禁词）无任何文件遵循。
+> 3. **§3.4 设计预置 8 个 Skill 目录不存在**，`backend/skills/` 无任何 SKILL.md（实际技能在 `extensions/*/skills/`）。
 
 ---
 

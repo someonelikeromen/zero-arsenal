@@ -26,18 +26,22 @@ BACKEND_URL = os.environ.get("BACKEND_URL", "http://127.0.0.1:8000")
 
 def _get(path: str, **kwargs):
     import requests
-    return requests.get(f"{BACKEND_URL}{path}", timeout=10, **kwargs)
+    kwargs.setdefault("timeout", 10)
+    return requests.get(f"{BACKEND_URL}{path}", **kwargs)
 
 
 def _post(path: str, json=None, **kwargs):
     import requests
-    return requests.post(f"{BACKEND_URL}{path}", json=json or {}, timeout=10, **kwargs)
+    kwargs.setdefault("timeout", 10)
+    return requests.post(f"{BACKEND_URL}{path}", json=json or {}, **kwargs)
 
 
 def _backend_available() -> bool:
+    """探活：要求真实健康端点返回 200，且用短超时——这样无后端 / 端口被无响应进程占用
+    （ReadTimeout）/ 返回非 200 时，整模块干净 skip，而不是在后续断言里误判为失败。"""
     try:
-        r = _get("/health")
-        return r.status_code < 500
+        r = _get("/api/config/system/memory-health", timeout=3)
+        return r.status_code == 200
     except Exception:
         return False
 

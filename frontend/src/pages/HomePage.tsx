@@ -23,20 +23,19 @@ interface Props {
   onSelectSession: (id: string) => void
 }
 
-type TabId = 'sessions' | 'worlds' | 'characters' | 'assets' | 'archives' | 'prompts' | 'extensions' | 'settings'
+type TabId = 'sessions' | 'worlds' | 'characters' | 'assets' | 'prompts' | 'extensions' | 'settings'
 
 const NAV_ITEMS: { id: TabId; icon: string; label: string }[] = [
   { id: 'sessions',   icon: '🎮', label: '会话' },
   { id: 'worlds',     icon: '🌍', label: '世界' },
   { id: 'characters', icon: '👤', label: '人物' },
   { id: 'assets',     icon: '🎒', label: '资产库' },
-  { id: 'archives',   icon: '💾', label: '存档' },
   { id: 'prompts',    icon: '📝', label: '提示词' },
   { id: 'extensions', icon: '🧩', label: '扩展' },
   { id: 'settings',   icon: '⚙️', label: '设置' },
 ]
 
-// ── 会话 Tab ──────────────────────────────────────────────────────────────────
+// ── 会话 Tab（P0-5：合并「新建会话」与「会话存档列表」于同一 Tab）─────────────
 function SessionsTab({ onSelectSession, onNavigate }: {
   onSelectSession: (id: string) => void
   onNavigate: (tab: TabId) => void
@@ -48,6 +47,7 @@ function SessionsTab({ onSelectSession, onNavigate }: {
   const [selectedWorldId, setSelectedWorldId] = useState('')
   const [selectedCharId, setSelectedCharId] = useState('')
   const [creating, setCreating] = useState(false)
+  const [showCreate, setShowCreate] = useState(false)
 
   useEffect(() => {
     api.listWorlds().then(r => {
@@ -79,7 +79,7 @@ function SessionsTab({ onSelectSession, onNavigate }: {
         title: title || undefined,
         world_id: selectedWorldId || undefined,
         character_template_id: selectedCharId || undefined,
-      } as Parameters<typeof api.createSession>[0])
+      })
       if (selectedWorldId) localStorage.setItem(LS_WORLD, selectedWorldId)
       if (selectedCharId) localStorage.setItem(LS_CHAR, selectedCharId)
       onSelectSession((res as { session_id: string }).session_id)
@@ -93,12 +93,20 @@ function SessionsTab({ onSelectSession, onNavigate }: {
   const WORLD_PLUGINS = ['crossover', 'wuxia', 'infinite_arsenal', 'muv_luv', 'gundam_seed']
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6 pt-4">
-      <div>
-        <h2 className="text-xl font-bold mb-1">新建会话</h2>
-        <p className="text-sm text-zinc-500">选择已建好的世界与人物，在此组合开局（在对应 Hub 中完整创建）</p>
+    <div className="max-w-3xl mx-auto space-y-6 pt-2">
+      {/* 顶部：新建会话（默认折叠，点击展开组合开局） */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-bold">会话</h2>
+          <p className="text-sm text-zinc-500">在此新建会话或打开已有存档</p>
+        </div>
+        <button onClick={() => setShowCreate(v => !v)}
+          className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-1.5 rounded text-sm font-medium transition-colors">
+          {showCreate ? '收起' : '+ 新建会话'}
+        </button>
       </div>
 
+      {showCreate && (
       <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 space-y-5">
         <div className="grid grid-cols-2 gap-4">
           <div>
@@ -183,6 +191,10 @@ function SessionsTab({ onSelectSession, onNavigate }: {
           {creating ? '创建中...' : '开始会话'}
         </button>
       </div>
+      )}
+
+      {/* 会话存档列表（原「存档」Tab 合并至此） */}
+      <SessionManager onOpenSession={onSelectSession} />
     </div>
   )
 }
@@ -241,8 +253,6 @@ export const HomePage: React.FC<Props> = ({ onSelectSession }) => {
         return <CharacterCreator />
       case 'assets':
         return <AssetLibrary />
-      case 'archives':
-        return <SessionManager onOpenSession={onSelectSession} />
       case 'prompts':
         return <PromptManager />
       case 'extensions':

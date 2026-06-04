@@ -215,13 +215,15 @@ async def _roll_check(
     session_id: str,
     attribute: str,
     skill: str = "",
-    difficulty: int = 1,
+    difficulty: int = 1,  # 注：当前未参与计算，threshold 固定为 8（见下方 RollRequest）
     reason: str = "",
 ) -> dict:
     """
     按角色属性/技能值自动建立骰池并执行 d10 判定。
     骰池 = attribute_dots + skill_dots（从角色卡读取）。
     返回 roll_result dict（含 rolls/net/verdict/narrative_hint）。
+
+    注：difficulty 形参目前不影响判定（threshold 写死 8），保留以兼容已注册 schema。
     """
     from ..db import get_db
     from ..engine.dice import RollRequest, compute_roll_request
@@ -260,105 +262,107 @@ async def _roll_check(
 
 # ── NPC 专用查询/更新工具 ────────────────────────────────────────────────────
 
+# NEW-C11-01/02：NPC 单一存储源 = npc_profiles 表。
+# spawn_npc / edit_npc_state / query_npc_profile / get_npc_knowledge_scope /
+# update_npc_state 五个工具统一读写 npc_profiles，消除此前 world_archives 与
+# npc_profiles 双存储导致的 spawned NPC 查不到 / 状态分裂问题。
+
+async def _lookup_npc_row(db, session_id: str, npc_name: str):
+    """在 npc_profiles 表中按 name / key 查找一条 NPC 记录（会话内优先，其次全局模板）。"""
+    npc_key = npc_name.lower().replace(" ", "_").replace("-", "_")[:32]
+    # 1) 会话内：name 精确 → key 精确 → name 模糊
+    row = await (await db.execute(
+        "SELECT id, key, name, profile_json, world_key FROM npc_profiles "
+        "WHERE session_id=? AND (name=? OR key=?) ORDER BY updated_at DESC LIMIT 1",
+        (session_id, npc_name, npc_key),
+    )).fetchone()
+    if row:
+        return row
+    row = await (await db.execute(
+        "SELECT id, key, name, profile_json, world_key FROM npc_profiles "
+        "WHERE session_id=? AND (name LIKE ? OR key LIKE ?) ORDER BY updated_at DESC LIMIT 1",
+        (session_id, f"%{npc_name}%", f"%{npc_key}%"),
+    )).fetchone()
+    if row:
+        return row
+    # 2) 全局模板（world_key 非空）
+    row = await (await db.execute(
+        "SELECT id, key, name, profile_json, world_key FROM npc_profiles "
+        "WHERE world_key!='' AND (name=? OR key=?) ORDER BY updated_at DESC LIMIT 1",
+        (npc_name, npc_key),
+    )).fetchone()
+    return row
+
+
 async def _query_npc_profile(session_id: str, npc_name: str) -> dict:
-    """从 world_archives 或 character_cards.npc_profiles 查询 NPC 档案。"""
+    """从 npc_profiles 表（单一存储源）查询 NPC 档案。"""
     from ..db import get_db
     try:
         async with get_db() as db:
-            rows = await (await db.execute(
-                "SELECT content FROM world_archives "
-                "WHERE session_id=? AND archive_type='npc' AND title LIKE ? "
-                "ORDER BY created_at DESC LIMIT 1",
-                (session_id, f"%{npc_name}%"),
-            )).fetchall()
-        if rows:
-            raw = rows[0]["content"]
+            row = await _lookup_npc_row(db, session_id, npc_name)
+        if row:
             try:
-                profile = json.loads(raw)
+                profile = json.loads(row["profile_json"])
             except Exception:
-                profile = {"text": raw}
-            return {"npc_name": npc_name, "profile": profile, "found": True}
-
-        # 回退：从 character_cards.data_json 中的 npc_profiles 字段查找
-        async with get_db() as db:
-            cc_row = await (await db.execute(
-                "SELECT data_json FROM character_cards WHERE session_id=? "
-                "ORDER BY updated_at DESC LIMIT 1",
-                (session_id,),
-            )).fetchone()
-        if cc_row:
-            char = json.loads(cc_row["data_json"])
-            npc_profiles = char.get("npc_profiles", {})
-            for key, val in npc_profiles.items():
-                if npc_name.lower() in key.lower() or (
-                    isinstance(val, dict) and npc_name.lower() in val.get("name", "").lower()
-                ):
-                    return {"npc_name": npc_name, "profile": val, "found": True}
-
+                profile = {"text": row["profile_json"]}
+            return {"npc_name": npc_name, "key": row["key"], "profile": profile, "found": True}
         return {"npc_name": npc_name, "profile": {}, "found": False}
     except Exception as e:
         return {"npc_name": npc_name, "profile": {}, "found": False, "error": str(e)}
 
 
 async def _get_npc_knowledge_scope(session_id: str, npc_name: str) -> dict:
-    """获取 NPC 的知识边界（knows / doesnt_know 字段）。"""
+    """
+    获取 NPC 的知识边界（knowledge_scope）。从 npc_profiles 表读取。
+    无档案或档案缺该字段时返回 found:False（D-13：不伪造通用边界，
+    让上层 Agent 知晓信息缺口，满足信息不对称约束）。
+    """
     from ..db import get_db
-    default_scope = {
-        "knows": ["当前场景发生的公开事件"],
-        "doesnt_know": ["玩家内心状态", "其他NPC的私密信息"],
-    }
     try:
         async with get_db() as db:
-            rows = await (await db.execute(
-                "SELECT content FROM world_archives "
-                "WHERE session_id=? AND archive_type='npc' AND title LIKE ? "
-                "ORDER BY created_at DESC LIMIT 1",
-                (session_id, f"%{npc_name}%"),
-            )).fetchall()
-        if rows:
-            raw = rows[0]["content"]
-            try:
-                profile = json.loads(raw)
-            except Exception:
-                profile = {}
-            scope = profile.get("knowledge_scope", default_scope)
-            return {"npc_name": npc_name, "scope": scope}
-        return {"npc_name": npc_name, "scope": default_scope}
+            row = await _lookup_npc_row(db, session_id, npc_name)
+        if not row:
+            return {"npc_name": npc_name, "scope": None, "found": False,
+                    "note": "无 NPC 档案，知识边界未知"}
+        try:
+            profile = json.loads(row["profile_json"])
+        except Exception:
+            profile = {}
+        scope = profile.get("knowledge_scope")
+        if scope is None:
+            return {"npc_name": npc_name, "scope": None, "found": False,
+                    "note": "NPC 档案缺少 knowledge_scope 字段"}
+        return {"npc_name": npc_name, "scope": scope, "found": True}
     except Exception as e:
-        return {"npc_name": npc_name, "scope": default_scope, "error": str(e)}
+        return {"npc_name": npc_name, "scope": None, "found": False, "error": str(e)}
 
 
 async def _update_npc_state(session_id: str, npc_name: str, changes: dict) -> dict:
-    """合并 changes 到 world_archives 中对应 NPC 的记录，写回或新建。"""
+    """合并 changes 到 npc_profiles 表中对应 NPC 的 profile_json，写回或新建。"""
     from ..db import get_db
     now = datetime.now().timestamp()
+    npc_key = npc_name.lower().replace(" ", "_").replace("-", "_")[:32]
     try:
         async with get_db() as db:
-            row = await (await db.execute(
-                "SELECT id, content FROM world_archives "
-                "WHERE session_id=? AND archive_type='npc' AND title LIKE ? "
-                "ORDER BY created_at DESC LIMIT 1",
-                (session_id, f"%{npc_name}%"),
-            )).fetchone()
-
+            row = await _lookup_npc_row(db, session_id, npc_name)
             if row:
                 try:
-                    existing = json.loads(row["content"])
+                    existing = json.loads(row["profile_json"])
                 except Exception:
                     existing = {}
                 existing.update(changes)
                 await db.execute(
-                    "UPDATE world_archives SET content=?, updated_at=? WHERE id=?",
+                    "UPDATE npc_profiles SET profile_json=?, updated_at=? WHERE id=?",
                     (json.dumps(existing, ensure_ascii=False), now, row["id"]),
                 )
             else:
                 new_id = str(uuid.uuid4())
                 profile = {"name": npc_name, **changes}
                 await db.execute(
-                    "INSERT INTO world_archives "
-                    "(id, session_id, archive_type, title, content, created_at, updated_at) "
-                    "VALUES (?, ?, 'npc', ?, ?, ?, ?)",
-                    (new_id, session_id, npc_name,
+                    "INSERT OR IGNORE INTO npc_profiles "
+                    "(id, session_id, key, name, profile_json, world_key, created_at, updated_at) "
+                    "VALUES (?, ?, ?, ?, ?, '', ?, ?)",
+                    (new_id, session_id, npc_key, npc_name,
                      json.dumps(profile, ensure_ascii=False), now, now),
                 )
             await db.commit()
@@ -592,6 +596,8 @@ async def _generate_action_options(
                 {"role": "system", "content": "你是跑团GM，负责生成简洁的行动选项。"},
                 {"role": "user", "content": prompt},
             ],
+            # 注：此处硬编码 provider/model，未走 load_agent_config()（NEW-C11-04），
+            # 故不受会话 LLM 配置影响；与 outline_chapter 等叙事工具行为不一致，待统一。
             provider="deepseek", model="deepseek-chat",
             temperature=0.7, max_tokens=300,
         )
@@ -2202,6 +2208,10 @@ def _discover_extension_tools() -> None:
 
     for tools_file in sorted(ext_root.glob("*/tools.py")):
         ext_name = tools_file.parent.name
+        # NEW-C8-01：跳过 `_` 前缀目录（如 _template 骨架），与 extension_loader.discover_extensions 行为一致，
+        # 避免演示工具 template_example 被当成生产工具注册进全局 registry。
+        if ext_name.startswith("_"):
+            continue
         module_name = f"backend.extensions.{ext_name}.tools"
         try:
             spec = importlib.util.spec_from_file_location(module_name, tools_file)

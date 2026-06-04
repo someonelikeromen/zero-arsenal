@@ -21,6 +21,9 @@ from .state import TurnContext
 logger = logging.getLogger(__name__)
 
 COMPACT_THRESHOLD = 3000   # 估算 token 超过此值才触发
+# NEW-C3-03：压缩后保留的「近期上下文」尾部字符数。摘要覆盖的较早历史段
+# 会被截断丢弃，只保留最近这段原文 + 摘要，确保净 token 下降而非上升。
+COMPACT_KEEP_TAIL_CHARS = 1200
 SUMMARY_SYSTEM = """\
 你是叙事摘要助手。请将以下历史叙事段落压缩为 300 字以内的中文摘要，
 保留关键事件、人物状态和场景背景，去除重复细节。
@@ -50,6 +53,21 @@ async def maybe_compact(ctx: TurnContext) -> TurnContext:
             f">= {COMPACT_THRESHOLD}，触发压缩"
         )
 
+        # conf_b04：触发 before_memory_compress（扩展可中止压缩或调整阈值上下文）
+        try:
+            from ..hooks import hook_manager, HookEvent
+            _bmc = await hook_manager.fire(HookEvent.before_memory_compress, {
+                "session_id": ctx.session_id,
+                "estimated_tokens": estimated,
+                "threshold": COMPACT_THRESHOLD,
+                "proceed": True,
+            })
+            if _bmc.get("proceed") is False:
+                logger.info("[Compaction] before_memory_compress hook 取消本次压缩")
+                return ctx
+        except Exception as _e:
+            logger.debug("[Compaction] before_memory_compress hook failed: %s", _e)
+
         # 从 DB 取最近 20 条 narrative Parts
         narrative_texts = await _fetch_recent_narratives(ctx.session_id, limit=20)
         if not narrative_texts:
@@ -62,18 +80,28 @@ async def maybe_compact(ctx: TurnContext) -> TurnContext:
         if not summary:
             return ctx
 
-        # 注入摘要到 memory_context 前缀
+        # NEW-C3-03：实际裁剪历史，而非单纯前缀追加（旧实现只会净增 token）。
+        # 用「摘要 + 最近尾部原文」替换原有 memory_context：较早的、已被摘要
+        # 覆盖的历史段被丢弃，仅保留最近 COMPACT_KEEP_TAIL_CHARS 字符的连续上下文。
         compaction_block = f"[历史摘要]\n{summary}"
-        ctx.memory_context = (
-            compaction_block + "\n\n" + ctx.memory_context
-            if ctx.memory_context
-            else compaction_block
-        )
+        prev_context = ctx.memory_context or ""
+        before_tokens = token_budget.estimate_tokens(prev_context)
+        if len(prev_context) > COMPACT_KEEP_TAIL_CHARS:
+            tail = prev_context[-COMPACT_KEEP_TAIL_CHARS:]
+            ctx.memory_context = compaction_block + "\n\n[近期上下文]\n" + tail
+        elif prev_context:
+            ctx.memory_context = compaction_block + "\n\n" + prev_context
+        else:
+            ctx.memory_context = compaction_block
+        after_tokens = token_budget.estimate_tokens(ctx.memory_context)
 
         # 写 compaction Part 到 DB 和 Bus
         await _write_compaction_part(ctx, summary)
 
-        logger.info(f"[Compaction] session={ctx.session_id} 压缩完成，摘要 {len(summary)} 字")
+        logger.info(
+            "[Compaction] session=%s 压缩完成，摘要 %d 字，memory_context token %d → %d",
+            ctx.session_id, len(summary), before_tokens, after_tokens,
+        )
 
     except Exception as exc:
         logger.error("[Compaction] 压缩失败: %s", exc, exc_info=True)

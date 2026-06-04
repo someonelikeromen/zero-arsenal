@@ -1,9 +1,21 @@
 # 02 · 系统架构设计文档
 
-> **文档版本**：v1.0 · 2026-05-31  
+> **文档版本**：v1.1（2026-06 对齐实现） · 2026-05-31  
 > **适用项目**：zero-arsenal  
-> **状态**：架构基线，未经技术评审前不得修改核心分层  
+> **状态**：架构基线（能力实装 ~80%，文档契约已按实现修订）  
 > **关联文档**：`01-project-analysis.md`（来源分析）
+>
+> 注：本文档已于 2026-06 对齐实现（D0 以代码为准）。七层架构、回合管线、八类扩展能力、四阶段叙事、并行/串行约束均真实实装；下列「目录/命名/端点/技术选型」契约按实现修正（设计 v1.0 已滞后于实现演进）。
+>
+> **实现对齐总览（2026-06）**
+> - **扩展点位置**：实际采用「**每插件一目录 + manifest.json**」统一插件架构（`backend/extensions/<world>/{plugin,tools,hooks,manifest}`），**非**按类型分 `worlds/tools/skills/mcp` 子目录。ToolRegistry 在 `backend/tools/registry.py`、SkillRegistry 在 `backend/tools/skill_loader.py`、MCPBridge 在 `backend/tools/mcp_bridge.py`（均不在 `extensions/` 下）。
+> - **Hook 层**：独立于 `backend/hooks/`（`hook_manager.py`/`builtin_hooks.py`）+ `backend/extensions/hook_protocol.py`，而非归入 `bus/`；§2 分层图与 §4 目录树应补 `hooks/` 层。
+> - **入口端点**：提交回合为 `POST /api/sessions/{id}/message`（202 Accepted，非 `/turn`）；订阅为 `GET /api/sessions/{id}/events`（非 `/stream`）。
+> - **回合拓扑**：实际连边 `rules → dm_gate → (dice) → parallel_nw → narrator → style → var → chronicler → options → END`——rules 节点先于 dm_gate、dice 为独立节点、`npc‖world` 合并进单节点 `parallel_nw`（asyncio.gather）、新增 `options` 节点；MODE 节点旧命名 Interactive/Autonomous/Supervised 应改为 play/plan/review。
+> - **文件命名**：变量执行引擎为 `backend/engine/vm.py`（非 `var_executor.py`）；DB 用裸 aiosqlite + `schema.py`/`queries.py`（**无 SQLAlchemy `models.py`、无 `migrations/` 目录**，改手写 `MIGRATION_PATCHES_SQL`）；agents/profiles 按**模式**组织（play/plan/review，非 dm/npc）。
+> - **技术选型修正**：向量存储未用 SQLite-vec/ChromaDB（自研 `vector.py` + sentence-transformers，且**默认未声明 chromadb**）；BM25 未用 rank-bm25（jieba 自研分级匹配）；Hook 非 pluggy（自研）；LLM 网关实为 **litellm**（设计仅列 LangChain，实际 langchain 仅用 core）。
+> - **依赖声明缺口（待补）**：jinja2/watchdog/pluggy/Ruff/mypy/Playwright/mcp/PyYAML 未在 `pyproject.toml` 显式声明（部分为传递依赖或自研替代）；前端 IndexedDB 用原生（无 `idb`）。
+> - **依赖文件**：后端依赖用 `backend/pyproject.toml`（非根 `requirements.txt`）。
 
 ---
 

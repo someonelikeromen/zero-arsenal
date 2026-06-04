@@ -8,6 +8,7 @@ import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { immer } from 'zustand/middleware/immer'
 import { cache } from '../lib/idb'
+import { api, apiFetch } from '../lib/api'
 
 export type PartType =
   | 'narrative'
@@ -99,12 +100,12 @@ export const useStoryStore = create<StoryStore>()(
       loadMessages: async (sessionId) => {
         set((state) => { state.isLoading = true })
         try {
-          // 使用新的 cursor 分页 API（11-api-design.md §messages）
-          const res = await fetch(`/api/sessions/${sessionId}/messages?limit=100&include_parts=false`)
-          if (!res.ok) throw new Error(`HTTP ${res.status}`)
-          const data = await res.json()
+          // 统一走 apiFetch（NEW-C13-03），保留 cursor 分页参数
+          const data = await apiFetch<{ items?: Message[]; messages?: Message[] }>(
+            `/sessions/${sessionId}/messages?limit=100&include_parts=false`
+          )
           set((state) => {
-            state.messages = data.items ?? data.messages ?? data ?? []
+            state.messages = data.items ?? data.messages ?? []
             state.isLoading = false
           })
         } catch {
@@ -115,11 +116,11 @@ export const useStoryStore = create<StoryStore>()(
       loadParts: async (sessionId) => {
         set((state) => { state.isLoading = true })
         try {
-          // 使用新的 cursor 分页 API（11-api-design.md §parts）
-          const res = await fetch(`/api/sessions/${sessionId}/parts?limit=200`)
-          if (!res.ok) throw new Error(`HTTP ${res.status}`)
-          const data = await res.json()
-          const parts = (data.items ?? data.parts ?? data ?? []) as MessagePart[]
+          // 统一走 apiFetch（NEW-C13-03），保留 cursor 分页参数
+          const data = await apiFetch<{ items?: MessagePart[]; parts?: MessagePart[] }>(
+            `/sessions/${sessionId}/parts?limit=200`
+          )
+          const parts = (data.items ?? data.parts ?? []) as MessagePart[]
           set((state) => {
             state.parts = parts
             state.isLoading = false
@@ -194,12 +195,8 @@ export const useStoryStore = create<StoryStore>()(
 
       revertToMessage: async (sessionId, messageId) => {
         try {
-          const res = await fetch(`/api/sessions/${sessionId}/revert`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message_id: messageId }),
-          })
-          if (!res.ok) throw new Error(`HTTP ${res.status}`)
+          // 统一走 apiFetch（NEW-C13-03）
+          await api.revertToMessage(sessionId, messageId)
           await get().loadParts(sessionId)
         } catch (e) {
           console.error('[StoryStore] revertToMessage failed:', e)

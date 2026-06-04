@@ -1,7 +1,20 @@
 # 03 — 多 Agent 系统完整设计
 
-> **版本**：0.1.0 · **最后更新**：2026-05-31  
+> **版本**：0.2.0（2026-06 对齐实现） · **最后更新**：2026-05-31  
 > **关联文件**：`01-architecture-overview.md`、`02-state-and-bus.md`、`04-extension-system.md`
+>
+> 注：本文档已于 2026-06 对齐实现（D0 以代码为准）。三层骨架（LangGraph 外层 + tool_loop 内层 + Bus/Part 输出）与门禁→叙事→结算→归档主链路均已落地；下列图拓扑/Narrator 变量分工/契约按实现修正。
+>
+> **实现对齐总览（2026-06，`backend/agents/`）**
+> - **§2.1 节点集合**：实际注册 9 节点 `rules / dm_gate / dice / parallel_nw / narrator / style / var / chronicler / options`——`dm→dm_gate` 改名、**`dice`/`options` 为新增节点**、`npc+world` 合并进 `parallel_nw`。入口为 rules。
+> - **§2.3 并行拓扑**：`npc‖world` 并非 LangGraph fan-out 边，而是**单节点 `parallel_npc_world_node` 内 `asyncio.gather` + deepcopy(ctx)** 手动并行（出于 LangGraph 并发写冲突）。功能等价但图层面不可见。
+> - **§2.2 路由**：dm_router 多出 `needs_roll→dice` 分支（设计为二分支）；判据字段为 `rules_verdict`/`dm_verdict`。
+> - **§3 各 Agent 工具清单**：与草案多处改名（Rules：check_skill_trigger/query_world_rules/read_character，无 roll_dice 工具，骰子节点内直调 engine.dice；DM：read_character/get_world_state/search_memory，verdict 多 needs_roll；World 无工具/无 tool_loop，事件用 `affects`；Style 程序化禁词+LLM，无三工具，重写阈值细化为 <0.5 全文 / 0.5~0.7 段落；Var 统一走 `engine/vm.py`，无四结算工具；Chronicler 压缩阈值为 20 条消息，无 register_narrative_hook/update_info_matrix）。
+> - **§6 Narrator 四阶段**：P1 输出 schema 大幅简化为 `{scene_goal,tone,focus,pov}`；**P3/P4 变量职责与设计相反**——实际由 **P3 内联 `{{SET/ADD/...}}` 标记**产出、P4 正则抽取（非 P4 专责 `<VariableBlock>` XML）；`TavernCommand` 数据类定义但未真正产出（产 patch dict）。
+> - **§5 tool_loop**：`MAX_ITERATIONS=10`（设计 20）；Hook 用全局 `hook_manager` + 工具级 hooks（dict ctx，无 `BeforeToolAction/AfterToolAction` 数据类、无 terminate）。
+> - **§7.2 AgentProfile/agents.json**：配置键为 `agents.*`（非 `roles.*`），**全部 deepseek-chat**（多模型角色映射未落地）；权限 Profile 与 LLM 配置为两套独立体系（权限见 `permission.py`）。§7.1 AgentNode 缺 `system_prompt_id/profile/before_tool_call/after_tool_call/on_load/on_unload`。
+> - **§3.x Gacha**：无独立 gacha Agent（与设计一致）；抽卡由 `tool_loop` 的 `draw_gacha` 工具 + `ctx.gacha_pending/gacha_granted` 状态承载。
+> - **缺口（待补实现，非文档滞后）**：§8.2 `asyncio.shield`（VarAgent 用 try/except 兜底替代）、§8.3 外部 MCP 子 Agent `call_external_agent`（缺失）、narrative_hook/info_matrix 写入。
 
 ---
 

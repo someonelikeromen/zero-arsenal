@@ -22,9 +22,12 @@ interface PromptCardProps {
   prompt: PromptTemplate
   onUpdate: (pid: string, update: Partial<PromptTemplate>) => void
   onDelete: (pid: string) => void
+  onMove: (pid: string, dir: 'up' | 'down') => void
+  canUp: boolean
+  canDown: boolean
 }
 
-function PromptCard({ prompt, onUpdate, onDelete }: PromptCardProps) {
+function PromptCard({ prompt, onUpdate, onDelete, onMove, canUp, canDown }: PromptCardProps) {
   const [expanded, setExpanded] = useState(false)
   const [editing, setEditing] = useState(false)
   const [label, setLabel] = useState(prompt.label)
@@ -38,6 +41,13 @@ function PromptCard({ prompt, onUpdate, onDelete }: PromptCardProps) {
   return (
     <div className={`border rounded-lg overflow-hidden transition-colors ${prompt.enabled ? 'border-zinc-700 bg-zinc-800' : 'border-zinc-800 bg-zinc-900 opacity-60'}`}>
       <div className="flex items-center gap-2 px-3 py-2.5">
+        {/* 排序上下移（NEW-C14-03） */}
+        <div className="flex flex-col shrink-0 -my-1">
+          <button onClick={() => onMove(prompt.id, 'up')} disabled={!canUp}
+            title="上移" className="text-[10px] leading-none text-zinc-500 hover:text-zinc-200 disabled:opacity-20 disabled:cursor-default">▲</button>
+          <button onClick={() => onMove(prompt.id, 'down')} disabled={!canDown}
+            title="下移" className="text-[10px] leading-none text-zinc-500 hover:text-zinc-200 disabled:opacity-20 disabled:cursor-default">▼</button>
+        </div>
         {/* 启用开关 */}
         <button onClick={() => onUpdate(prompt.id, { enabled: prompt.enabled ? 0 : 1 })}
           className={`w-8 h-4 rounded-full transition-colors shrink-0 ${prompt.enabled ? 'bg-indigo-600' : 'bg-zinc-700'}`}>
@@ -122,11 +132,34 @@ export const PromptManager: React.FC = () => {
 
   useEffect(() => { load() }, [])
 
-  const agentPrompts = prompts.filter(p => p.agent === activeAgent)
+  // NEW-C14-03：按 sort_order 升序排列（同序时保持插入顺序），不再裸 filter
+  const agentPrompts = prompts
+    .filter(p => p.agent === activeAgent)
+    .slice()
+    .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
 
   const handleUpdate = async (pid: string, update: Partial<PromptTemplate>) => {
     await api.updatePrompt(pid, update as Parameters<typeof api.updatePrompt>[1])
     load()
+  }
+
+  // 上/下移：交换相邻两项后，将当前 Agent 下所有条目的 sort_order 归一化为顺序索引
+  const handleMove = async (pid: string, dir: 'up' | 'down') => {
+    const idx = agentPrompts.findIndex(p => p.id === pid)
+    const swapIdx = dir === 'up' ? idx - 1 : idx + 1
+    if (idx < 0 || swapIdx < 0 || swapIdx >= agentPrompts.length) return
+    const reordered = agentPrompts.slice()
+    ;[reordered[idx], reordered[swapIdx]] = [reordered[swapIdx], reordered[idx]]
+    try {
+      await Promise.all(
+        reordered
+          .map((p, i) => (p.sort_order === i ? null : api.updatePrompt(p.id, { sort_order: i })))
+          .filter(Boolean) as Promise<unknown>[]
+      )
+      load()
+    } catch (e) {
+      notify.error(`排序失败：${e instanceof Error ? e.message : String(e)}`)
+    }
   }
 
   const handleDelete = async (pid: string) => {
@@ -252,8 +285,9 @@ export const PromptManager: React.FC = () => {
           <div className="text-center text-zinc-500 text-sm py-8">暂无提示词条目</div>
         ) : (
           <div className="flex-1 overflow-y-auto space-y-2 pr-1">
-            {agentPrompts.map(p => (
-              <PromptCard key={p.id} prompt={p} onUpdate={handleUpdate} onDelete={handleDelete} />
+            {agentPrompts.map((p, i) => (
+              <PromptCard key={p.id} prompt={p} onUpdate={handleUpdate} onDelete={handleDelete}
+                onMove={handleMove} canUp={i > 0} canDown={i < agentPrompts.length - 1} />
             ))}
           </div>
         )}

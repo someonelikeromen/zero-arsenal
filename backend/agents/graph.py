@@ -130,7 +130,7 @@ async def chronicler_wrapper(ctx: TurnContext) -> TurnContext:
                 _log.warning("[chronicler] on_chapter_end hook failed: %s", e)
             return result
         return ctx
-    return ctx
+    # M-09：with 块内两条分支均已 return，此处原 `return ctx` 不可达，已删除。
 
 
 # ── 行动选项节点 ──────────────────────────────────────────────────────────────
@@ -157,7 +157,9 @@ async def options_node(ctx: TurnContext) -> TurnContext:
             _msg_id=ctx.message_id or "",
         )
     except Exception as e:
-        _log.debug("[options_node] generate_action_options skipped: %s", e)
+        # T-D09：行动选项缺失影响 play 体验，提升到 warning（此前 DEBUG 等同静默）。
+        _log.warning("[options_node] generate_action_options 失败（本轮无选项）: %s: %s",
+                     type(e).__name__, e)
 
     return ctx
 

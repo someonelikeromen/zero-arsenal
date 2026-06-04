@@ -13,15 +13,18 @@ CREATE TABLE IF NOT EXISTS sessions (
     id              TEXT PRIMARY KEY,
     world_plugin    TEXT NOT NULL DEFAULT 'crossover',
     agent_profile   TEXT NOT NULL DEFAULT 'play',
-    mode            TEXT NOT NULL DEFAULT 'play',  -- play | plan | review
-    branch_of       TEXT REFERENCES sessions(id),  -- 分支来源（NULL=主线）
+    mode            TEXT NOT NULL DEFAULT 'play'
+                        CHECK(mode IN ('play', 'plan', 'review')),  -- play | plan | review
+    branch_of       TEXT REFERENCES sessions(id) ON DELETE SET NULL,  -- 分支来源（NULL=主线）
     branch_label    TEXT,                          -- 分支显示名称（NULL=主线）
-    fork_from_msg   TEXT REFERENCES messages(id),  -- 分叉起点消息 ID
+    fork_from_msg   TEXT REFERENCES messages(id) ON DELETE SET NULL,  -- 分叉起点消息 ID
     title           TEXT,
-    status          TEXT NOT NULL DEFAULT 'active', -- active | deleted | archived
-    is_archived     INTEGER NOT NULL DEFAULT 0,    -- 0=正常 1=已归档
+    status          TEXT NOT NULL DEFAULT 'active'
+                        CHECK(status IN ('active', 'deleted', 'archived')), -- active | deleted | archived
+    is_archived     INTEGER NOT NULL DEFAULT 0
+                        CHECK(is_archived IN (0, 1)),  -- 0=正常 1=已归档
     character_id    TEXT,                          -- 关联的 character_card id
-    state_json      TEXT DEFAULT '{}',             -- 会话级配置（文风、开关等）
+    state_json      TEXT NOT NULL DEFAULT '{}',    -- 会话级配置（文风、开关等）
     created_at      REAL NOT NULL,
     updated_at      REAL NOT NULL
 );
@@ -33,13 +36,17 @@ CREATE INDEX IF NOT EXISTS idx_sessions_created_at ON sessions(created_at DESC);
 CREATE TABLE IF NOT EXISTS messages (
     id              TEXT PRIMARY KEY,
     session_id      TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
-    role            TEXT NOT NULL,      -- user | assistant | system | tool
+    role            TEXT NOT NULL
+                        CHECK(role IN ('user', 'assistant', 'system', 'tool')),
     turn_index      INTEGER NOT NULL DEFAULT 0,
+    -- phase 取值在代码层约定（dm/npc/world/narrator/style/var/p1/p3/p4/meta/''），
+    -- 域过宽且与 agent 阶段名混用，故不施加 CHECK 以免运行期 INSERT 失败。
     phase           TEXT DEFAULT '',    -- 产出阶段：dm/npc/world/narrator/style/var
     agent_id        TEXT DEFAULT '',    -- 产出本消息的 agent 标识
     tokens_used     INTEGER DEFAULT 0,  -- 本消息消耗 token 数（估算）
     completed_at    REAL,               -- 消息流式完成时间戳
-    status          TEXT NOT NULL DEFAULT 'active', -- active | reverted
+    status          TEXT NOT NULL DEFAULT 'active'
+                        CHECK(status IN ('active', 'reverted')), -- active | reverted
     created_at      REAL NOT NULL,
     updated_at      REAL
 );
@@ -53,11 +60,12 @@ CREATE TABLE IF NOT EXISTS message_parts (
     message_id      TEXT NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
     session_id      TEXT NOT NULL,
     type            TEXT NOT NULL,      -- 见 PartType 枚举
-    content         TEXT DEFAULT '{}', -- JSON
-    status          TEXT NOT NULL DEFAULT 'streaming', -- streaming | done | error
+    content         TEXT NOT NULL DEFAULT '{}', -- JSON
+    status          TEXT NOT NULL DEFAULT 'streaming'
+                        CHECK(status IN ('streaming', 'done', 'error')), -- streaming | done | error
     agent           TEXT DEFAULT '',   -- 产出本 Part 的 Agent 名称
     sort_order      INTEGER DEFAULT 0,  -- 同消息内排序（越小越前）
-    metadata        TEXT DEFAULT '{}', -- 扩展元数据 JSON（token_count/latency_ms 等）
+    metadata        TEXT NOT NULL DEFAULT '{}', -- 扩展元数据 JSON（token_count/latency_ms 等）
     created_at      REAL NOT NULL,
     updated_at      REAL NOT NULL
 );
@@ -68,11 +76,18 @@ CREATE INDEX IF NOT EXISTS idx_parts_session_type ON message_parts(session_id, t
 CREATE TABLE IF NOT EXISTS character_cards (
     id              TEXT PRIMARY KEY,
     session_id      TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
-    schema_version  TEXT NOT NULL DEFAULT '4.0',
-    data_json       TEXT NOT NULL DEFAULT '{}',
-    character_name  TEXT DEFAULT '',   -- 反范式：角色名（避免解析 JSON 过滤）
-    tier            INTEGER DEFAULT 1, -- 反范式：Anti-Feat 星级
-    points          INTEGER DEFAULT 0, -- 反范式：当前积分/SP（方便直接查询）
+    schema_version  TEXT NOT NULL DEFAULT '4.0',  -- 设计 06 §2.2 中名为 version（实现改名）
+    data_json       TEXT NOT NULL DEFAULT '{}',   -- 设计 06 §2.2 中名为 card_json（实现改名）
+    character_name  TEXT NOT NULL DEFAULT '',  -- 反范式：角色名（避免解析 JSON 过滤）
+    world_plugin    TEXT NOT NULL DEFAULT '',  -- 反范式：所属世界插件
+    tier            INTEGER NOT NULL DEFAULT 1
+                        CHECK(tier >= 0 AND tier <= 10), -- 反范式：Anti-Feat 星级 0-10
+    tier_sub        TEXT NOT NULL DEFAULT 'M'
+                        CHECK(tier_sub IN ('L', 'M', 'U', '')), -- 星级子段位
+    points          INTEGER NOT NULL DEFAULT 0
+                        CHECK(points >= 0), -- 反范式：当前积分/SP（方便直接查询）
+    hp_overall      REAL NOT NULL DEFAULT 1.0,  -- 综合 HP%（设计 06 §2.2 REAL DEFAULT 1.0）
+    created_at      REAL,
     updated_at      REAL NOT NULL
 );
 
@@ -82,8 +97,9 @@ CREATE TABLE IF NOT EXISTS world_archives (
     session_id      TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
     title           TEXT NOT NULL DEFAULT '',
     content         TEXT NOT NULL DEFAULT '{}',   -- JSON
-    archive_type    TEXT NOT NULL DEFAULT 'lore', -- lore | npc | rule | setting
-    world_key       TEXT DEFAULT '',
+    archive_type    TEXT NOT NULL DEFAULT 'lore'
+                        CHECK(archive_type IN ('lore', 'npc', 'rule', 'setting')), -- lore | npc | rule | setting
+    world_key       TEXT NOT NULL DEFAULT '',
     time_flow_ratio REAL NOT NULL DEFAULT 1.0,
     created_at      REAL,
     updated_at      REAL NOT NULL
@@ -93,16 +109,18 @@ CREATE TABLE IF NOT EXISTS world_archives (
 CREATE TABLE IF NOT EXISTS chapters (
     id                  TEXT PRIMARY KEY,
     session_id          TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
-    parent_chapter_id   TEXT REFERENCES chapters(id),  -- NULL=主线第一章
+    parent_chapter_id   TEXT REFERENCES chapters(id) ON DELETE SET NULL,  -- NULL=主线第一章
     branch_label        TEXT,                           -- NULL=主线，否则=分支名
     chapter_index       INTEGER NOT NULL DEFAULT 0,     -- 本会话内的章节序号（1-based）
-    start_message_id    TEXT REFERENCES messages(id),
-    end_message_id      TEXT REFERENCES messages(id),
+    start_message_id    TEXT REFERENCES messages(id) ON DELETE SET NULL,
+    end_message_id      TEXT REFERENCES messages(id) ON DELETE SET NULL,
     summary             TEXT DEFAULT '',                -- ChroniclerAgent 生成的摘要
     key_events          TEXT DEFAULT '[]',              -- JSON 关键事件列表
-    is_consolidated     INTEGER NOT NULL DEFAULT 0,     -- 是否已固化记忆
+    is_consolidated     INTEGER NOT NULL DEFAULT 0
+                            CHECK(is_consolidated IN (0, 1)),  -- 是否已固化记忆
     turn_count          INTEGER NOT NULL DEFAULT 0,
-    status              TEXT NOT NULL DEFAULT 'active', -- active | reverted
+    status              TEXT NOT NULL DEFAULT 'active'
+                            CHECK(status IN ('active', 'reverted')), -- active | reverted
     created_at          REAL NOT NULL,
     updated_at          REAL NOT NULL
 );
@@ -112,13 +130,16 @@ CREATE INDEX IF NOT EXISTS idx_chapters_session ON chapters(session_id);
 CREATE TABLE IF NOT EXISTS memory_entries (
     id                  TEXT PRIMARY KEY,
     session_id          TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
-    chapter_id          TEXT REFERENCES chapters(id),
+    chapter_id          TEXT REFERENCES chapters(id) ON DELETE SET NULL,
     content             TEXT NOT NULL,
     embedding           BLOB,           -- 向量（float32 bytes）
     bigram_tokens       TEXT DEFAULT '[]',  -- JSON array
     graph_nodes         TEXT DEFAULT '[]',  -- JSON array（关联实体）
-    tier                TEXT NOT NULL DEFAULT 'episodic',
+    tier                TEXT NOT NULL DEFAULT 'episodic'
+                        CHECK(tier IN ('episodic', 'semantic', 'core', 'working')),
                         -- episodic | semantic | core | working
+    -- cognitive_partition 取值域较宽（5 视角分区 + content_type fallback），
+    -- 由 memory/* 子系统约定，不施加 CHECK 以免运行期 INSERT 失败。
     cognitive_partition TEXT NOT NULL DEFAULT 'objective_global',
                         -- character_pov | objective_global | world_state | relationship
     source_agent        TEXT DEFAULT '',
@@ -136,21 +157,23 @@ CREATE INDEX IF NOT EXISTS idx_memory_session ON memory_entries(session_id, tier
 -- ── 骰子日志（结构化 + JSONL 文件双写）──────────────────────────────────────
 CREATE TABLE IF NOT EXISTS dice_log (
     id              TEXT PRIMARY KEY,
-    session_id      TEXT,
+    session_id      TEXT,                                -- 审计日志表，session_id 可空，不强制 FK
     message_id      TEXT,
-    part_id         TEXT REFERENCES message_parts(id),  -- 关联的 Part（可 NULL）
+    part_id         TEXT REFERENCES message_parts(id) ON DELETE SET NULL,  -- 关联的 Part（可 NULL）
     agent_id        TEXT DEFAULT '',                    -- 触发骰子的 Agent 名称
     pool            INTEGER NOT NULL,
     threshold       INTEGER NOT NULL DEFAULT 8,
     rolls           TEXT NOT NULL DEFAULT '[]',  -- JSON
     net             INTEGER NOT NULL,
-    verdict         TEXT NOT NULL,               -- success|failure|botch|critical
+    verdict         TEXT NOT NULL
+                        CHECK(verdict IN ('success', 'failure', 'botch', 'critical')), -- success|failure|botch|critical
     attribute       TEXT DEFAULT '',
     skill           TEXT DEFAULT '',
     reason          TEXT DEFAULT '',
     input_json      TEXT DEFAULT '{}',           -- 调用时的原始参数 JSON
     result_json     TEXT NOT NULL DEFAULT '{}',  -- 完整 DiceRollResult JSON
-    referenced      INTEGER NOT NULL DEFAULT 0,  -- 是否被叙事引用（0/1）
+    referenced      INTEGER NOT NULL DEFAULT 0
+                        CHECK(referenced IN (0, 1)),  -- 是否被叙事引用（0/1）
     created_at      REAL NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_dice_session ON dice_log(session_id);
@@ -169,8 +192,8 @@ CREATE INDEX IF NOT EXISTS idx_eventlog_session ON event_log(session_id, created
 CREATE TABLE IF NOT EXISTS character_snapshots (
     id              TEXT PRIMARY KEY,
     session_id      TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
-    message_id      TEXT REFERENCES messages(id),
-    chapter_id      TEXT REFERENCES chapters(id),
+    message_id      TEXT REFERENCES messages(id) ON DELETE SET NULL,
+    chapter_id      TEXT REFERENCES chapters(id) ON DELETE SET NULL,
     snapshot_json   TEXT NOT NULL DEFAULT '{}',  -- 角色卡完整 JSON 快照
     created_at      REAL NOT NULL
 );
