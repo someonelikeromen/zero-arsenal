@@ -16,7 +16,7 @@ const AGENTS = [
   { id: 'rules', label: '规则系统', icon: '🎲' },
 ]
 
-const PLACEHOLDERS = ['{{world_plugin}}', '{{character_name}}', '{{session_id}}', '{{chapter_index}}']
+const PLACEHOLDERS = ['{{plugin_key}}', '{{character_name}}', '{{session_id}}', '{{chapter_index}}']
 
 interface PromptCardProps {
   prompt: PromptTemplate

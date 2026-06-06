@@ -46,14 +46,14 @@ def test_session_init() -> str:
 
     r = requests.post(f"{BACKEND}/api/sessions", json={
         "title": f"IA测试_{TS}",
-        "world_plugin": "infinite_arsenal",
+        "plugin_key": "infinite_arsenal",
         "mode": "play",
     }, timeout=10)
     assert r.status_code == 200
     data = r.json()
     sid  = data.get("session_id") or data.get("id")
     assert sid
-    log(f"创建会话 id={sid[:8]}... world_plugin=infinite_arsenal")
+    log(f"创建会话 id={sid[:8]}... plugin_key=infinite_arsenal")
 
     # 读取角色卡
     r2 = requests.get(f"{BACKEND}/api/sessions/{sid}/character", timeout=5)
@@ -328,7 +328,7 @@ def main():
 
     report = SS_DIR / f"{TS}_ia_report.json"
     report.write_text(json.dumps({
-        "timestamp": TS, "world_plugin": "infinite_arsenal",
+        "timestamp": TS, "plugin_key": "infinite_arsenal",
         "session_id": sid,
         "results": results,
         "screenshots": [s.name for s in shots],

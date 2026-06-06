@@ -238,14 +238,14 @@ function WorldModal({
 }: {
   worldId: string | null
   /** 编辑已有世界时用于预填基础信息（NEW-C14-04） */
-  initial?: { name?: string; world_plugin?: string; description?: string }
+  initial?: { name?: string; plugin_key?: string; description?: string }
   onClose: () => void
   onSaved: () => void
 }) {
   // 编辑已有世界时默认进入「URL 抓取」（补充抓取是该入口的核心诉求）
   const [tab, setTab] = useState<CreationTab>(worldId ? 'url' : 'manual')
   const [name, setName] = useState(initial?.name ?? '')
-  const [plugin, setPlugin] = useState(initial?.world_plugin ?? 'crossover')
+  const [plugin, setPlugin] = useState(initial?.plugin_key ?? 'crossover')
   const [desc, setDesc] = useState(initial?.description ?? '')
   const [url, setUrl] = useState('')
   const [docText, setDocText] = useState('')
@@ -263,7 +263,7 @@ function WorldModal({
 
   const ensureWorldCreated = async (): Promise<string> => {
     if (createdWorldId) return createdWorldId
-    const res = await api.createWorld({ name: name || '未命名世界', world_plugin: plugin, description: desc })
+    const res = await api.createWorld({ name: name || '未命名世界', plugin_key: plugin, description: desc })
     setCreatedWorldId(res.world_id)
     return res.world_id
   }
@@ -506,7 +506,7 @@ export const WorldManager: React.FC = () => {
   const [worlds, setWorlds] = useState<World[]>([])
   const [loading, setLoading] = useState(true)
   // null = 关闭；{worldId:null} = 新建；{worldId:'x'} = 对已有世界补充抓取（NEW-C14-04）
-  const [modalState, setModalState] = useState<{ worldId: string | null; initial?: { name?: string; world_plugin?: string; description?: string } } | null>(null)
+  const [modalState, setModalState] = useState<{ worldId: string | null; initial?: { name?: string; plugin_key?: string; description?: string } } | null>(null)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [archives, setArchives] = useState<Record<string, WorldArchiveEntry[]>>({})
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -630,7 +630,7 @@ export const WorldManager: React.FC = () => {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="font-medium text-sm">{w.name}</span>
-                    <span className="text-xs bg-zinc-700 text-zinc-400 px-1.5 py-0.5 rounded">{w.world_plugin}</span>
+                    <span className="text-xs bg-zinc-700 text-zinc-400 px-1.5 py-0.5 rounded">{w.plugin_key}</span>
                   </div>
                   {w.description && (
                     <p className="text-xs text-zinc-500 mt-0.5 truncate">{w.description}</p>
@@ -646,7 +646,7 @@ export const WorldManager: React.FC = () => {
                   </button>
                   <button onClick={e => {
                       e.stopPropagation()
-                      setModalState({ worldId: w.id, initial: { name: w.name, world_plugin: w.world_plugin, description: w.description } })
+                      setModalState({ worldId: w.id, initial: { name: w.name, plugin_key: w.plugin_key, description: w.description } })
                     }}
                     className="text-xs text-indigo-400 hover:text-indigo-300 px-1"
                     title="对该世界再次进行 URL 抓取 / 文档解析">

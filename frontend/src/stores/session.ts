@@ -42,7 +42,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   },
 
   createSession: async (worldPlugin = 'crossover', title?) => {
-    const res = await api.createSession({ world_plugin: worldPlugin, title })
+    const res = await api.createSession({ plugin_key: worldPlugin, title })
     await get().loadSessions()
     return res.session_id
   },

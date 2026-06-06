@@ -36,7 +36,7 @@ class TemplateHooks:
     async def on_turn_end(self, ctx: dict) -> dict:
         """每回合结束钩子。TODO: 实现资源结算 / 随机事件等。"""
         # 仅处理本世界的会话（按需启用）：
-        # if ctx.get("world_plugin") != WORLD_PLUGIN:
+        # if ctx.get("plugin_key") != WORLD_PLUGIN:
         #     return ctx
         return ctx
 

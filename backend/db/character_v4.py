@@ -32,7 +32,7 @@ except Exception:  # pragma: no cover
 # ── JSON Schema（完整 v4，设计 06-data-model.md §2.1）────────────────────────────
 #
 # 设计原则：
-#   - required 仅保留 ["name", "world_plugin"]，以兼容历史上已生成的简化卡（避免
+#   - required 仅保留 ["name", "plugin_key"]，以兼容历史上已生成的简化卡（避免
 #     旧卡加载即报必填缺失）。完整 v4 字段全部以 properties 声明，供校验/补全使用。
 #   - attributes 同时容纳「扁平 5 维（strength..empathy）」与设计的「schema + values」
 #     体系（additionalProperties: true）。
@@ -82,10 +82,10 @@ CHARACTER_V4_SCHEMA: dict = {
     "title": "CharacterCardV4",
     "version": SCHEMA_VERSION,
     "type": "object",
-    "required": ["name", "world_plugin"],
+    "required": ["name", "plugin_key"],
     "properties": {
         "name": {"type": "string", "description": "角色名称"},
-        "world_plugin": {
+        "plugin_key": {
             "type": "string",
             "description": "所在世界插件标识，如 muv_luv / crossover",
         },
@@ -96,7 +96,7 @@ CHARACTER_V4_SCHEMA: dict = {
             "description": "卡片元数据",
             "properties": {
                 "schema_version": {"type": "string"},
-                "world_plugin":   {"type": "string"},
+                "plugin_key":   {"type": "string"},
                 "card_id":        {"type": "string"},
                 "created_at":     {"type": ["number", "string"]},
                 "updated_at":     {"type": ["number", "string"]},
@@ -347,7 +347,7 @@ def _default_body_parts() -> dict:
 
 def create_default_character(
     name: str,
-    world_plugin: str = "crossover",
+    plugin_key: str = "crossover",
 ) -> dict:
     """创建具有默认值的 v4 角色卡（完整结构，含历史兼容字段）。"""
     strength = 5
@@ -365,11 +365,11 @@ def create_default_character(
 
     return {
         "name": name,
-        "world_plugin": world_plugin,
+        "plugin_key": plugin_key,
         # 完整 v4
         "meta": {
             "schema_version": SCHEMA_VERSION,
-            "world_plugin":   world_plugin,
+            "plugin_key":   plugin_key,
             "card_id":        str(uuid.uuid4()),
             "created_at":     now_ts,
             "updated_at":     now_ts,
@@ -380,7 +380,7 @@ def create_default_character(
             "name":          name,
             "aliases":       [],
             "gender":        "unknown",
-            "current_world": world_plugin,
+            "current_world": plugin_key,
             "cycle_count":   0,
             "appearance":    {},
         },
@@ -455,7 +455,7 @@ def _manual_validate(data: dict) -> list[str]:
     """内置手写规则校验（jsonschema 缺失时的回落，且永远执行作为补充）。"""
     errors: list[str] = []
 
-    for required in ("name", "world_plugin"):
+    for required in ("name", "plugin_key"):
         if not data.get(required):
             errors.append(f"缺少必填字段: {required}")
 
@@ -553,10 +553,10 @@ def migrate_v3_to_v4(v3_data: dict) -> dict:
       - 补 energy_pools（默认体力池）
       - psychology 补 OCEAN 默认 + 迁移 stress/morale/trauma
       - economy 补 badges/tier/tier_sub/cash
-      - 补 meta(schema_version/world_plugin/card_id) 与 identity
+      - 补 meta(schema_version/plugin_key/card_id) 与 identity
     """
     name = v3_data.get("name", "未知角色")
-    world_plugin = v3_data.get("world", v3_data.get("world_plugin", "crossover"))
+    plugin_key = v3_data.get("world", v3_data.get("plugin_key", "crossover"))
 
     attrs_raw = v3_data.get("attributes", v3_data.get("stats", {})) or {}
     attributes = {
@@ -619,10 +619,10 @@ def migrate_v3_to_v4(v3_data: dict) -> dict:
     now_ts = time.time()
     return {
         "name":           name,
-        "world_plugin":   world_plugin,
+        "plugin_key":   plugin_key,
         "meta": {
             "schema_version": SCHEMA_VERSION,
-            "world_plugin":   world_plugin,
+            "plugin_key":   plugin_key,
             "card_id":        v3_data.get("card_id", str(uuid.uuid4())),
             "created_at":     v3_data.get("created_at", now_ts),
             "updated_at":     now_ts,
@@ -633,7 +633,7 @@ def migrate_v3_to_v4(v3_data: dict) -> dict:
             "name":          name,
             "aliases":       v3_data.get("aliases", []),
             "gender":        v3_data.get("gender", "unknown"),
-            "current_world": world_plugin,
+            "current_world": plugin_key,
             "cycle_count":   int(v3_data.get("cycle_count", 0)),
             "appearance":    v3_data.get("appearance", {}),
         },

@@ -7,7 +7,7 @@ const BASE = '/api'
 export interface Session {
   session_id: string
   title: string
-  world_plugin: string
+  plugin_key: string
   agent_profile: string
   current_mode: 'play' | 'plan' | 'review'
   /** @deprecated use current_mode */
@@ -44,7 +44,7 @@ export interface PagedMessages {
 }
 
 export interface CreateSessionReq {
-  world_plugin?: string
+  plugin_key?: string
   agent_profile?: string
   title?: string
   character_data?: Record<string, unknown>
@@ -223,7 +223,7 @@ export const api = {
   // ── 经济 & 战斗 ────────────────────────────────────────────────────────────
   getEconomy: (sessionId: string) =>
     apiFetch<{
-      world_plugin: string
+      plugin_key: string
       currency: string
       balance: number
       badges: unknown[]
@@ -325,7 +325,7 @@ export const api = {
   listSessionsPaged: (status = 'active', limit = 20, cursor?: string, worldPlugin?: string) => {
     const params = new URLSearchParams({ status, limit: String(limit) })
     if (cursor) params.set('cursor', cursor)
-    if (worldPlugin) params.set('world_plugin', worldPlugin)
+    if (worldPlugin) params.set('plugin_key', worldPlugin)
     return apiFetch<{ items: Session[]; next_cursor: string | null; has_more: boolean; total: number }>(
       `/sessions?${params}`
     )
@@ -374,12 +374,12 @@ export const api = {
 
   // ── 全局世界模板 ───────────────────────────────────────────────────────────
   listWorlds: (worldPlugin?: string) => {
-    const q = worldPlugin ? `?world_plugin=${worldPlugin}` : ''
+    const q = worldPlugin ? `?plugin_key=${worldPlugin}` : ''
     return apiFetch<{ worlds: World[] }>(`/worlds${q}`)
   },
-  createWorld: (req: { name: string; world_plugin?: string; description?: string }) =>
+  createWorld: (req: { name: string; plugin_key?: string; description?: string }) =>
     apiFetch<{ world_id: string; name: string }>('/worlds', { method: 'POST', body: JSON.stringify(req) }),
-  updateWorld: (wid: string, req: { name?: string; world_plugin?: string; description?: string }) =>
+  updateWorld: (wid: string, req: { name?: string; plugin_key?: string; description?: string }) =>
     apiFetch<{ ok: boolean }>(`/worlds/${wid}`, { method: 'PATCH', body: JSON.stringify(req) }),
   deleteWorld: (wid: string) =>
     apiFetch<{ ok: boolean }>(`/worlds/${wid}`, { method: 'DELETE' }),
@@ -396,21 +396,21 @@ export const api = {
 
   // ── 全局人物模板 ───────────────────────────────────────────────────────────
   listCharacterTemplates: (worldPlugin?: string) => {
-    const q = worldPlugin ? `?world_plugin=${worldPlugin}` : ''
+    const q = worldPlugin ? `?plugin_key=${worldPlugin}` : ''
     return apiFetch<{ characters: CharacterTemplate[] }>(`/characters${q}`)
   },
   getCharacterTemplate: (cid: string) =>
     apiFetch<CharacterTemplate & { data_json: Record<string, unknown> }>(`/characters/${cid}`),
-  createCharacterTemplate: (req: { name: string; world_plugin?: string; data_json?: Record<string, unknown> }) =>
+  createCharacterTemplate: (req: { name: string; plugin_key?: string; data_json?: Record<string, unknown> }) =>
     apiFetch<{ character_id: string; name: string }>('/characters', { method: 'POST', body: JSON.stringify(req) }),
-  updateCharacterTemplate: (cid: string, req: { name?: string; world_plugin?: string; data_json?: Record<string, unknown> }) =>
+  updateCharacterTemplate: (cid: string, req: { name?: string; plugin_key?: string; data_json?: Record<string, unknown> }) =>
     apiFetch<{ ok: boolean }>(`/characters/${cid}`, { method: 'PATCH', body: JSON.stringify(req) }),
   deleteCharacterTemplate: (cid: string) =>
     apiFetch<{ ok: boolean }>(`/characters/${cid}`, { method: 'DELETE' }),
   importCharacterPng: async (file: File, worldPlugin?: string) => {
     const form = new FormData()
     form.append('file', file)
-    const q = worldPlugin ? `?world_plugin=${worldPlugin}` : ''
+    const q = worldPlugin ? `?plugin_key=${worldPlugin}` : ''
     const res = await fetch(`${BASE}/characters/import-png${q}`, { method: 'POST', body: form })
     if (!res.ok) throw new Error(`导入失败 ${res.status}: ${await res.text()}`)
     return res.json() as Promise<{ character_id: string; name: string }>
@@ -419,12 +419,12 @@ export const api = {
 
   // ── 全局资产库 ─────────────────────────────────────────────────────────────
   listNpcTemplates: (worldPlugin?: string) => {
-    const q = worldPlugin ? `?world_plugin=${worldPlugin}` : ''
+    const q = worldPlugin ? `?plugin_key=${worldPlugin}` : ''
     return apiFetch<{ npcs: NpcTemplate[] }>(`/assets/npcs${q}`)
   },
-  createNpcTemplate: (req: { name: string; key?: string; world_plugin?: string; profile_json?: Record<string, unknown> }) =>
+  createNpcTemplate: (req: { name: string; key?: string; plugin_key?: string; profile_json?: Record<string, unknown> }) =>
     apiFetch<{ npc_id: string; key: string; name: string }>('/assets/npcs', { method: 'POST', body: JSON.stringify(req) }),
-  updateNpcTemplate: (nid: string, req: { name?: string; world_plugin?: string; profile_json?: Record<string, unknown> }) =>
+  updateNpcTemplate: (nid: string, req: { name?: string; plugin_key?: string; profile_json?: Record<string, unknown> }) =>
     apiFetch<{ ok: boolean }>(`/assets/npcs/${nid}`, { method: 'PATCH', body: JSON.stringify(req) }),
   deleteNpcTemplate: (nid: string) =>
     apiFetch<{ ok: boolean }>(`/assets/npcs/${nid}`, { method: 'DELETE' }),
@@ -434,13 +434,13 @@ export const api = {
   listItemTemplates: (itemType?: string, worldPlugin?: string) => {
     const params = new URLSearchParams()
     if (itemType) params.set('item_type', itemType)
-    if (worldPlugin) params.set('world_plugin', worldPlugin)
+    if (worldPlugin) params.set('plugin_key', worldPlugin)
     const q = params.toString() ? `?${params}` : ''
     return apiFetch<{ items: ItemTemplate[] }>(`/assets/items${q}`)
   },
-  createItemTemplate: (req: { name: string; item_type?: string; world_plugin?: string; data_json?: Record<string, unknown> }) =>
+  createItemTemplate: (req: { name: string; item_type?: string; plugin_key?: string; data_json?: Record<string, unknown> }) =>
     apiFetch<{ item_id: string; name: string }>('/assets/items', { method: 'POST', body: JSON.stringify(req) }),
-  updateItemTemplate: (iid: string, req: { name?: string; item_type?: string; world_plugin?: string; data_json?: Record<string, unknown> }) =>
+  updateItemTemplate: (iid: string, req: { name?: string; item_type?: string; plugin_key?: string; data_json?: Record<string, unknown> }) =>
     apiFetch<{ ok: boolean }>(`/assets/items/${iid}`, { method: 'PATCH', body: JSON.stringify(req) }),
   deleteItemTemplate: (iid: string) =>
     apiFetch<{ ok: boolean }>(`/assets/items/${iid}`, { method: 'DELETE' }),
@@ -475,7 +475,7 @@ export const api = {
 export interface World {
   id: string
   name: string
-  world_plugin: string
+  plugin_key: string
   description: string
   created_at: number | null
   updated_at: number
@@ -495,7 +495,7 @@ export interface WorldArchiveEntry {
 export interface CharacterTemplate {
   id: string
   name: string
-  world_plugin: string
+  plugin_key: string
   schema_version: string
   data_json?: Record<string, unknown>
   created_at: number | null
@@ -506,7 +506,7 @@ export interface NpcTemplate {
   id: string
   name: string
   key: string
-  world_plugin: string
+  plugin_key: string
   profile_json: Record<string, unknown>
   created_at: number | null
   updated_at: number
@@ -516,7 +516,7 @@ export interface ItemTemplate {
   id: string
   name: string
   item_type: string
-  world_plugin: string
+  plugin_key: string
   data_json: Record<string, unknown>
   created_at: number | null
   updated_at: number

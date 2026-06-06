@@ -36,7 +36,7 @@ export const SessionManager: React.FC<Props> = ({ onOpenSession }) => {
   const filtered = sessions.filter(s => {
     if (!s.session_id) return false
     const matchSearch = !search || (s.title ?? '').toLowerCase().includes(search.toLowerCase())
-    const matchPlugin = !filterPlugin || s.world_plugin === filterPlugin
+    const matchPlugin = !filterPlugin || s.plugin_key === filterPlugin
     return matchSearch && matchPlugin
   })
 
@@ -159,7 +159,7 @@ export const SessionManager: React.FC<Props> = ({ onOpenSession }) => {
                     </div>
                   )}
                   <div className="flex items-center gap-3 text-xs text-zinc-500">
-                    <span className="bg-zinc-700 text-zinc-400 px-1.5 py-0.5 rounded">{s.world_plugin}</span>
+                    <span className="bg-zinc-700 text-zinc-400 px-1.5 py-0.5 rounded">{s.plugin_key}</span>
                     <span>{s.agent_profile}</span>
                     <span>{new Date(s.created_at).toLocaleString()}</span>
                   </div>

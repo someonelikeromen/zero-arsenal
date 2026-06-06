@@ -33,7 +33,7 @@ def screenshot_path(step: str) -> str:
 def test_worlds_api():
     print("\n[API] Testing /api/worlds ...")
     # Create world
-    r = requests.post(f"{BACKEND}/api/worlds", json={"name": "测试世界", "world_plugin": "crossover", "description": "E2E测试"}, timeout=10)
+    r = requests.post(f"{BACKEND}/api/worlds", json={"name": "测试世界", "plugin_key": "crossover", "description": "E2E测试"}, timeout=10)
     assert r.status_code == 200, f"Create world failed: {r.text}"
     wid = r.json()["world_id"]
     print(f"  ✓ 创建世界 ID={wid}")
@@ -79,14 +79,14 @@ def test_character_templates_api():
     time.sleep(1)  # avoid rate limiting
     char_data = {
         "name": "测试角色", "gender": "male", "tier": "T0",
-        "world_plugin": "crossover", "background": "测试背景",
+        "plugin_key": "crossover", "background": "测试背景",
         "stats": {"strength": 5, "agility": 5, "intelligence": 5},
         "skills": [], "items": []
     }
 
     # Create template
     r = requests.post(f"{BACKEND}/api/characters",
-        json={"name": "测试角色", "world_plugin": "crossover", "data_json": char_data}, timeout=10)
+        json={"name": "测试角色", "plugin_key": "crossover", "data_json": char_data}, timeout=10)
     assert r.status_code == 200, f"Create character failed: {r.text}"
     cid = r.json()["character_id"]
     print(f"  ✓ 创建人物模板 ID={cid}")
@@ -159,7 +159,7 @@ def test_session_with_templates(wid: str, cid: str):
     time.sleep(2)  # avoid rate limiting
     # Create session using world template
     r = requests.post(f"{BACKEND}/api/sessions",
-        json={"world_plugin": "crossover", "title": "模板测试会话",
+        json={"plugin_key": "crossover", "title": "模板测试会话",
               "world_id": wid, "character_template_id": cid}, timeout=10)
     assert r.status_code == 200, f"Create session failed: {r.text}"
     sid = r.json()["session_id"]

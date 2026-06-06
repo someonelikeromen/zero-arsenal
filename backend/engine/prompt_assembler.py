@@ -31,7 +31,7 @@ def assemble(
     phase: str,
     session_id: str = "",
     state: dict[str, Any] | None = None,
-    world_plugin: str = "crossover",
+    plugin_key: str = "crossover",
     template_str: str | None = None,
     template_vars: dict[str, Any] | None = None,
     skill_phase: str | None = None,
@@ -43,8 +43,8 @@ def assemble(
     ----------
     phase          : 目标相位（"all" / "p1" / "p2" / "p3" / "p4" / "dm" / ...）
     session_id     : 会话 ID，用于查询 runtime 层片段
-    state          : 注入状态字典（world_plugin、mode 等），用于条件片段判断
-    world_plugin   : 世界插件 key，触发插件的 apply_to_registry 注入
+    state          : 注入状态字典（plugin_key、mode 等），用于条件片段判断
+    plugin_key   : 世界插件 key，触发插件的 apply_to_registry 注入
     template_str   : 可选 Jinja2 模板字符串；若提供则在 Registry 结果末尾追加渲染结果
     template_vars  : Jinja2 渲染上下文变量
     skill_phase    : 注入 Skill 块时使用的相位（None 则与 phase 相同）
@@ -57,7 +57,7 @@ def assemble(
     template_vars = template_vars or {}
 
     # ── 1. Registry 路径 ─────────────────────────────────────────────────────
-    result = _build_from_registry(phase, session_id, state, world_plugin)
+    result = _build_from_registry(phase, session_id, state, plugin_key)
 
     # ── 2. Skill 注入（Layer 5）────────────────────────────────────────────────
     try:
@@ -65,7 +65,7 @@ def assemble(
         skill_block = skill_registry.build_injection_block(
             phase=skill_phase or phase,
             state=state,
-            world_plugin=world_plugin,
+            plugin_key=plugin_key,
         )
         if skill_block:
             result = result + "\n\n" + skill_block
@@ -75,7 +75,10 @@ def assemble(
     # ── 3. 扩展规则注入（Track C）────────────────────────────────────────────
     try:
         from ..extensions.rules_loader import rule_registry
-        rules_block = rule_registry.build_injection_block(phase)
+        aw = (state or {}).get("active_world_key", "")
+        rules_block = rule_registry.build_injection_block(
+            phase, plugin_key=plugin_key, active_world_key=aw
+        )
         if rules_block:
             result = result + "\n\n" + rules_block
     except Exception as e:
@@ -93,7 +96,7 @@ def assemble_with_data_stream(
     user_content: str,
     session_id: str = "",
     state: dict[str, Any] | None = None,
-    world_plugin: str = "crossover",
+    plugin_key: str = "crossover",
     template_str: str | None = None,
     template_vars: dict[str, Any] | None = None,
     ctx: Any | None = None,
@@ -114,7 +117,7 @@ def assemble_with_data_stream(
         phase=phase,
         session_id=session_id,
         state=state,
-        world_plugin=world_plugin,
+        plugin_key=plugin_key,
         template_str=template_str,
         template_vars=template_vars,
     )
@@ -146,7 +149,7 @@ def assemble_messages(
     user_content: str,
     session_id: str = "",
     state: dict[str, Any] | None = None,
-    world_plugin: str = "crossover",
+    plugin_key: str = "crossover",
     template_str: str | None = None,
     template_vars: dict[str, Any] | None = None,
     ctx: Any | None = None,
@@ -162,7 +165,7 @@ def assemble_messages(
         user_content=user_content,
         session_id=session_id,
         state=state,
-        world_plugin=world_plugin,
+        plugin_key=plugin_key,
         template_str=template_str,
         template_vars=template_vars,
         ctx=ctx,
@@ -175,7 +178,7 @@ def _build_from_registry(
     phase: str,
     session_id: str,
     state: dict[str, Any],
-    world_plugin: str,
+    plugin_key: str,
 ) -> str:
     """
     调用 PromptRegistry.build_system_prompt()，先让 WorldPlugin 注入其片段。
@@ -185,7 +188,7 @@ def _build_from_registry(
         from ..prompts.registry import registry
         from ..extensions.plugin import plugin_registry as _plug_reg
 
-        plugin = _plug_reg.get(world_plugin)
+        plugin = _plug_reg.get(plugin_key)
         if plugin:
             plugin.apply_to_registry(registry)
 
@@ -241,7 +244,7 @@ def _cli() -> None:
         phase=args.phase,
         session_id=args.session,
         state=state,
-        world_plugin=args.world,
+        plugin_key=args.world,
         template_str=args.template,
     )
     print(json.dumps({"ok": True, "phase": args.phase, "length": len(result), "prompt": result},

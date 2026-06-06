@@ -23,7 +23,7 @@ class TemplatePlugin(WorldPlugin):
         char = state.get("character_data", {})
         meta = char.setdefault("meta", {})
         meta.setdefault("example_resource", 0)      # TODO: 替换为你的资源字段
-        meta.setdefault("world_plugin", "template")
+        meta.setdefault("plugin_key", "template")
         state["character_data"] = char
         return state
 

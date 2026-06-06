@@ -50,7 +50,7 @@ def _create_session() -> str:
     """创建测试会话，返回 session_id。"""
     r = _post("/api/sessions", json={
         "title": "memory_test_session",
-        "world_plugin": "crossover",
+        "plugin_key": "crossover",
         "mode": "play",
     })
     assert r.status_code == 200, f"创建会话失败: {r.status_code} {r.text[:200]}"

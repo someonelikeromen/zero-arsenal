@@ -40,7 +40,7 @@ DEFAULT_PROMPTS = [
     {
         "agent": "world",
         "label": "世界观一致性",
-        "content": "维护世界观时：\n- 当前世界插件：{{world_plugin}}\n- 技术/魔法水平与设定一致\n- 时间线不倒退（已发生的事无法撤销）\n- 关键 NPC 不随意离开或死亡",
+        "content": "维护世界观时：\n- 当前世界插件：{{plugin_key}}\n- 技术/魔法水平与设定一致\n- 时间线不倒退（已发生的事无法撤销）\n- 关键 NPC 不随意离开或死亡",
         "sort_order": 0,
     },
     {

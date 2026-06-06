@@ -240,7 +240,7 @@ export const SessionPage: React.FC<Props> = ({ sessionId, onNavigateSession }) =
 
     // 加载 session 基础信息（获取 worldPlugin）
     api.getSession(sessionId)
-      .then(s => setWorldPlugin((s as { world_plugin: string }).world_plugin ?? 'crossover'))
+      .then(s => setWorldPlugin((s as { plugin_key: string }).plugin_key ?? 'crossover'))
       .catch(() => {})
     refreshStats()
 
@@ -257,9 +257,9 @@ export const SessionPage: React.FC<Props> = ({ sessionId, onNavigateSession }) =
     ]).then(([routes, sess]) => {
       if (cancelled) return
       const hasRoutes = routes && Object.keys((routes as { routes?: Record<string, unknown> }).routes ?? {}).length > 0
-      const s = sess as { world_plugin?: string; character_id?: string }
+      const s = sess as { plugin_key?: string; character_id?: string }
       if (!hasRoutes) setSystemState('no_llm')
-      else if (!s.world_plugin) setSystemState('no_world')
+      else if (!s.plugin_key) setSystemState('no_world')
       else setSystemState('ready')
     })
     return () => { cancelled = true }

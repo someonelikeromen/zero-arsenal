@@ -77,7 +77,7 @@ function CreatorModal({ onClose, onSaved }: { onClose: () => void; onSaved: () =
       const resp = await fetch('/api/characters/generate/questions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ world_plugin: worldPlugin, char_type: charType }),
+        body: JSON.stringify({ plugin_key: worldPlugin, char_type: charType }),
       })
       const reader = resp.body!.getReader()
       const decoder = new TextDecoder()
@@ -142,7 +142,7 @@ function CreatorModal({ onClose, onSaved }: { onClose: () => void; onSaved: () =
     try {
       const body = {
         mode,
-        world_plugin: worldPlugin,
+        plugin_key: worldPlugin,
         name,
         gender,
         char_type: charType,
@@ -193,7 +193,7 @@ function CreatorModal({ onClose, onSaved }: { onClose: () => void; onSaved: () =
     if (!charData) return
     setSaving(true)
     try {
-      await api.createCharacterTemplate({ name: (charData.name as string) || name, world_plugin: worldPlugin, data_json: charData })
+      await api.createCharacterTemplate({ name: (charData.name as string) || name, plugin_key: worldPlugin, data_json: charData })
       notify.success('已保存为人物模板')
       onSaved()
       onClose()
@@ -389,7 +389,7 @@ function CreatorModal({ onClose, onSaved }: { onClose: () => void; onSaved: () =
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <p className="text-xs text-zinc-500">生成完成，可在此微调任意字段后保存</p>
-                <span className="text-xs bg-zinc-700 text-zinc-400 px-2 py-0.5 rounded">{charData.world_plugin as string}</span>
+                <span className="text-xs bg-zinc-700 text-zinc-400 px-2 py-0.5 rounded">{charData.plugin_key as string}</span>
               </div>
 
               <CharacterEditor data={charData} onChange={setCharData} />
@@ -426,7 +426,7 @@ function EditModal({ cid, onClose, onSaved }: { cid: string; onClose: () => void
         const res = await api.getCharacterTemplate(cid)
         setData(res.data_json || {})
         setName(res.name)
-        setWorldPlugin(res.world_plugin)
+        setWorldPlugin(res.plugin_key)
       } catch (e) {
         notify.error(`加载模板失败：${e instanceof Error ? e.message : String(e)}`)
         onClose()
@@ -440,7 +440,7 @@ function EditModal({ cid, onClose, onSaved }: { cid: string; onClose: () => void
     if (!data) return
     setSaving(true)
     try {
-      await api.updateCharacterTemplate(cid, { name: (data.name as string) || name, world_plugin: worldPlugin, data_json: data })
+      await api.updateCharacterTemplate(cid, { name: (data.name as string) || name, plugin_key: worldPlugin, data_json: data })
       notify.success('已保存模板修改')
       onSaved()
       onClose()
@@ -489,7 +489,7 @@ function CharacterCard({ char, onEdit, onClone, onDelete }: {
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
           <span className="font-medium text-sm">{char.name}</span>
-          <span className="text-xs bg-zinc-700 text-zinc-400 px-1.5 py-0.5 rounded">{char.world_plugin}</span>
+          <span className="text-xs bg-zinc-700 text-zinc-400 px-1.5 py-0.5 rounded">{char.plugin_key}</span>
         </div>
         <p className="text-xs text-zinc-500 mt-0.5">
           更新于 {new Date((char.updated_at || 0) * 1000).toLocaleDateString()}
@@ -548,7 +548,7 @@ export const CharacterCreator: React.FC = () => {
       const data = { ...(full.data_json || {}) }
       const cloneName = `${char.name}_副本`
       data.name = cloneName
-      await api.createCharacterTemplate({ name: cloneName, world_plugin: char.world_plugin, data_json: data })
+      await api.createCharacterTemplate({ name: cloneName, plugin_key: char.plugin_key, data_json: data })
       notify.success(`已克隆为「${cloneName}」`)
       load()
     } catch (e) {

@@ -123,14 +123,14 @@ async def lifespan(app: FastAPI):
                 except Exception as _hook_err:
                     _log(f"[ExtLoader] Hook registration failed: {_hook_err}")
             # 注册 WorldPlugin 到 plugin_registry（E2 修复）
-            if _ext.world_plugin is not None:
+            if _ext.plugin_key is not None:
                 try:
                     from .extensions.plugin import WorldPlugin as _WP
-                    if isinstance(_ext.world_plugin, _WP):
-                        _plugin_reg.register(_ext.world_plugin)
-                        _log(f"[ExtLoader] WorldPlugin '{_ext.world_plugin.key}' registered")
+                    if isinstance(_ext.plugin_key, _WP):
+                        _plugin_reg.register(_ext.plugin_key)
+                        _log(f"[ExtLoader] WorldPlugin '{_ext.plugin_key.key}' registered")
                     else:
-                        _log(f"[ExtLoader] WorldPlugin skipped (not WorldPlugin dataclass): {type(_ext.world_plugin)}")
+                        _log(f"[ExtLoader] WorldPlugin skipped (not WorldPlugin dataclass): {type(_ext.plugin_key)}")
                 except Exception as _wp_err:
                     _log(f"[ExtLoader] WorldPlugin register failed: {_wp_err}")
         # 注册扩展 prompt_fragments → PromptRegistry（E6 修复）

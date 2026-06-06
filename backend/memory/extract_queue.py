@@ -100,7 +100,7 @@ class ExtractQueue:
     async def _worker(self) -> None:
         """
         后台消费者循环。
-        每个 task 格式：{session_id, chapter_id, narrative_text, world_plugin}
+        每个 task 格式：{session_id, chapter_id, narrative_text, plugin_key}
         """
         while self._running:
             try:

@@ -26,13 +26,11 @@ router = APIRouter()
 
 class CreateWorldRequest(BaseModel):
     name: str
-    world_plugin: str = "crossover"
     description: str = ""
 
 
 class UpdateWorldRequest(BaseModel):
     name: Optional[str] = None
-    world_plugin: Optional[str] = None
     description: Optional[str] = None
 
 
@@ -108,22 +106,12 @@ async def _extract_lore_sse(raw_text: str) -> AsyncIterator[str]:
 # ── CRUD 路由 ─────────────────────────────────────────────────────────────────
 
 @router.get("/worlds")
-async def list_worlds(world_plugin: Optional[str] = None):
+async def list_worlds():
     async with get_db() as db:
-        if world_plugin:
-            rows = await (await db.execute(
-                "SELECT * FROM worlds WHERE world_plugin=? ORDER BY updated_at DESC",
-                (world_plugin,)
-            )).fetchall()
-        else:
-            rows = await (await db.execute(
-                "SELECT * FROM worlds ORDER BY updated_at DESC"
-            )).fetchall()
-    worlds = []
-    for r in rows:
-        w = dict(r)
-        worlds.append(w)
-    return {"worlds": worlds}
+        rows = await (await db.execute(
+            "SELECT * FROM worlds ORDER BY updated_at DESC"
+        )).fetchall()
+    return {"worlds": [dict(r) for r in rows]}
 
 
 @router.post("/worlds")
@@ -132,8 +120,8 @@ async def create_world(req: CreateWorldRequest):
     now = time.time()
     async with get_db() as db:
         await db.execute(
-            "INSERT INTO worlds (id, name, world_plugin, description, created_at, updated_at) VALUES (?,?,?,?,?,?)",
-            (wid, req.name, req.world_plugin, req.description, now, now)
+            "INSERT INTO worlds (id, name, description, created_at, updated_at) VALUES (?,?,?,?,?)",
+            (wid, req.name, req.description, now, now)
         )
         await db.commit()
     return {"world_id": wid, "name": req.name}
@@ -156,7 +144,6 @@ async def update_world(wid: str, req: UpdateWorldRequest):
             raise HTTPException(404, "World not found")
         updates, vals = [], []
         if req.name is not None: updates.append("name=?"); vals.append(req.name)
-        if req.world_plugin is not None: updates.append("world_plugin=?"); vals.append(req.world_plugin)
         if req.description is not None: updates.append("description=?"); vals.append(req.description)
         if updates:
             vals += [time.time(), wid]

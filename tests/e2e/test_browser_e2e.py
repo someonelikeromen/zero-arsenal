@@ -78,7 +78,7 @@ def test_api_smoke():
     # 创建新会话
     payload = {
         "title": f"E2E测试会话_{TIMESTAMP}",
-        "world_plugin": "crossover",
+        "plugin_key": "crossover",
         "mode": "play",
     }
     r = requests.post(f"{BACKEND_URL}/api/sessions", json=payload, timeout=10)

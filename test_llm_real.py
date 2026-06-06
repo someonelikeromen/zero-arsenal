@@ -80,7 +80,7 @@ async def test_rules_agent():
         session_id="test-session",
         message_id="test-msg-1",
         user_input="我尝试用剑劈开眼前的石门",
-        world_plugin="crossover",
+        plugin_key="crossover",
         mode="play",
         character_data={"identity": {"name": "测试角色"}},
     )
@@ -101,7 +101,7 @@ async def test_dm_agent():
         session_id="test-session",
         message_id="test-msg-2",
         user_input="我向守卫谎称自己是城主的使者，要求进入密室",
-        world_plugin="crossover",
+        plugin_key="crossover",
         mode="play",
         character_data={"identity": {"name": "李逍遥"}, "attributes": {"charisma": {"base": 7}}},
     )
@@ -131,7 +131,7 @@ async def test_narrator():
         session_id="test-narr",
         message_id="test-narr-msg",
         user_input="我拔出长剑，向前方的黑影冲去",
-        world_plugin="crossover",
+        plugin_key="crossover",
         mode="play",
         character_data={"identity": {"name": "剑客赵云"}},
         dm_verdict="allow",

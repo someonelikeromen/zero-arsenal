@@ -68,21 +68,21 @@ async def _search_memory(session_id: str, query: str, top_k: int = 5,
     from ..memory.adapter import memory_adapter
     from ..db import get_db
 
-    # 获取 world_plugin
-    world_plugin = "crossover"
+    # 获取 plugin_key
+    plugin_key = "crossover"
     try:
         async with get_db() as db:
             sess = await (
-                await db.execute("SELECT world_plugin FROM sessions WHERE id=?", (session_id,))
+                await db.execute("SELECT plugin_key FROM sessions WHERE id=?", (session_id,))
             ).fetchone()
             if sess:
-                world_plugin = sess["world_plugin"]
+                plugin_key = sess["plugin_key"]
     except Exception:
         pass
 
     results = await memory_adapter.recall(
         session_id=session_id,
-        world_plugin=world_plugin,
+        plugin_key=plugin_key,
         query_text=query,
         viewer_agent=viewer_agent,
         top_k=top_k,
@@ -828,7 +828,7 @@ async def _earn_reward(
 async def _open_shop(
     session_id: str,
     shop_type: str = "misc",
-    world_plugin: str = "",
+    plugin_key: str = "",
     count: int = 5,
 ) -> dict:
     """
@@ -839,20 +839,20 @@ async def _open_shop(
     from ..db import get_db
 
     # 获取世界插件名称
-    if not world_plugin:
+    if not plugin_key:
         try:
             async with get_db() as db:
                 row = await (await db.execute(
-                    "SELECT world_plugin FROM sessions WHERE id=?", (session_id,)
+                    "SELECT plugin_key FROM sessions WHERE id=?", (session_id,)
                 )).fetchone()
                 if row:
-                    world_plugin = row["world_plugin"]
+                    plugin_key = row["plugin_key"]
         except Exception:
-            world_plugin = "crossover"
+            plugin_key = "crossover"
 
     count = max(3, min(8, count))
     prompt = (
-        f"你是世界【{world_plugin}】中一名商人。请为玩家生成一个【{shop_type}】类型的商店货架，"
+        f"你是世界【{plugin_key}】中一名商人。请为玩家生成一个【{shop_type}】类型的商店货架，"
         f"包含 {count} 件商品。\n"
         "以 JSON 列表返回，每项格式：\n"
         '{"name":"...", "key":"...", "price":整数铜币, "quality":"common|rare|epic|legendary", "description":"..."}\n'
@@ -877,14 +877,14 @@ async def _open_shop(
             {"name": "生命药水", "key": "potion_hp", "price": 50, "quality": "common",
              "description": "恢复 2d6 HP"},
         ]
-    return {"ok": True, "shop_type": shop_type, "world": world_plugin, "items": items}
+    return {"ok": True, "shop_type": shop_type, "world": plugin_key, "items": items}
 
 
 async def _evaluate_item(
     session_id: str,
     item_name: str,
     item_quality: str = "common",
-    world_plugin: str = "",
+    plugin_key: str = "",
 ) -> dict:
     """
     用 LLM 评估物品市场价值，返回价格区间和说明。
@@ -892,19 +892,19 @@ async def _evaluate_item(
     from ..llm.client import llm_complete
     from ..db import get_db
 
-    if not world_plugin:
+    if not plugin_key:
         try:
             async with get_db() as db:
                 row = await (await db.execute(
-                    "SELECT world_plugin FROM sessions WHERE id=?", (session_id,)
+                    "SELECT plugin_key FROM sessions WHERE id=?", (session_id,)
                 )).fetchone()
                 if row:
-                    world_plugin = row["world_plugin"]
+                    plugin_key = row["plugin_key"]
         except Exception:
-            world_plugin = "crossover"
+            plugin_key = "crossover"
 
     prompt = (
-        f"世界背景：{world_plugin}。物品：【{item_name}】（{item_quality}品质）。\n"
+        f"世界背景：{plugin_key}。物品：【{item_name}】（{item_quality}品质）。\n"
         "请估算该物品的公平市场价格，以铜币为单位。\n"
         "以 JSON 返回：{\"min\": 整数, \"max\": 整数, \"fair\": 整数, \"reason\": \"...\"}\n"
         "只输出 JSON，不要其他内容。"
@@ -1897,7 +1897,7 @@ def _register_all() -> None:
             "properties": {
                 "session_id": {"type": "string", "description": "会话 ID"},
                 "shop_type": {"type": "string", "description": "商店类型，如 weapon/potion/misc", "default": "misc"},
-                "world_plugin": {"type": "string", "description": "世界插件名称", "default": ""},
+                "plugin_key": {"type": "string", "description": "世界插件名称", "default": ""},
                 "count": {"type": "integer", "description": "生成商品数量（3~8）", "default": 5},
             },
             "required": ["session_id"],
@@ -1917,7 +1917,7 @@ def _register_all() -> None:
                 "session_id": {"type": "string", "description": "会话 ID"},
                 "item_name": {"type": "string", "description": "物品名称"},
                 "item_quality": {"type": "string", "description": "品质：common/rare/epic/legendary", "default": "common"},
-                "world_plugin": {"type": "string", "description": "世界插件名称", "default": ""},
+                "plugin_key": {"type": "string", "description": "世界插件名称", "default": ""},
             },
             "required": ["session_id", "item_name"],
         },

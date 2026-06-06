@@ -89,13 +89,13 @@ async def _run_agent_pipeline(session_id: str, message_id: str, content: str) ->
 
     character_data: dict = {}
     mode = "play"
-    world_plugin = "crossover"
+    plugin_key = "crossover"
     try:
         async with get_db() as db:
             sess = await (await db.execute("SELECT * FROM sessions WHERE id=?", (session_id,))).fetchone()
             if sess:
                 mode = sess["mode"]
-                world_plugin = sess["world_plugin"]
+                plugin_key = sess["plugin_key"]
             char = await (await db.execute(
                 "SELECT data_json FROM character_cards WHERE session_id=? LIMIT 1", (session_id,)
             )).fetchone()
@@ -107,11 +107,11 @@ async def _run_agent_pipeline(session_id: str, message_id: str, content: str) ->
     _plugin_obj = None
     try:
         from ...extensions.plugin import plugin_registry as _plug_reg
-        _plugin_obj = _plug_reg.get(world_plugin)
+        _plugin_obj = _plug_reg.get(plugin_key)
         if _plugin_obj:
             turn_state = {
                 "session_id": session_id, "message_id": message_id,
-                "world_plugin": world_plugin, "mode": mode,
+                "plugin_key": plugin_key, "mode": mode,
                 "character_data": character_data,
             }
             character_data = _plugin_obj.on_turn_start(turn_state).get("character_data", character_data)
@@ -134,7 +134,7 @@ async def _run_agent_pipeline(session_id: str, message_id: str, content: str) ->
         message_id=message_id,
         user_input=content,
         character_data=character_data,
-        world_plugin=world_plugin,
+        plugin_key=plugin_key,
         mode=mode,
         turn_index=turn_index,
         novel_id=session_id,   # 03-agent-system.md §4：novel_id = session_id
@@ -142,7 +142,7 @@ async def _run_agent_pipeline(session_id: str, message_id: str, content: str) ->
 
     hook_ctx: dict = {
         "session_id": session_id, "message_id": message_id,
-        "user_input": content, "mode": mode, "world_plugin": world_plugin,
+        "user_input": content, "mode": mode, "plugin_key": plugin_key,
     }
     try:
         from ...hooks import hook_manager, HookEvent
@@ -202,7 +202,7 @@ async def _run_agent_pipeline(session_id: str, message_id: str, content: str) ->
 
             end_state = {
                 "session_id": session_id, "message_id": message_id,
-                "world_plugin": world_plugin, "mode": mode,
+                "plugin_key": plugin_key, "mode": mode,
                 "character_data": character_data,
             }
             result_state = _plugin_obj.on_turn_end(end_state)

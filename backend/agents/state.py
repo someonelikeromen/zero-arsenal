@@ -106,9 +106,15 @@ class TurnContext:
 
     # ── 基础上下文 ────────────────────────────────────────────────────────────
     character_data: Annotated[dict, _keep_last] = field(default_factory=dict)
-    world_plugin: Annotated[str, _keep_last] = "crossover"
+    plugin_key: Annotated[str, _keep_last] = "crossover"   # 驱动行为的插件键
+    world_id: Annotated[str, _keep_last] = ""              # 关联的世界内容 ID（可空）
     mode: Annotated[str, _keep_last] = "play"              # play | plan | review
     turn_index: Annotated[int, _keep_last] = 0             # 本会话第几轮（从 1 开始）
+
+    @property
+    def world_plugin(self) -> str:
+        """向后兼容别名 → plugin_key。"""
+        return self.plugin_key
 
     # ── 设计文档补充字段（03-agent-system.md §4）─────────────────────────────
     novel_id: Annotated[str, _keep_last] = ""

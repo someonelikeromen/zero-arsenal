@@ -23,11 +23,10 @@ router = APIRouter()
 # ── Pydantic 模型 ─────────────────────────────────────────────────────────────
 
 class CreateSessionRequest(BaseModel):
-    world_plugin: str = "crossover"
+    plugin_key: str = "crossover"
     agent_profile: str = "play"
     title: Optional[str] = None
     character_data: Optional[dict] = None
-    # 新增：从全局模板创建（world_id / character_template_id 二选一或组合使用）
     world_id: Optional[str] = None              # 全局世界模板 ID → 复制 world_archive_entries
     character_template_id: Optional[str] = None  # 全局人物模板 ID → 使用其 data_json
 
@@ -95,9 +94,9 @@ async def create_session(req: CreateSessionRequest):
     now = datetime.now().timestamp()
     async with get_db() as db:
         await db.execute(
-            "INSERT INTO sessions (id, world_plugin, agent_profile, mode, title, created_at, updated_at) "
-            "VALUES (?, ?, ?, 'play', ?, ?, ?)",
-            (session_id, req.world_plugin, req.agent_profile,
+            "INSERT INTO sessions (id, plugin_key, world_id, agent_profile, mode, title, created_at, updated_at) "
+            "VALUES (?, ?, ?, ?, 'play', ?, ?, ?)",
+            (session_id, req.plugin_key, req.world_id, req.agent_profile,
              req.title or f"Session {session_id[:8]}", now, now)
         )
         char_id = str(uuid.uuid4())
@@ -106,18 +105,18 @@ async def create_session(req: CreateSessionRequest):
         # 优先级：character_template_id > character_data > default
         if req.character_template_id:
             tmpl_row = await (await db.execute(
-                "SELECT data_json, world_plugin FROM character_templates WHERE id=?",
+                "SELECT data_json, plugin_key FROM character_templates WHERE id=?",
                 (req.character_template_id,)
             )).fetchone()
             if tmpl_row:
                 try:
                     char_data = json.loads(dict(tmpl_row)["data_json"] or "{}")
                     if not char_data:
-                        char_data = create_default_character("旅行者", req.world_plugin)
+                        char_data = create_default_character("旅行者", req.plugin_key)
                 except Exception:
-                    char_data = create_default_character("旅行者", req.world_plugin)
+                    char_data = create_default_character("旅行者", req.plugin_key)
             else:
-                char_data = create_default_character("旅行者", req.world_plugin)
+                char_data = create_default_character("旅行者", req.plugin_key)
         elif req.character_data:
             char_data = req.character_data
             try:
@@ -128,12 +127,12 @@ async def create_session(req: CreateSessionRequest):
                     logger.warning(
                         "[create_session] character_data 校验失败，回退默认卡: %s", errs[:5]
                     )
-                    char_data = create_default_character("旅行者", req.world_plugin)
+                    char_data = create_default_character("旅行者", req.plugin_key)
             except Exception as _cv_err:
                 logger.warning("[create_session] character_data 处理异常，回退默认卡: %s", _cv_err)
-                char_data = create_default_character("旅行者", req.world_plugin)
+                char_data = create_default_character("旅行者", req.plugin_key)
         else:
-            char_data = create_default_character("旅行者", req.world_plugin)
+            char_data = create_default_character("旅行者", req.plugin_key)
             char_data["meta"]["session_id"] = session_id
 
         await db.execute(
@@ -169,10 +168,10 @@ async def create_session(req: CreateSessionRequest):
 
     try:
         from ...extensions.plugin import plugin_registry as _plugin_reg
-        _plugin = _plugin_reg.get(req.world_plugin)
+        _plugin = _plugin_reg.get(req.plugin_key)
         if _plugin:
             init_state: dict = {
-                "session_id": session_id, "world_plugin": req.world_plugin,
+                "session_id": session_id, "plugin_key": req.plugin_key,
                 "mode": "play", "character_data": req.character_data or {},
             }
             _patched = _plugin.on_session_init(init_state)
@@ -184,11 +183,11 @@ async def create_session(req: CreateSessionRequest):
                     )
                     await db2.commit()
     except Exception as _init_err:
-        logger.warning("[create_session] WorldPlugin on_session_init 失败，沿用初始角色卡 (world=%s, session=%s): %s",
-                       req.world_plugin, session_id, _init_err)
+        logger.warning("[create_session] Plugin on_session_init 失败，沿用初始角色卡 (plugin=%s, session=%s): %s",
+                       req.plugin_key, session_id, _init_err)
 
     await bus.publish(BusEvent(type=EventType.SESSION_STARTED, session_id=session_id,
-                               data={"world_plugin": req.world_plugin, "agent_profile": req.agent_profile}))
+                               data={"plugin_key": req.plugin_key, "agent_profile": req.agent_profile}))
     # 重新读取最终 character 数据（插件可能已修改）
     async with get_db() as _char_db:
         _char_row = await (await _char_db.execute(
@@ -200,7 +199,8 @@ async def create_session(req: CreateSessionRequest):
     return {
         "session_id": session_id,
         "title": req.title or f"Session {session_id[:8]}",
-        "world_plugin": req.world_plugin,
+        "plugin_key": req.plugin_key,
+        "world_id": req.world_id,
         "agent_profile": req.agent_profile,
         "current_mode": "play",
         "created_at": datetime.fromtimestamp(now).isoformat(),
@@ -247,9 +247,9 @@ async def list_sessions(
     status: str = "active",
     limit: int = 20,
     cursor: Optional[str] = None,
-    world_plugin: Optional[str] = None,
+    plugin_key: Optional[str] = None,
 ):
-    """列出会话（游标分页），支持 world_plugin 过滤。"""
+    """列出会话（游标分页），支持 plugin_key 过滤。"""
     import base64
 
     cursor_ts: Optional[float] = None
@@ -266,9 +266,9 @@ async def list_sessions(
         if status != "all":
             where_clauses.append("status=?")
             params.append(status)
-        if world_plugin:
-            where_clauses.append("world_plugin=?")
-            params.append(world_plugin)
+        if plugin_key:
+            where_clauses.append("plugin_key=?")
+            params.append(plugin_key)
         if cursor_ts is not None:
             where_clauses.append("created_at < ?")
             params.append(cursor_ts)
@@ -286,7 +286,7 @@ async def list_sessions(
 
         params.append(limit + 1)
         rows = await db.execute(
-            f"SELECT id, title, world_plugin, mode, status, created_at, updated_at "
+            f"SELECT id, title, plugin_key, world_id, mode, status, created_at, updated_at "
             f"FROM sessions {where_sql} ORDER BY created_at DESC LIMIT ?",
             params
         )
@@ -344,38 +344,34 @@ async def change_mode(session_id: str, req: ModeChangeRequest):
                          (req.mode, now, session_id))
         await db.commit()
 
-    # 获取新模式下的 active_tools，并重新应用 WorldPlugin overlay（设计 §10.7.2）
+        # 获取新模式下的 active_tools，并重新应用 Plugin overlay
     active_tools: list[str] = []
     try:
         from ...agents.permission import profile_registry, PermissionAction, apply_plugin_overlay
         from ...extensions import plugin_registry as ext_registry
 
-        # 查询会话所属的 world_plugin
         async with get_db() as db:
             s_row = await (await db.execute(
-                "SELECT world_plugin FROM sessions WHERE id=?", (session_id,)
+                "SELECT plugin_key FROM sessions WHERE id=?", (session_id,)
             )).fetchone()
-        world_plugin_key: str = (s_row["world_plugin"] if s_row else None) or ""
+        sess_plugin_key: str = (s_row["plugin_key"] if s_row else None) or ""
 
-        # 基础 Profile
         base_profile = profile_registry.get(req.mode)
 
-        # 如果有 WorldPlugin 且其 permission_overlay 非空，构建叠加副本
         effective_profile = base_profile
-        if world_plugin_key:
+        if sess_plugin_key:
             try:
-                plugin = ext_registry.get(world_plugin_key)
+                plugin = ext_registry.get(sess_plugin_key)
                 overlay_for_mode = (plugin.permission_overlay or {}).get(req.mode, {})
                 if overlay_for_mode:
-                    # 将 str → PermissionAction 转换后应用叠加层
                     typed_overlay = {
                         pat: PermissionAction(val) if isinstance(val, str) else val
                         for pat, val in overlay_for_mode.items()
                     }
                     effective_profile = apply_plugin_overlay(base_profile, typed_overlay)
             except Exception as _ov_err:
-                logger.warning("[change_mode] WorldPlugin overlay 应用失败，沿用基础 Profile (world=%s, mode=%s): %s",
-                               world_plugin_key, req.mode, _ov_err)
+                logger.warning("[change_mode] Plugin overlay 应用失败，沿用基础 Profile (plugin=%s, mode=%s): %s",
+                               sess_plugin_key, req.mode, _ov_err)
 
         # 缓存会话级有效 Profile（供 tool_loop / ask_handler 使用）
         profile_registry.set_session_profile(session_id, effective_profile)
@@ -452,10 +448,10 @@ async def fork_session(session_id: str, req: ForkRequest):
             cutoff_ts = fork_msg["created_at"]
 
         await db.execute(
-            "INSERT INTO sessions (id, world_plugin, agent_profile, mode, branch_of, branch_label, "
+            "INSERT INTO sessions (id, plugin_key, world_id, agent_profile, mode, branch_of, branch_label, "
             "fork_from_msg, title, state_json, created_at, updated_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (branch_id, original["world_plugin"], original["agent_profile"],
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (branch_id, original["plugin_key"], original["world_id"], original["agent_profile"],
              original["mode"], session_id, req.branch_label, fork_msg_id,
              f"[分支] {req.branch_label}", original["state_json"], now, now)
         )
@@ -909,7 +905,7 @@ async def manual_consolidate(session_id: str, req: ConsolidateRequest = Consolid
     from ...agents.state import TurnContext
 
     ctx = TurnContext(session_id=session_id, user_input="[manual consolidate]",
-                      world_plugin="crossover", mode="plan")
+                      plugin_key="crossover", mode="plan")
     if req.title:
         ctx.extra_context = {"override_title": req.title}
     if req.summary:
@@ -1047,11 +1043,12 @@ async def rollback_to_chapter(session_id: str, chapter_id: str,
                 orig = dict(orig_row)
                 branch_title = f"{orig.get('title', session_id)}_branch_{new_branch_id[:8]}"
                 await branch_db.execute(
-                    "INSERT INTO sessions (id, title, world_plugin, agent_profile, mode, "
+                    "INSERT INTO sessions (id, title, plugin_key, world_id, agent_profile, mode, "
                     "created_at, updated_at, status, branch_of) "
-                    "VALUES (?,?,?,?,?,?,?,?,?)",
+                    "VALUES (?,?,?,?,?,?,?,?,?,?)",
                     (new_branch_id, branch_title,
-                     orig.get("world_plugin", ""), orig.get("agent_profile", "play"),
+                     orig.get("plugin_key", "crossover"), orig.get("world_id"),
+                     orig.get("agent_profile", "play"),
                      orig.get("mode", "play"), branch_now, branch_now, "active", session_id)
                 )
                 # 复制角色卡
@@ -1269,13 +1266,13 @@ async def search_memory(session_id: str, q: str = "", top_k: int = 10,
 
     async with get_db() as db:
         sess = await (await db.execute(
-            "SELECT world_plugin FROM sessions WHERE id=?", (session_id,)
+            "SELECT plugin_key FROM sessions WHERE id=?", (session_id,)
         )).fetchone()
-    world_plugin = sess["world_plugin"] if sess else "crossover"
+    plugin_key_val = sess["plugin_key"] if sess else "crossover"
 
     results_text = await memory_adapter.recall(
         session_id=session_id,
-        world_plugin=world_plugin,
+        world_plugin=plugin_key_val,
         query_text=q,
         viewer_agent=viewer_agent,
         top_k=top_k,
@@ -1316,13 +1313,13 @@ async def add_memory(session_id: str, req: AddMemoryRequest):
 
     async with get_db() as db:
         sess = await (await db.execute(
-            "SELECT world_plugin FROM sessions WHERE id=?", (session_id,)
+            "SELECT plugin_key FROM sessions WHERE id=?", (session_id,)
         )).fetchone()
-    world_plugin = sess["world_plugin"] if sess else "crossover"
+    plugin_key_val = sess["plugin_key"] if sess else "crossover"
 
     ok = await memory_adapter.add_memory(
         session_id=session_id,
-        world_plugin=world_plugin,
+        world_plugin=plugin_key_val,
         content=req.content,
         node_type=req.node_type,
         chapter_id=req.chapter_id,

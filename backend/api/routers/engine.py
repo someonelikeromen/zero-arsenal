@@ -124,7 +124,7 @@ async def combat_action(req: dict):
 # ── 经济系统 ──────────────────────────────────────────────────────────────────
 
 _ECONOMY_CATALOGS: dict[str, dict] = {
-    # world_plugin → {pools_file, shop_file, currency}
+    # plugin_key → {pools_file, shop_file, currency}
     "infinite_arsenal": {"pools": "pool-catalog.json", "shop": None, "currency": "crossover_points"},
     "crossover":        {"pools": None, "shop": "shop-catalog.json", "currency": "crossover_points"},
 }
@@ -146,13 +146,13 @@ def _load_extension_json(plugin: str, filename: str) -> dict | list | None:
 @router.get("/engine/economy/{session_id}")
 async def get_economy(session_id: str):
     """
-    返回会话经济状态：货币余额 / 徽章 + 按 world_plugin 对应的卡池/商城目录。
+    返回会话经济状态：货币余额 / 徽章 + 按 plugin_key 对应的卡池/商城目录。
     """
     async with get_db() as db:
         sess = await (await db.execute(
-            "SELECT world_plugin FROM sessions WHERE id=?", (session_id,)
+            "SELECT plugin_key FROM sessions WHERE id=?", (session_id,)
         )).fetchone()
-        world_plugin = sess["world_plugin"] if sess else "crossover"
+        plugin_key = sess["plugin_key"] if sess else "crossover"
         char_row = await (await db.execute(
             "SELECT data_json, points FROM character_cards WHERE session_id=? "
             "ORDER BY updated_at DESC LIMIT 1", (session_id,)
@@ -165,17 +165,17 @@ async def get_economy(session_id: str):
         except Exception:
             meta = {}
 
-    cat_cfg = _ECONOMY_CATALOGS.get(world_plugin, {})
+    cat_cfg = _ECONOMY_CATALOGS.get(plugin_key, {})
     currency = cat_cfg.get("currency", "points")
     balance = int(meta.get(currency, meta.get("points", char_row["points"] if char_row else 0) or 0))
     badges = meta.get("badges", meta.get("medals", []))
 
-    pools = _load_extension_json(world_plugin, cat_cfg["pools"]) if cat_cfg.get("pools") else None
-    shop = _load_extension_json(world_plugin, cat_cfg["shop"]) if cat_cfg.get("shop") else None
+    pools = _load_extension_json(plugin_key, cat_cfg["pools"]) if cat_cfg.get("pools") else None
+    shop = _load_extension_json(plugin_key, cat_cfg["shop"]) if cat_cfg.get("shop") else None
 
     return {
         "session_id": session_id,
-        "world_plugin": world_plugin,
+        "plugin_key": plugin_key,
         "currency": currency,
         "balance": balance,
         "badges": badges if isinstance(badges, list) else [],

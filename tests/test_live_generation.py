@@ -63,7 +63,7 @@ def test_character_generate():
         f"{BACKEND}/api/characters/generate",
         json={
             "mode": "quick",
-            "world_plugin": "gundam_seed",
+            "plugin_key": "gundam_seed",
             "name": "苏力图",
             "gender": "男",
             "char_type": "transmigrator",
@@ -103,7 +103,7 @@ def test_quiz_questions():
     print("\n=== 测试3: LLM 生成问卷题目（generate/questions SSE）===")
     r = requests.post(
         f"{BACKEND}/api/characters/generate/questions",
-        json={"world_plugin": "gundam_seed", "char_type": "transmigrator"},
+        json={"plugin_key": "gundam_seed", "char_type": "transmigrator"},
         timeout=60,
         stream=True,
     )

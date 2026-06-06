@@ -24,7 +24,7 @@ class SkillMeta:
     inject_as: str = "user"             # system | user
     path: Path = field(default_factory=Path)
     content: str = ""                   # 完整 markdown 内容（lazy load）
-    applicable_worlds: list = field(default_factory=list)  # [] = 全局；非空 = 指定 world_plugin
+    applicable_worlds: list = field(default_factory=list)  # [] = 全局；非空 = 指定 plugin_key
 
 
 class SkillRegistry:
@@ -160,7 +160,7 @@ class SkillRegistry:
         state: AgentState / TurnContext 的 dict 快照。
         
         示例 condition（来自 04-extension-system.md §2.3）：
-            'state["mode"] == "combat" and "crossover" in state["world_plugin"]'
+            'state["mode"] == "combat" and "crossover" in state["plugin_key"]'
         """
         if skill.trigger != "auto" or not skill.condition:
             return False
@@ -176,7 +176,7 @@ class SkillRegistry:
             return False
 
     def get_active_skills(self, phase: str, state: dict | None = None,
-                          world_plugin: str = "") -> list[SkillMeta]:
+                          plugin_key: str = "") -> list[SkillMeta]:
         """
         返回当前相位激活的所有技能，按 priority 降序排列。
 
@@ -185,15 +185,15 @@ class SkillRegistry:
         - trigger=auto：evaluate_condition(state) 为 True 时激活
         - trigger=on_demand：不自动激活（由玩家/DM 手动触发）
 
-        applicable_worlds 过滤：若 skill 设定了适用世界且 world_plugin 不在其中，跳过。
+        applicable_worlds 过滤：若 skill 设定了适用世界且 plugin_key 不在其中，跳过。
         """
         result: list[SkillMeta] = []
         for s in self._skills.values():
             # Phase 过滤
             if s.phases and phase not in s.phases and "all" not in s.phases:
                 continue
-            # applicable_worlds 过滤（E8）：非空则必须包含当前 world_plugin
-            if s.applicable_worlds and world_plugin not in s.applicable_worlds:
+            # applicable_worlds 过滤（E8）：非空则必须包含当前 plugin_key
+            if s.applicable_worlds and plugin_key not in s.applicable_worlds:
                 continue
             # trigger 过滤
             if s.trigger == "always":
@@ -208,12 +208,12 @@ class SkillRegistry:
         return result
 
     def build_injection_block(self, phase: str, state: dict | None = None,
-                              world_plugin: str = "") -> str:
+                              plugin_key: str = "") -> str:
         """
         构建当前相位所有激活技能的注入文本块（按 priority 顺序）。
         返回空字符串表示无激活技能。
         """
-        active = self.get_active_skills(phase, state, world_plugin)
+        active = self.get_active_skills(phase, state, plugin_key)
         if not active:
             return ""
         parts = []

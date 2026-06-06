@@ -55,7 +55,7 @@ def _build_rules_messages(ctx: TurnContext) -> list[dict]:
         from ..extensions.plugin import plugin_registry as _plug_reg
 
         # 世界插件提示片段注入 world 层
-        plugin = _plug_reg.get(ctx.world_plugin)
+        plugin = _plug_reg.get(ctx.plugin_key)
         if plugin:
             plugin.apply_to_registry(_pr)
 
@@ -63,7 +63,7 @@ def _build_rules_messages(ctx: TurnContext) -> list[dict]:
         built = _pr.build_system_prompt(
             phase="rules",
             session_id=ctx.session_id,
-            state={"world_plugin": ctx.world_plugin, "mode": ctx.mode},
+            state={"plugin_key": ctx.plugin_key, "mode": ctx.mode},
             token_budget=_spb("rules", ctx.mode),
         )
         if built.strip():
@@ -74,9 +74,9 @@ def _build_rules_messages(ctx: TurnContext) -> list[dict]:
     # 注入世界专属规则 Skill（Layer 5）
     try:
         from ..tools.skill_loader import skill_registry
-        state_snapshot = {"world_plugin": ctx.world_plugin, "mode": ctx.mode}
+        state_snapshot = {"plugin_key": ctx.plugin_key, "mode": ctx.mode}
         skill_block = skill_registry.build_injection_block(
-            phase="rules", state=state_snapshot, world_plugin=ctx.world_plugin
+            phase="rules", state=state_snapshot, plugin_key=ctx.plugin_key
         )
         if skill_block:
             system_content += "\n\n" + skill_block
@@ -86,7 +86,7 @@ def _build_rules_messages(ctx: TurnContext) -> list[dict]:
     # 注入世界插件的规则 Skill 文件内容
     try:
         from ..extensions.plugin import plugin_registry as _plug_reg2
-        plugin2 = _plug_reg2.get(ctx.world_plugin)
+        plugin2 = _plug_reg2.get(ctx.plugin_key)
         if plugin2:
             world_rules = plugin2.get_rules_skills()
             if world_rules:
@@ -112,7 +112,7 @@ def _build_rules_messages(ctx: TurnContext) -> list[dict]:
     return [
         {"role": "system", "content": system_content},
         {"role": "user", "content": (
-            f"世界插件：{ctx.world_plugin}\n"
+            f"世界插件：{ctx.plugin_key}\n"
             f"玩家行动：{ctx.user_input}"
             f"{risky_hint}"
         )},
@@ -144,7 +144,7 @@ async def _rules_agent_impl(ctx: TurnContext) -> TurnContext:
         )
         rules_tools = ["check_skill_trigger", "query_world_rules", "read_character"]
         user_content = (
-            f"世界插件：{ctx.world_plugin}\n"
+            f"世界插件：{ctx.plugin_key}\n"
             f"玩家行动：{ctx.user_input}\n"
             "请先用工具查询技能触发和世界规则，再给出裁决 JSON。"
         )

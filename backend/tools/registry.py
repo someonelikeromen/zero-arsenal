@@ -118,12 +118,12 @@ class ToolDef:
     execution_mode: str = "parallel"                # parallel（幂等，可并发）| sequential（副作用，串行）
     # 扩展工具元数据（backend/extensions/*/tools.py 在构造 ToolDef 时会传入这些 kwargs）：
     #   display_name —— UI 展示名（可选，留空时回落到 name）
-    #   world_plugin —— 工具所属世界插件键（如 "muv_luv" / "gundam_seed"；空=通用）
+    #   plugin_key —— 工具所属世界插件键（如 "muv_luv" / "gundam_seed"；空=通用）
     # 历史上 ToolDef 不接受这两个字段，导致 extensions/*/tools.py 在 import 阶段抛
-    #   TypeError: ToolDef.__init__() got an unexpected keyword argument 'world_plugin'/'display_name'
+    #   TypeError: ToolDef.__init__() got an unexpected keyword argument 'plugin_key'/'display_name'
     # 这里显式声明字段以兼容扩展工具加载（conf_b07）。
     display_name: str = ""
-    world_plugin: str = ""
+    plugin_key: str = ""
     # 工具级别中间件钩子（优先于全局 HookEvent，仅对此工具生效）
     # before_hooks: list of async(args: dict, ctx: ToolContext) -> dict | None
     #   返回 dict 时替换 args；返回 None 时使用原始 args

@@ -134,7 +134,7 @@ async def _style_impl(ctx: TurnContext) -> TurnContext:
         built = _pr.build_system_prompt(
             phase="style",
             session_id=ctx.session_id,
-            state={"world_plugin": ctx.world_plugin, "mode": ctx.mode},
+            state={"plugin_key": ctx.plugin_key, "mode": ctx.mode},
             token_budget=_spb("style", ctx.mode),
         )
         if built.strip():

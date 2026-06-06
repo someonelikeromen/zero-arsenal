@@ -22,13 +22,13 @@ router = APIRouter()
 class CreateNpcTemplateRequest(BaseModel):
     name: str
     key: str = ""
-    world_plugin: str = "crossover"
+    plugin_key: str = "crossover"
     profile_json: dict = {}
 
 
 class UpdateNpcTemplateRequest(BaseModel):
     name: Optional[str] = None
-    world_plugin: Optional[str] = None
+    plugin_key: Optional[str] = None
     profile_json: Optional[dict] = None
 
 
@@ -39,14 +39,14 @@ class ImportNpcRequest(BaseModel):
 class CreateItemTemplateRequest(BaseModel):
     name: str
     item_type: str = "equipment"
-    world_plugin: str = "crossover"
+    plugin_key: str = "crossover"
     data_json: dict = {}
 
 
 class UpdateItemTemplateRequest(BaseModel):
     name: Optional[str] = None
     item_type: Optional[str] = None
-    world_plugin: Optional[str] = None
+    plugin_key: Optional[str] = None
     data_json: Optional[dict] = None
 
 
@@ -58,12 +58,12 @@ class GrantItemRequest(BaseModel):
 # ── NPC 模板路由 ──────────────────────────────────────────────────────────────
 
 @router.get("/assets/npcs")
-async def list_npc_templates(world_plugin: Optional[str] = None):
+async def list_npc_templates(plugin_key: Optional[str] = None):
     async with get_db() as db:
-        if world_plugin:
+        if plugin_key:
             rows = await (await db.execute(
-                "SELECT * FROM npc_templates WHERE world_plugin=? ORDER BY name ASC",
-                (world_plugin,)
+                "SELECT * FROM npc_templates WHERE plugin_key=? ORDER BY name ASC",
+                (plugin_key,)
             )).fetchall()
         else:
             rows = await (await db.execute(
@@ -93,9 +93,9 @@ async def create_npc_template(req: CreateNpcTemplateRequest):
         if existing:
             key = f"{key}_{nid[:8]}"
         await db.execute(
-            "INSERT INTO npc_templates (id, name, key, world_plugin, profile_json, created_at, updated_at)"
+            "INSERT INTO npc_templates (id, name, key, plugin_key, profile_json, created_at, updated_at)"
             " VALUES (?,?,?,?,?,?,?)",
-            (nid, req.name, key, req.world_plugin, json.dumps(req.profile_json, ensure_ascii=False), now, now)
+            (nid, req.name, key, req.plugin_key, json.dumps(req.profile_json, ensure_ascii=False), now, now)
         )
         await db.commit()
     return {"npc_id": nid, "key": key, "name": req.name}
@@ -109,7 +109,7 @@ async def update_npc_template(nid: str, req: UpdateNpcTemplateRequest):
             raise HTTPException(404, "NPC template not found")
         updates, vals = [], []
         if req.name is not None: updates.append("name=?"); vals.append(req.name)
-        if req.world_plugin is not None: updates.append("world_plugin=?"); vals.append(req.world_plugin)
+        if req.plugin_key is not None: updates.append("plugin_key=?"); vals.append(req.plugin_key)
         if req.profile_json is not None:
             updates.append("profile_json=?")
             vals.append(json.dumps(req.profile_json, ensure_ascii=False))
@@ -164,11 +164,11 @@ async def import_npc_to_session(nid: str, req: ImportNpcRequest):
 # ── 物品模板路由 ──────────────────────────────────────────────────────────────
 
 @router.get("/assets/items")
-async def list_item_templates(item_type: Optional[str] = None, world_plugin: Optional[str] = None):
+async def list_item_templates(item_type: Optional[str] = None, plugin_key: Optional[str] = None):
     async with get_db() as db:
         conditions, vals = [], []
         if item_type: conditions.append("item_type=?"); vals.append(item_type)
-        if world_plugin: conditions.append("world_plugin=?"); vals.append(world_plugin)
+        if plugin_key: conditions.append("plugin_key=?"); vals.append(plugin_key)
         where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
         rows = await (await db.execute(
             f"SELECT * FROM item_templates {where} ORDER BY name ASC", vals
@@ -190,9 +190,9 @@ async def create_item_template(req: CreateItemTemplateRequest):
     now = time.time()
     async with get_db() as db:
         await db.execute(
-            "INSERT INTO item_templates (id, name, item_type, world_plugin, data_json, created_at, updated_at)"
+            "INSERT INTO item_templates (id, name, item_type, plugin_key, data_json, created_at, updated_at)"
             " VALUES (?,?,?,?,?,?,?)",
-            (iid, req.name, req.item_type, req.world_plugin,
+            (iid, req.name, req.item_type, req.plugin_key,
              json.dumps(req.data_json, ensure_ascii=False), now, now)
         )
         await db.commit()
@@ -208,7 +208,7 @@ async def update_item_template(iid: str, req: UpdateItemTemplateRequest):
         updates, vals = [], []
         if req.name is not None: updates.append("name=?"); vals.append(req.name)
         if req.item_type is not None: updates.append("item_type=?"); vals.append(req.item_type)
-        if req.world_plugin is not None: updates.append("world_plugin=?"); vals.append(req.world_plugin)
+        if req.plugin_key is not None: updates.append("plugin_key=?"); vals.append(req.plugin_key)
         if req.data_json is not None:
             updates.append("data_json=?")
             vals.append(json.dumps(req.data_json, ensure_ascii=False))

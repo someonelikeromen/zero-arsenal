@@ -17,7 +17,7 @@ class GundamSeedHook:
     骰子结果后自动更新 MS 状态，PS 装甲耗尽时触发警报。
     """
 
-    world_plugin = "gundam_seed"
+    plugin_key = "gundam_seed"
     priority = 10
 
     async def on_roll_check(self, ctx: dict) -> dict:

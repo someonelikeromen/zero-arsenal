@@ -150,7 +150,7 @@ async def _var_impl(ctx: TurnContext) -> TurnContext:
             ]
             memory_adapter.enqueue_extraction(
                 session_id=ctx.session_id,
-                world_plugin=ctx.world_plugin,
+                plugin_key=ctx.plugin_key,
                 chapter_id=chapter_id,
                 messages=messages,
             )

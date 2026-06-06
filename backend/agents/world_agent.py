@@ -23,7 +23,7 @@ WORLD_SYSTEM_PROMPT = """\
 """
 
 
-def _render_world_template(world_plugin: str = "", skill_block: str = "", current_events: str = "") -> str:
+def _render_world_template(plugin_key: str = "", skill_block: str = "", current_events: str = "") -> str:
     """
     从 prompts/templates/world.j2 渲染世界演变 Agent 系统 prompt。
     渲染失败时回退到内联 WORLD_SYSTEM_PROMPT。
@@ -33,7 +33,7 @@ def _render_world_template(world_plugin: str = "", skill_block: str = "", curren
         rendered = render_prompt(
             "world",
             variables={
-                "world_plugin": world_plugin,
+                "plugin_key": plugin_key,
                 "skill_block": skill_block,
                 "current_events": current_events,
             },
@@ -75,7 +75,7 @@ def _should_invoke_world_agent(ctx: TurnContext) -> bool:
     # 带有剧情压规则的世界插件（如 crossover）总是检查
     try:
         from ..extensions.plugin import plugin_registry
-        plugin = plugin_registry.get(ctx.world_plugin)
+        plugin = plugin_registry.get(ctx.plugin_key)
         if plugin and plugin.metadata.get("plot_pressure"):
             return True
     except Exception:
@@ -106,14 +106,14 @@ def _build_world_messages_with_memory(ctx: TurnContext, memory_ctx: str) -> list
 
     # 优先从 Jinja2 模板渲染；失败回退内联 prompt（05-prompt-architecture.md §3）
     system_content = _render_world_template(
-        world_plugin=ctx.world_plugin,
+        plugin_key=ctx.plugin_key,
         current_events=memory_hint.strip(),
     )
 
     return [
         {"role": "system", "content": system_content},
         {"role": "user", "content": (
-            f"世界插件：{ctx.world_plugin}\n"
+            f"世界插件：{ctx.plugin_key}\n"
             f"{memory_hint}"
             f"玩家行动：{ctx.user_input}"
         )},
@@ -141,7 +141,7 @@ async def _world_impl(ctx: TurnContext) -> TurnContext:
         from ..memory.adapter import memory_adapter
         recalled = await memory_adapter.recall(
             session_id=ctx.session_id,
-            world_plugin=ctx.world_plugin,
+            plugin_key=ctx.plugin_key,
             query_text=ctx.user_input[:150],
             viewer_agent="world",
             top_k=4,
@@ -238,7 +238,7 @@ async def _world_impl(ctx: TurnContext) -> TurnContext:
                         "INSERT OR IGNORE INTO world_archives "
                         "(id, session_id, world_key, archive_type, title, content, created_at, updated_at) "
                         "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                        (archive_id, ctx.session_id, ctx.world_plugin,
+                        (archive_id, ctx.session_id, ctx.plugin_key,
                          "event", evt["description"][:60],
                          json.dumps(archive_entry, ensure_ascii=False), now, now),
                     )

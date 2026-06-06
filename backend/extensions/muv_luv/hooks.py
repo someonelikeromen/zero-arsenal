@@ -17,7 +17,7 @@ class MuvLuvHook:
     骰子结果出来后，根据成败自动计算 TSF 损伤和 BETA 威胁响应。
     """
 
-    world_plugin = "muv_luv"
+    plugin_key = "muv_luv"
     priority = 10
 
     async def on_roll_check(self, ctx: dict) -> dict:

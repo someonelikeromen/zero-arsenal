@@ -92,7 +92,7 @@ try:
                 phase=["dm", "rules"],
                 priority=200,
                 content=_plugin_instance.get_world_rules(),
-                condition="state.get('world_plugin') == 'gundam_seed'",
+                condition="state.get('plugin_key') == 'gundam_seed'",
             ),
             _PF(
                 id="gundam_seed.world_context",
@@ -100,7 +100,7 @@ try:
                 phase=["p3", "p1"],
                 priority=210,
                 content=_plugin_instance.get_world_context(),
-                condition="state.get('world_plugin') == 'gundam_seed'",
+                condition="state.get('plugin_key') == 'gundam_seed'",
             ),
         ],
     )

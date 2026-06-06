@@ -30,7 +30,7 @@ function NpcForm({ onClose, onSaved }: { onClose: () => void; onSaved: () => voi
       if (profile) {
         try { profileJson = JSON.parse(profile) } catch { profileJson = { description: profile } }
       }
-      await api.createNpcTemplate({ name, key: key || undefined, world_plugin: plugin, profile_json: profileJson })
+      await api.createNpcTemplate({ name, key: key || undefined, plugin_key: plugin, profile_json: profileJson })
       onSaved()
       onClose()
     } catch (e: unknown) {
@@ -95,7 +95,7 @@ function ItemForm({ onClose, onSaved }: { onClose: () => void; onSaved: () => vo
       const dataJson: Record<string, unknown> = { description: desc }
       if (effects) dataJson.effects = effects
       if (tier) dataJson.tier = tier
-      await api.createItemTemplate({ name, item_type: itemType, world_plugin: plugin, data_json: dataJson })
+      await api.createItemTemplate({ name, item_type: itemType, plugin_key: plugin, data_json: dataJson })
       onSaved()
       onClose()
     } catch (e: unknown) {
@@ -204,7 +204,7 @@ function NpcList() {
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-medium">{npc.name}</span>
                     <span className="text-xs bg-zinc-700 text-zinc-400 px-1.5 rounded">{npc.key}</span>
-                    <span className="text-xs text-zinc-600">{npc.world_plugin}</span>
+                    <span className="text-xs text-zinc-600">{npc.plugin_key}</span>
                   </div>
                 </div>
                 <div className="flex gap-2">

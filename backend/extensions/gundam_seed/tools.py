@@ -149,7 +149,7 @@ TOOLS: list[ToolDef] = [
             "required": ["session_id"],
         },
         handler=_coordinator_check,
-        world_plugin="gundam_seed",
+        plugin_key="gundam_seed",
         tags=["combat", "coordinator"],
     ),
     ToolDef(
@@ -167,7 +167,7 @@ TOOLS: list[ToolDef] = [
             "required": ["session_id"],
         },
         handler=_query_ms_status,
-        world_plugin="gundam_seed",
+        plugin_key="gundam_seed",
         tags=["combat", "mecha"],
     ),
 ]

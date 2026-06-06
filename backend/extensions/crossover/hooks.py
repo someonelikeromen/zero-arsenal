@@ -19,7 +19,7 @@ class CrossoverHook:
     - on_session_start: 初始化主神空间状态
     """
 
-    world_plugin = "crossover"
+    plugin_key = "crossover"
     priority = 20
 
     _CROSSOVER_EVENT_CHANCE = 0.15  # 每回合 15% 概率触发跨界事件

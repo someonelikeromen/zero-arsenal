@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-def _normalize_to_v4(data: dict, world_plugin: str, source: str = "") -> dict:
+def _normalize_to_v4(data: dict, plugin_key: str, source: str = "") -> dict:
     """
     将任意角色卡数据归一化到 v4 并做 jsonschema 校验（R-M14 / D7）。
     - 非 v4（缺 schema_version 或 < 4）先 migrate_v3_to_v4；
@@ -34,14 +34,12 @@ def _normalize_to_v4(data: dict, world_plugin: str, source: str = "") -> dict:
     供 characters 路由所有写入入口共用。
     """
     if not isinstance(data, dict) or not data:
-        return create_default_character("新角色", world_plugin)
+        return create_default_character("新角色", plugin_key)
     out = data
     try:
         sv = str(out.get("schema_version") or out.get("meta", {}).get("schema_version") or "0")
         if sv < "4":
             out = migrate_v3_to_v4(out)
-        if not out.get("world_plugin"):
-            out["world_plugin"] = world_plugin
         valid, errs = validate_character(out)
         if not valid:
             logger.warning("[characters%s] 角色卡 v4 校验未通过（保留数据）: %s",
@@ -56,24 +54,24 @@ def _normalize_to_v4(data: dict, world_plugin: str, source: str = "") -> dict:
 
 class CreateCharacterTemplateRequest(BaseModel):
     name: str
-    world_plugin: str = "crossover"
+    plugin_key: str = "crossover"
     data_json: dict = {}
 
 
 class UpdateCharacterTemplateRequest(BaseModel):
     name: Optional[str] = None
-    world_plugin: Optional[str] = None
+    plugin_key: Optional[str] = None
     data_json: Optional[dict] = None
 
 
 class GenerateQuestionsRequest(BaseModel):
-    world_plugin: str = "crossover"
+    plugin_key: str = "crossover"
     char_type: str = "original"
 
 
 class GenerateCharacterRequest(BaseModel):
     mode: str = "quick"           # quick | quiz | background
-    world_plugin: str = "crossover"
+    plugin_key: str = "crossover"
     name: str = ""
     gender: str = ""
     char_type: str = "original"   # original | transmigrator
@@ -108,7 +106,7 @@ _CHARACTER_SYSTEM = """你是一个 TRPG 角色建档专家。根据用户提供
 v4 JSON 格式：
 {{
   "name": "角色名",
-  "world_plugin": "world_plugin值",
+  "plugin_key": "plugin_key值",
   "attributes": {{"strength":4,"dexterity":4,"intelligence":5,"will":4,"empathy":4}},
   "max_hp": 40,
   "current_hp": 40,
@@ -165,7 +163,7 @@ async def _fetch_canon_context(canon_source: str) -> str:
 
 async def _build_character_prompt(req: GenerateCharacterRequest) -> list[dict]:
     """根据生成模式构建 prompt（异步：可能联网抓取原作上下文）。"""
-    user_content = f"世界观：{req.world_plugin}\n角色名：{req.name or '未命名'}\n性别：{req.gender or '不限'}\n"
+    user_content = f"世界观：{req.plugin_key}\n角色名：{req.name or '未命名'}\n性别：{req.gender or '不限'}\n"
     if req.char_type == "transmigrator":
         user_content += f"角色类型：穿越者（{req.traversal_method or '意外穿越'}）\n"
     if req.core_traits.strip():
@@ -191,17 +189,17 @@ async def _build_character_prompt(req: GenerateCharacterRequest) -> list[dict]:
 # ── CRUD 路由 ─────────────────────────────────────────────────────────────────
 
 @router.get("/characters")
-async def list_character_templates(world_plugin: Optional[str] = None):
+async def list_character_templates(plugin_key: Optional[str] = None):
     async with get_db() as db:
-        if world_plugin:
+        if plugin_key:
             rows = await (await db.execute(
-                "SELECT id, name, world_plugin, schema_version, created_at, updated_at"
-                " FROM character_templates WHERE world_plugin=? ORDER BY updated_at DESC",
-                (world_plugin,)
+                "SELECT id, name, plugin_key, schema_version, created_at, updated_at"
+                " FROM character_templates WHERE plugin_key=? ORDER BY updated_at DESC",
+                (plugin_key,)
             )).fetchall()
         else:
             rows = await (await db.execute(
-                "SELECT id, name, world_plugin, schema_version, created_at, updated_at"
+                "SELECT id, name, plugin_key, schema_version, created_at, updated_at"
                 " FROM character_templates ORDER BY updated_at DESC"
             )).fetchall()
     return {"characters": [dict(r) for r in rows]}
@@ -224,12 +222,12 @@ async def get_character_template(cid: str):
 async def create_character_template(req: CreateCharacterTemplateRequest):
     cid = str(uuid.uuid4())
     now = time.time()
-    raw_data = _normalize_to_v4(req.data_json or {}, req.world_plugin, source="create")
+    raw_data = _normalize_to_v4(req.data_json or {}, req.plugin_key, source="create")
     async with get_db() as db:
         await db.execute(
-            "INSERT INTO character_templates (id, name, world_plugin, data_json, schema_version, created_at, updated_at)"
+            "INSERT INTO character_templates (id, name, plugin_key, data_json, schema_version, created_at, updated_at)"
             " VALUES (?,?,?,?,?,?,?)",
-            (cid, req.name, req.world_plugin, json.dumps(raw_data, ensure_ascii=False), "4", now, now)
+            (cid, req.name, req.plugin_key, json.dumps(raw_data, ensure_ascii=False), "4", now, now)
         )
         await db.commit()
     return {"character_id": cid, "name": req.name}
@@ -243,9 +241,9 @@ async def update_character_template(cid: str, req: UpdateCharacterTemplateReques
             raise HTTPException(404, "Character template not found")
         updates, vals = [], []
         if req.name is not None: updates.append("name=?"); vals.append(req.name)
-        if req.world_plugin is not None: updates.append("world_plugin=?"); vals.append(req.world_plugin)
+        if req.plugin_key is not None: updates.append("plugin_key=?"); vals.append(req.plugin_key)
         if req.data_json is not None:
-            norm = _normalize_to_v4(req.data_json, req.world_plugin or "crossover", source="update")
+            norm = _normalize_to_v4(req.data_json, req.plugin_key or "crossover", source="update")
             updates.append("data_json=?")
             vals.append(json.dumps(norm, ensure_ascii=False))
         if updates:
@@ -266,7 +264,7 @@ async def delete_character_template(cid: str):
 # ── PNG 角色卡导入/导出（SillyTavern / Chub 兼容）─────────────────────────────
 
 @router.post("/characters/import-png")
-async def import_character_png(file: UploadFile = File(...), world_plugin: str = "crossover"):
+async def import_character_png(file: UploadFile = File(...), plugin_key: str = "crossover"):
     """上传 PNG 角色卡 → 解析 chara chunk → 创建人物模板。"""
     from ...utils.png_card import decode_card
     raw = await file.read()
@@ -278,13 +276,13 @@ async def import_character_png(file: UploadFile = File(...), world_plugin: str =
     name = str(payload.get("name") or payload.get("char_name") or "导入角色")
     cid = str(uuid.uuid4())
     now = time.time()
-    payload_wp = payload.get("world_plugin", world_plugin)
+    payload_wp = payload.get("plugin_key", plugin_key)
     payload = _normalize_to_v4(payload, payload_wp, source="import-png")
     async with get_db() as db:
         await db.execute(
-            "INSERT INTO character_templates (id, name, world_plugin, data_json, schema_version, created_at, updated_at)"
+            "INSERT INTO character_templates (id, name, plugin_key, data_json, schema_version, created_at, updated_at)"
             " VALUES (?,?,?,?,?,?,?)",
-            (cid, name, payload.get("world_plugin", world_plugin),
+            (cid, name, payload.get("plugin_key", plugin_key),
              json.dumps(payload, ensure_ascii=False), "4", now, now)
         )
         await db.commit()
@@ -322,7 +320,7 @@ async def generate_questions(req: GenerateQuestionsRequest):
     """LLM → SSE 返回 5 道问卷题目。"""
     messages = [
         {"role": "system", "content": _QUESTIONS_SYSTEM},
-        {"role": "user", "content": f"世界观：{req.world_plugin}，角色类型：{req.char_type}，生成问卷"},
+        {"role": "user", "content": f"世界观：{req.plugin_key}，角色类型：{req.char_type}，生成问卷"},
     ]
 
     async def _stream() -> AsyncIterator[bytes]:
@@ -378,14 +376,14 @@ async def generate_character(req: GenerateCharacterRequest):
                 e = full_text.rfind("}") + 1
                 char_data = json.loads(full_text[s:e]) if s >= 0 else {}
                 if not char_data:
-                    logger.warning("[characters] 角色生成 LLM 输出未含有效 JSON，降级默认卡（world=%s）", req.world_plugin)
-                    char_data = create_default_character(req.name or "新角色", req.world_plugin)
+                    logger.warning("[characters] 角色生成 LLM 输出未含有效 JSON，降级默认卡（world=%s）", req.plugin_key)
+                    char_data = create_default_character(req.name or "新角色", req.plugin_key)
             except Exception as e:
-                logger.warning("[characters] 角色生成 JSON 解析失败，降级默认卡（world=%s）: %s", req.world_plugin, e)
-                char_data = create_default_character(req.name or "新角色", req.world_plugin)
+                logger.warning("[characters] 角色生成 JSON 解析失败，降级默认卡（world=%s）: %s", req.plugin_key, e)
+                char_data = create_default_character(req.name or "新角色", req.plugin_key)
 
             # D7：LLM 产出归一化到 v4 并校验（失败仅告警，保留生成结果）
-            char_data = _normalize_to_v4(char_data, req.world_plugin, source="generate")
+            char_data = _normalize_to_v4(char_data, req.plugin_key, source="generate")
 
             # first_message 由用户直接指定，不交给 LLM 改写
             if req.first_message.strip():

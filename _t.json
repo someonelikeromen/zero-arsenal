@@ -1,0 +1,40 @@
+[
+  {
+    "rule_id": "crossover/economy_rules",
+    "title": "跨界世界经济规则",
+    "trigger": "always",
+    "applicable_agents": [
+      "rules",
+      "dm"
+    ],
+    "priority": 60,
+    "enabled": true
+  },
+  {
+    "rule_id": "gundam_seed/mobile_suit_combat",
+    "title": "mobile_suit_combat",
+    "trigger": "always",
+    "applicable_agents": [],
+    "priority": 50,
+    "enabled": true
+  },
+  {
+    "rule_id": "infinite_arsenal/weapon_rules",
+    "title": "神兵库武器规则",
+    "trigger": "always",
+    "applicable_agents": [
+      "rules",
+      "dm"
+    ],
+    "priority": 70,
+    "enabled": true
+  },
+  {
+    "rule_id": "muv_luv/tsf_combat",
+    "title": "tsf_combat",
+    "trigger": "always",
+    "applicable_agents": [],
+    "priority": 50,
+    "enabled": true
+  }
+]

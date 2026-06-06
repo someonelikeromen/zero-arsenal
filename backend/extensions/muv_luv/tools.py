@@ -149,7 +149,7 @@ TOOLS: list[ToolDef] = [
             "required": ["session_id"],
         },
         handler=_query_tsf_status,
-        world_plugin="muv_luv",
+        plugin_key="muv_luv",
         tags=["combat", "mecha"],
     ),
     ToolDef(
@@ -165,7 +165,7 @@ TOOLS: list[ToolDef] = [
             "required": ["session_id"],
         },
         handler=_beta_threat_assessment,
-        world_plugin="muv_luv",
+        plugin_key="muv_luv",
         tags=["combat", "intel"],
     ),
 ]

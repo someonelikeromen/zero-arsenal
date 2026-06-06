@@ -87,7 +87,7 @@ async def _run_single_npc(
     )
 
     user_content = (
-        f"场景：{ctx.world_plugin}\n"
+        f"场景：{ctx.plugin_key}\n"
         f"玩家行动：{ctx.user_input}\n"
         "请先用工具查询该NPC的档案和知识边界，再给出反应。"
     )
@@ -150,7 +150,7 @@ async def _npc_impl(ctx: TurnContext) -> TurnContext:
         from ..memory.adapter import memory_adapter
         recalled = await memory_adapter.recall(
             session_id=ctx.session_id,
-            world_plugin=ctx.world_plugin,
+            plugin_key=ctx.plugin_key,
             query_text=ctx.user_input[:150],
             viewer_agent="npc",
             top_k=4,

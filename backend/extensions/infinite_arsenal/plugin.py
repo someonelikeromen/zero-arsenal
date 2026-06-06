@@ -19,7 +19,7 @@ class InfiniteArsenalPlugin(WorldPlugin):
         meta.setdefault("highest_tier",    "凡品")   # 当前持有最高品阶武器
         meta.setdefault("artifact_count",  0)       # 持有神器数量
         meta.setdefault("weapon_mastery",  10)      # 武器掌握度（0-100）
-        meta.setdefault("world_plugin",    "infinite_arsenal")
+        meta.setdefault("plugin_key",    "infinite_arsenal")
 
         attrs = char.setdefault("attributes", {})
         attrs.setdefault("artifact_count", {"dots": 0, "max": 10, "description": "持有神器数"})

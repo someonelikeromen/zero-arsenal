@@ -1,6 +1,6 @@
 /**
  * EconomyPanel — 会话经济系统面板
- * 展示货币余额 / 徽章 / 战斗积分 + 按 world_plugin 对应的卡池或商城目录。
+ * 展示货币余额 / 徽章 / 战斗积分 + 按 plugin_key 对应的卡池或商城目录。
  * 数据来自 GET /engine/economy/{sessionId}。
  */
 import React, { useEffect, useState, useCallback } from 'react'
@@ -44,7 +44,7 @@ export const EconomyPanel: React.FC<Props> = ({ sessionId }) => {
   if (!data.has_economy) {
     return (
       <div className="text-xs text-zinc-600 px-3 py-4 text-center">
-        当前世界（{data.world_plugin}）未配置经济系统。
+        当前世界（{data.plugin_key}）未配置经济系统。
       </div>
     )
   }

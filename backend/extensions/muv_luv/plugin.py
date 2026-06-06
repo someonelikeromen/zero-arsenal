@@ -50,7 +50,7 @@ BETA 控制区域：欧亚大陆 60%，中国大陆全境，朝鲜半岛
         """向 PromptRegistry 注入世界片段（05-prompt-architecture.md §3）。"""
         try:
             from ...prompts.registry import PromptFragment
-            _cond = f"state.get('world_plugin') in ['{WORLD_KEY}', '{WORLD_KEY_ALT}']"
+            _cond = f"state.get('plugin_key') in ['{WORLD_KEY}', '{WORLD_KEY_ALT}']"
             registry.register(PromptFragment(
                 id=f"{WORLD_KEY}.world_rules",
                 layer="world",
@@ -98,7 +98,7 @@ try:
                 phase=["dm", "rules"],
                 priority=200,
                 content=_plugin_instance.get_world_rules(),
-                condition=f"state.get('world_plugin') in ['{WORLD_KEY}', '{WORLD_KEY_ALT}']",
+                condition=f"state.get('plugin_key') in ['{WORLD_KEY}', '{WORLD_KEY_ALT}']",
             ),
             _PF(
                 id=f"{WORLD_KEY}.world_context",
@@ -106,7 +106,7 @@ try:
                 phase=["p3", "p1"],
                 priority=210,
                 content=_plugin_instance.get_world_context(),
-                condition=f"state.get('world_plugin') in ['{WORLD_KEY}', '{WORLD_KEY_ALT}']",
+                condition=f"state.get('plugin_key') in ['{WORLD_KEY}', '{WORLD_KEY_ALT}']",
             ),
         ],
     )

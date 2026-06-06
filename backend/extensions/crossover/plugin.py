@@ -28,7 +28,7 @@ class CrossoverPlugin(WorldPlugin):
         meta.setdefault("crossover_points", 1000)
         meta.setdefault("world_cycle", 1)
         meta.setdefault("survival_count", 0)
-        meta.setdefault("world_plugin", "crossover")
+        meta.setdefault("plugin_key", "crossover")
 
         # D7：与角色卡 v4 economy 结构对齐（points/badges/tier），保留 crossover_points 兼容工具
         economy = char.setdefault("economy", {})

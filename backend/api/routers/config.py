@@ -90,7 +90,7 @@ async def memory_health():
 # ── WorldPlugin / AgentProfile / 文风 ────────────────────────────────────────
 
 @router.get("/config/world-plugins")
-async def list_world_plugins():
+async def list_plugin_keys():
     """列出所有已注册的世界插件。"""
     from ...extensions import plugin_registry
     plugins = plugin_registry.list_plugins()

@@ -1,7 +1,7 @@
 """
 记忆子系统适配器 — 将 ai-vn-system-backend memory/ 接入零度武库 session 体系。
 - novel_id = session_id
-- world_key = world_plugin
+- world_key = plugin_key
 - DB 路径由 set_memory_db_path() 配置
 """
 from __future__ import annotations
@@ -113,7 +113,7 @@ class MemoryAdapter:
     async def recall(
         self,
         session_id: str,
-        world_plugin: str,
+        plugin_key: str,
         query_text: str,
         viewer_agent: str = "narrator",
         top_k: int = 10,
@@ -123,7 +123,7 @@ class MemoryAdapter:
             try:
                 result = await _engine.recall(
                     novel_id=session_id,
-                    world_key=world_plugin,
+                    world_key=plugin_key,
                     query_text=query_text,
                     viewer_agent=viewer_agent,
                     top_k=top_k,
@@ -321,7 +321,7 @@ class MemoryAdapter:
     async def add_memory(
         self,
         session_id: str,
-        world_plugin: str,
+        plugin_key: str,
         content: str,
         node_type: str = "event",
         chapter_id: str = "",
@@ -359,7 +359,7 @@ class MemoryAdapter:
             # 写图谱 + 向量（C5-05：使用模块级单例 + 正确字段名 + 端到端 embedding）
             # 图写入仅依赖 networkx，无 chromadb 也可工作；向量写入在依赖缺失时优雅降级。
             await self._write_node_to_engine(
-                entry_id, session_id, world_plugin, content, node_type,
+                entry_id, session_id, plugin_key, content, node_type,
                 chapter_id or "", metadata or {},
             )
 
@@ -372,7 +372,7 @@ class MemoryAdapter:
     async def _write_node_to_engine(
         entry_id: str,
         session_id: str,
-        world_plugin: str,
+        plugin_key: str,
         content: str,
         node_type: str,
         chapter_id: str,
@@ -400,7 +400,7 @@ class MemoryAdapter:
                 node_id=entry_id,
                 novel_id=session_id,
                 node_type=nt,
-                world_key=world_plugin,
+                world_key=plugin_key,
                 title=(metadata.get("title", "") if isinstance(metadata, dict) else "") or content[:30],
                 content=content,
                 summary=content[:200],
@@ -424,7 +424,7 @@ class MemoryAdapter:
     def enqueue_extraction(
         self,
         session_id: str,
-        world_plugin: str,
+        plugin_key: str,
         chapter_id: str,
         messages: list[dict],
         narrative_text: str = "",
@@ -453,7 +453,7 @@ class MemoryAdapter:
         task = {
             "session_id":     session_id,
             "novel_id":       session_id,   # session 体系中 novel_id == session_id
-            "world_key":      world_plugin,
+            "world_key":      plugin_key,
             "chapter_id":     chapter_id,
             "narrative_text": text,
             "user_input":     user_input,
@@ -467,7 +467,7 @@ class MemoryAdapter:
             try:
                 return _engine.enqueue_extraction(
                     novel_id=session_id,
-                    world_key=world_plugin,
+                    world_key=plugin_key,
                     chapter_id=chapter_id,
                     messages=messages,
                     novel_config=novel_config or {},
@@ -534,9 +534,9 @@ class MemoryAdapter:
                 from ..db import get_db as _get_db
                 async with _get_db() as db:
                     ch_row = await (await db.execute(
-                        "SELECT world_plugin FROM sessions WHERE id=?", (session_id,)
+                        "SELECT plugin_key FROM sessions WHERE id=?", (session_id,)
                     )).fetchone()
-                world_key = ch_row["world_plugin"] if ch_row else "crossover"
+                world_key = ch_row["plugin_key"] if ch_row else "crossover"
                 ch_row2 = None
                 async with _get_db() as db:
                     ch_row2 = await (await db.execute(

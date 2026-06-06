@@ -255,7 +255,7 @@ async def chronicler_agent_node(ctx: TurnContext) -> TurnContext:
         extract_queue.enqueue({
             "session_id": ctx.session_id,
             "novel_id": ctx.session_id,
-            "world_key": getattr(ctx, "world_plugin", "") or "",
+            "world_key": getattr(ctx, "plugin_key", "") or "",
             "chapter_id": chapter_id,
             "narrative_text": summary,
             "messages": [{"role": "assistant", "content": summary}],

@@ -55,13 +55,18 @@ class LoadedExtension:
     ext_id:          str
     path:            Path
     manifest:        dict          = field(default_factory=dict)
-    world_plugin:    Any           = None    # WorldPlugin 实例
+    plugin:          Any           = None    # Plugin 实例
     tools:           list          = field(default_factory=list)   # list[ToolDef]
     agent_nodes:     list          = field(default_factory=list)   # list[AgentNode]
     hooks:           Any           = None    # ExtensionHooks 实例
     skills:          list[Path]    = field(default_factory=list)
     rules:           list[Path]    = field(default_factory=list)
     prompt_fragments: list[Path]   = field(default_factory=list)
+
+    @property
+    def plugin_key(self) -> Any:
+        """向后兼容别名。"""
+        return self.plugin
 
     @property
     def key(self) -> str:
@@ -140,18 +145,17 @@ def load_extension(bundle: ExtensionBundle) -> LoadedExtension:
     )
     base_mod = f"_za_ext_{bundle.ext_id}"
 
-    # ── plugin.py → WorldPlugin ──────────────────────────────────────
+    # ── plugin.py → Plugin ───────────────────────────────────────────
     plugin_path = bundle.path / "plugin.py"
     if plugin_path.exists():
         try:
             module = _import_module_from_path(f"{base_mod}_plugin", plugin_path)
-            loaded.world_plugin = getattr(module, "PLUGIN", None)
-            if loaded.world_plugin is None:
-                # 尝试自动实例化第一个 WorldPlugin 子类
+            loaded.plugin = getattr(module, "PLUGIN", None)
+            if loaded.plugin is None:
                 for name in dir(module):
                     obj = getattr(module, name)
                     if isinstance(obj, type) and name.endswith("Plugin"):
-                        loaded.world_plugin = obj()
+                        loaded.plugin = obj()
                         break
         except Exception as e:
             logger.warning(f"[ExtLoader] {bundle.ext_id}/plugin.py 加载失败: {e}")
@@ -202,7 +206,7 @@ def load_extension(bundle: ExtensionBundle) -> LoadedExtension:
 
     logger.debug(
         f"[ExtLoader] 加载 '{bundle.ext_id}': "
-        f"plugin={'✓' if loaded.world_plugin else '✗'} "
+        f"plugin={'✓' if loaded.plugin else '✗'} "
         f"tools={len(loaded.tools)} "
         f"agents={len(loaded.agent_nodes)} "
         f"hooks={'✓' if loaded.hooks else '✗'} "

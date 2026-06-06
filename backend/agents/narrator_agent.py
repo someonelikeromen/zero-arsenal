@@ -44,14 +44,14 @@ async def _p1_plan(ctx: TurnContext) -> tuple[str, dict]:
     try:
         from ..prompts.registry import registry as _pr
         from ..extensions.plugin import plugin_registry as _plug_reg
-        plugin = _plug_reg.get(ctx.world_plugin)
+        plugin = _plug_reg.get(ctx.plugin_key)
         if plugin:
             plugin.apply_to_registry(_pr)
         from ..prompts.token_budget import system_prompt_budget as _spb
         built = _pr.build_system_prompt(
             phase="p1",
             session_id=ctx.session_id,
-            state={"world_plugin": ctx.world_plugin, "mode": ctx.mode},
+            state={"plugin_key": ctx.plugin_key, "mode": ctx.mode},
             token_budget=_spb("p1", ctx.mode),
         )
         if built.strip():
@@ -103,7 +103,7 @@ async def _p2_context(ctx: TurnContext) -> str:
             from ..memory import memory_adapter
             return await memory_adapter.recall(
                 session_id=ctx.session_id,
-                world_plugin=ctx.world_plugin,
+                plugin_key=ctx.plugin_key,
                 query_text=query,
                 viewer_agent="narrator",
                 top_k=6,
@@ -207,7 +207,7 @@ def _get_writing_style_prefix(ctx: TurnContext) -> str:
     return ""
 
 
-def _get_write_system(world_plugin: str = "crossover", state_snapshot: dict | None = None) -> str:
+def _get_write_system(plugin_key: str = "crossover", state_snapshot: dict | None = None) -> str:
     """从 PromptRegistry 构建 P3 系统提示词（含世界插件片段 + Skill Layer 5）。"""
     # D9：P3 只负责叙事正文，变量结算（VariableBlock / TavernCommand）由 P4 统一提取，
     # 因此此处不再指示 LLM 在文末输出 {{SET/ADD}} 标记，避免双重来源与正文污染。
@@ -218,7 +218,7 @@ def _get_write_system(world_plugin: str = "crossover", state_snapshot: dict | No
     try:
         from ..prompts import registry
         from ..extensions import plugin_registry
-        plugin = plugin_registry.get(world_plugin)
+        plugin = plugin_registry.get(plugin_key)
         if plugin:
             plugin.apply_to_registry(registry)
         from ..prompts.token_budget import system_prompt_budget as _spb
@@ -233,7 +233,7 @@ def _get_write_system(world_plugin: str = "crossover", state_snapshot: dict | No
     try:
         from ..tools.skill_loader import skill_registry
         skill_block = skill_registry.build_injection_block(
-            phase="p3", state=state_snapshot or {}, world_plugin=world_plugin
+            phase="p3", state=state_snapshot or {}, plugin_key=plugin_key
         )
         if skill_block:
             base = base + "\n\n" + skill_block
@@ -260,9 +260,9 @@ async def _p3_write(ctx: TurnContext, plan: dict, part_id: str) -> str:
 
     context_block = f"\n【近期场景】\n{ctx.memory_context}" if ctx.memory_context else ""
 
-    state_snap = {"world_plugin": ctx.world_plugin, "mode": ctx.mode,
+    state_snap = {"plugin_key": ctx.plugin_key, "mode": ctx.mode,
                   "scene_goal": ctx.scene_goal}
-    write_system = _get_write_system(ctx.world_plugin, state_snap)
+    write_system = _get_write_system(ctx.plugin_key, state_snap)
 
     # 构建 NPC 反应摘要（供 P3 参考）
     npc_block = ""

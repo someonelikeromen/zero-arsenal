@@ -31,7 +31,7 @@ const NAV_ITEMS: { id: TabId; icon: string; label: string }[] = [
   { id: 'characters', icon: '👤', label: '人物' },
   { id: 'assets',     icon: '🎒', label: '资产库' },
   { id: 'prompts',    icon: '📝', label: '提示词' },
-  { id: 'extensions', icon: '🧩', label: '扩展' },
+  { id: 'extensions', icon: '🧩', label: '插件' },
   { id: 'settings',   icon: '⚙️', label: '设置' },
 ]
 
@@ -63,19 +63,13 @@ function SessionsTab({ onSelectSession, onNavigate }: {
     }).catch(() => {})
   }, [])
 
-  // 选中世界后同步插件（保持一致）
-  useEffect(() => {
-    if (selectedWorldId) {
-      const w = worlds.find(x => x.id === selectedWorldId)
-      if (w) setWorldPlugin(w.world_plugin)
-    }
-  }, [selectedWorldId, worlds])
+  // 插件（plugin_key）与世界（world_id）独立选择，互不影响
 
   const handleCreate = async () => {
     setCreating(true)
     try {
       const res = await api.createSession({
-        world_plugin: worldPlugin,
+        plugin_key: worldPlugin,
         title: title || undefined,
         world_id: selectedWorldId || undefined,
         character_template_id: selectedCharId || undefined,
@@ -146,7 +140,7 @@ function SessionsTab({ onSelectSession, onNavigate }: {
                   className={`text-left rounded border p-2.5 ${selectedWorldId === w.id ? 'border-indigo-500 bg-indigo-600/10' : 'border-zinc-700 hover:border-zinc-500'}`}>
                   <div className="flex items-center gap-1.5">
                     <span className="text-sm font-medium truncate">{w.name}</span>
-                    <span className="text-[10px] bg-zinc-700 text-zinc-400 px-1 rounded shrink-0">{w.world_plugin}</span>
+                    <span className="text-[10px] bg-zinc-700 text-zinc-400 px-1 rounded shrink-0">{w.plugin_key}</span>
                   </div>
                   <div className="text-xs text-zinc-500 line-clamp-2 mt-0.5">{w.description || '（无描述）'}</div>
                 </button>
@@ -177,7 +171,7 @@ function SessionsTab({ onSelectSession, onNavigate }: {
                   className={`text-left rounded border p-2.5 ${selectedCharId === c.id ? 'border-indigo-500 bg-indigo-600/10' : 'border-zinc-700 hover:border-zinc-500'}`}>
                   <div className="flex items-center gap-1.5">
                     <span className="text-sm font-medium truncate">{c.name}</span>
-                    <span className="text-[10px] bg-zinc-700 text-zinc-400 px-1 rounded shrink-0">{c.world_plugin}</span>
+                    <span className="text-[10px] bg-zinc-700 text-zinc-400 px-1 rounded shrink-0">{c.plugin_key}</span>
                   </div>
                   <div className="text-xs text-zinc-500 mt-0.5">更新于 {new Date((c.updated_at || 0) * 1000).toLocaleDateString()}</div>
                 </button>

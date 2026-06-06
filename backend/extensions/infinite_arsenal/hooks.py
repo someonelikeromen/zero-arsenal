@@ -21,7 +21,7 @@ class InfiniteArsenalHook:
     管理角色库存中武器的耐久度随战斗使用自然损耗。
     """
 
-    world_plugin = "infinite_arsenal"
+    plugin_key = "infinite_arsenal"
     priority = 15
 
     async def on_roll_check(self, ctx: dict) -> dict:

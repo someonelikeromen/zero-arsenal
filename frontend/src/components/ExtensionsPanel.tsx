@@ -1,6 +1,7 @@
 /**
- * ExtensionsPanel — 已加载世界扩展 + 引擎规则总览
- * 列出 GET /engine/extensions 的世界插件，并复用规则开关（POST /engine/rules/{id}/activate）
+ * ExtensionsPanel — 已加载插件 + 引擎规则总览
+ * Plugin = 行为包（修改角色卡 schema、注入提示词、注册生命周期钩子）
+ * World  = 内容容器（世界设定、NPC、背景资料），在「世界」Tab 管理
  */
 import { useEffect, useState, useCallback } from 'react'
 import { api } from '../lib/api'
@@ -68,12 +69,12 @@ export default function ExtensionsPanel() {
 
   return (
     <div className="max-w-3xl mx-auto space-y-8 pt-2">
-      {/* 世界扩展 */}
+      {/* 插件 */}
       <section>
         <div className="flex items-center justify-between mb-3">
           <div>
-            <h2 className="text-lg font-bold">世界扩展</h2>
-            <p className="text-xs text-zinc-500">已加载的 WorldPlugin。新增扩展见 docs/CONTRIBUTING.md</p>
+            <h2 className="text-lg font-bold">插件</h2>
+            <p className="text-xs text-zinc-500">行为包 — 修改角色卡 schema / 注入提示词 / 生命周期钩子。新增见 docs/CONTRIBUTING.md</p>
           </div>
           <button onClick={load} className="text-xs text-zinc-400 hover:text-zinc-200 px-2 py-1 rounded border border-zinc-700">
             刷新

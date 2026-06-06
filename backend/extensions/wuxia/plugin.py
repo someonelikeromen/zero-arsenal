@@ -18,7 +18,7 @@ class WuxiaPlugin(WorldPlugin):
         meta.setdefault("realm",      "炼气期")
         meta.setdefault("reputation", 0)
         meta.setdefault("sect",       "无门无派")
-        meta.setdefault("world_plugin", "wuxia")
+        meta.setdefault("plugin_key", "wuxia")
 
         attrs = char.setdefault("attributes", {})
         attrs.setdefault("qi",         {"dots": 3, "max": 10, "current": 30, "description": "内力"})

@@ -63,7 +63,7 @@ def test_memory_adapter_recall_runtime():
     async def _run():
         result = await memory_adapter.recall(
             session_id="test_session_p4",
-            world_plugin="crossover",
+            plugin_key="crossover",
             query_text="测试记忆召回",
             viewer_agent="narrator",
             top_k=5,

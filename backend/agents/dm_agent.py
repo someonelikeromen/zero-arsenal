@@ -84,9 +84,9 @@ def _build_dm_messages(ctx: TurnContext) -> list[dict]:
     skill_block = ""
     try:
         from ..tools.skill_loader import skill_registry
-        state_snapshot = {"world_plugin": ctx.world_plugin, "mode": ctx.mode}
+        state_snapshot = {"plugin_key": ctx.plugin_key, "mode": ctx.mode}
         skill_block = skill_registry.build_injection_block(
-            phase="dm", state=state_snapshot, world_plugin=ctx.world_plugin
+            phase="dm", state=state_snapshot, plugin_key=ctx.plugin_key
         )
     except Exception:
         pass
@@ -100,14 +100,14 @@ def _build_dm_messages(ctx: TurnContext) -> list[dict]:
     try:
         from ..prompts.registry import registry as _pr
         from ..extensions.plugin import plugin_registry as _plug_reg
-        plugin = _plug_reg.get(ctx.world_plugin)
+        plugin = _plug_reg.get(ctx.plugin_key)
         if plugin:
             plugin.apply_to_registry(_pr)
         from ..prompts.token_budget import system_prompt_budget as _spb
         built = _pr.build_system_prompt(
             phase="dm",
             session_id=ctx.session_id,
-            state={"world_plugin": ctx.world_plugin, "mode": ctx.mode},
+            state={"plugin_key": ctx.plugin_key, "mode": ctx.mode},
             token_budget=_spb("dm", ctx.mode),
         )
         if built.strip():
@@ -136,7 +136,7 @@ def _build_dm_messages(ctx: TurnContext) -> list[dict]:
         pass
 
     user_content_parts = [
-        f"世界插件：{ctx.world_plugin}",
+        f"世界插件：{ctx.plugin_key}",
         char_summary,
         data_stream_block,
         f"玩家行动：{ctx.user_input}",
@@ -188,7 +188,7 @@ async def _dm_impl(ctx: TurnContext) -> TurnContext:
             char_summary = f"角色：{name} | {attr_str}\n"
 
         user_content = (
-            f"世界插件：{ctx.world_plugin}\n"
+            f"世界插件：{ctx.plugin_key}\n"
             f"{char_summary}"
             f"玩家行动：{ctx.user_input}"
         )
