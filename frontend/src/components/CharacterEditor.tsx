@@ -105,10 +105,14 @@ export function CharacterEditor({ data, onChange }: { data: Dict; onChange: (d: 
   const setCap = (key: string, val: unknown) =>
     setPsyche('capability_cap', { ...cap, [key]: val })
 
-  const attrs = (data.attributes as Record<string, number>) || {}
+  const attrs = (data.attributes as Record<string, unknown>) || {}
+  // 只取数值类型属性，过滤掉 schema/values 等元数据字段
+  const numericAttrs = Object.fromEntries(
+    Object.entries(attrs).filter(([, v]) => typeof v === 'number')
+  ) as Record<string, number>
   const setAttr = (k: string, delta: number) => {
-    const next = Math.max(1, Math.min(10, (attrs[k] ?? 1) + delta))
-    set('attributes', { ...attrs, [k]: next })
+    const next = Math.max(1, Math.min(10, (numericAttrs[k] ?? 1) + delta))
+    set('attributes', { ...attrs, [k]: next, values: { ...((attrs.values as Record<string, number>) || {}), [k]: next } })
   }
 
   const skills = (data.skills as Record<string, number>) || {}
@@ -196,7 +200,7 @@ export function CharacterEditor({ data, onChange }: { data: Dict; onChange: (d: 
       <div>
         <InfoLabel text="属性（1-10）" tip="点 ± 微调，范围限制在 1-10" />
         <div className="grid grid-cols-5 gap-1">
-          {Object.entries(attrs).map(([k, v]) => (
+          {Object.entries(numericAttrs).map(([k, v]) => (
             <div key={k} className="bg-zinc-800 rounded p-1.5 text-center">
               <div className="flex items-center justify-center gap-1">
                 <button onClick={() => setAttr(k, -1)} className="text-zinc-500 hover:text-zinc-200 text-xs">−</button>

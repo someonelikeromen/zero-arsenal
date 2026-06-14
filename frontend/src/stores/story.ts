@@ -125,10 +125,16 @@ export const useStoryStore = create<StoryStore>()(
         set((state) => { state.isLoading = true })
         try {
           // 统一走 apiFetch（NEW-C13-03），保留 cursor 分页参数
-          const data = await apiFetch<{ items?: MessagePart[]; parts?: MessagePart[] }>(
+          const data = await apiFetch<{ items?: (MessagePart & { part_id?: string })[]; parts?: MessagePart[] }>(
             `/sessions/${sessionId}/parts?limit=200`
           )
-          const parts = (data.items ?? data.parts ?? []) as MessagePart[]
+          // 后端同时返回 id 和 part_id；做防御性规范化确保 id 一定存在
+          const parts = (data.items ?? data.parts ?? []).map(item => ({
+            ...item,
+            id: item.id ?? (item as { part_id?: string }).part_id ?? '',
+            status: item.status ?? 'done',
+            agent: item.agent ?? '',
+          })) as MessagePart[]
           set((state) => {
             state.parts = parts
             state.isLoading = false

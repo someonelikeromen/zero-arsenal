@@ -1,0 +1,37 @@
+[
+  {
+    "source": "Fandom",
+    "pattern": "https://{slug}.fandom.com/wiki/{name}",
+    "slug_transform": "lowercase_hyphen",
+    "enabled": true,
+    "notes": "slug=世界名小写连字符，name=词条名URL编码"
+  },
+  {
+    "source": "萌娘百科",
+    "pattern": "https://zh.moegirl.org.cn/{name}",
+    "slug_transform": null,
+    "enabled": true,
+    "notes": "name=词条名URL编码"
+  },
+  {
+    "source": "B站WIKI",
+    "pattern": "https://wiki.biligame.com/gundam/{name}",
+    "slug_transform": null,
+    "enabled": true,
+    "notes": "适用于高达系列，name=词条名URL编码"
+  },
+  {
+    "source": "维基百科(中)",
+    "pattern": "https://zh.wikipedia.org/wiki/{name}",
+    "slug_transform": null,
+    "enabled": true,
+    "notes": "name=词条名URL编码"
+  },
+  {
+    "source": "维基百科(英)",
+    "pattern": "https://en.wikipedia.org/wiki/{name}",
+    "slug_transform": "lowercase_underscore",
+    "enabled": true,
+    "notes": "name=词条名URL编码（英文用下划线连接）"
+  }
+]

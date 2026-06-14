@@ -7,8 +7,9 @@ Bearer Token 校验中间件。
 
 环境变量：
     ZERO_ARSENAL_API_TOKEN — 若设置，则所有 /api/* 请求必须携带
-                             `Authorization: Bearer <token>` 头；
-                             未设置时中间件直接放行（开发模式）。
+                             `Authorization: Bearer <token>` 头；SSE /events
+                             也可用 access_token query 参数（EventSource 限制）。
+                             未设置时仅放行本地回环，远程 403。
 
 排除路径（无论 token 是否配置，均不校验）：
     /docs、/redoc、/openapi.json、/api/openapi.json、/health
@@ -74,14 +75,15 @@ class AuthMiddleware(BaseHTTPMiddleware):
             )
 
         auth_header = request.headers.get("Authorization", "")
-        if not auth_header.startswith("Bearer "):
+        query_token = request.query_params.get("access_token", "") if path.endswith("/events") else ""
+        if not auth_header.startswith("Bearer ") and not query_token:
             return JSONResponse(
                 status_code=401,
                 content={"error": "unauthorized", "message": "Missing Bearer token"},
                 headers={"WWW-Authenticate": "Bearer"},
             )
 
-        provided_token = auth_header.removeprefix("Bearer ").strip()
+        provided_token = query_token or auth_header.removeprefix("Bearer ").strip()
         # 常量时间比较，避免计时侧信道（NEW-C7-03）
         if not hmac.compare_digest(provided_token, self._token):
             return JSONResponse(

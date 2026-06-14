@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef } from 'react'
-import { api } from '../../lib/api'
+import { api, apiFetch } from '../../lib/api'
 import { notify } from '../../stores/ui'
 import { requestConfirm } from '../../stores/confirm'
 
@@ -106,11 +106,9 @@ export const MemoryPanel: React.FC<Props> = ({ sessionId }) => {
     setSearching(true)
     setSearchError('')
     try {
-      const res = await fetch(
-        `/api/sessions/${encodeURIComponent(sessionId)}/memory?q=${encodeURIComponent(q)}&top_k=8`
+      const data = await apiFetch<{ results: string; full_mode: boolean; entries?: MemoryEntry[] }>(
+        `/sessions/${encodeURIComponent(sessionId)}/memory?q=${encodeURIComponent(q)}&top_k=8`
       )
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const data = await res.json() as { results: string; full_mode: boolean; entries?: MemoryEntry[] }
       setFullMode(data.full_mode)
       const blocks = (data.results ?? '').split('---').map((s: string) => s.trim()).filter(Boolean)
       setResults(blocks)
@@ -136,12 +134,10 @@ export const MemoryPanel: React.FC<Props> = ({ sessionId }) => {
     setWriteError('')
     setWriteOk(false)
     try {
-      const res = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}/memory`, {
+      await apiFetch(`/sessions/${encodeURIComponent(sessionId)}/memory`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content: writeContent.trim(), node_type: nodeType, metadata: {} }),
       })
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
       setWriteContent('')
       setWriteOk(true)
       setTimeout(() => setWriteOk(false), 2000)

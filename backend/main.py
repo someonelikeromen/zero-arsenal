@@ -26,6 +26,20 @@ from .tools import skill_registry
 
 # ── 配置 ─────────────────────────────────────────────────────────────────────
 
+def _load_project_env() -> None:
+    try:
+        from dotenv import load_dotenv
+        root = Path(__file__).resolve().parent.parent
+        load_dotenv(root / ".env", override=False)
+    except ImportError:
+        pass
+
+
+_load_project_env()
+
+SERVER_HOST = os.getenv("HOST", "0.0.0.0")
+SERVER_PORT = int(os.getenv("PORT", "8001"))
+
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data"
 DB_PATH  = DATA_DIR / "zero_arsenal.db"
@@ -310,7 +324,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000"],
+    allow_origin_regex=r"http://(localhost|127\.0\.0\.1):\d+",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -383,12 +397,32 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
     """Pydantic 校验失败 → 422 统一格式。"""
+    def _safe(v):
+        """递归处理 exc.errors() 中不可 JSON 序列化的值（如 bytes）。"""
+        if isinstance(v, bytes):
+            return v.decode("utf-8", errors="replace")[:200]
+        if isinstance(v, dict):
+            return {k: _safe(vv) for k, vv in v.items()}
+        if isinstance(v, (list, tuple)):
+            return [_safe(i) for i in v]
+        try:
+            import json as _json
+            _json.dumps(v)
+            return v
+        except (TypeError, ValueError):
+            return repr(v)[:200]
+
+    try:
+        details = [_safe(e) for e in exc.errors()]
+    except Exception:
+        details = []
+
     return JSONResponse(
         status_code=422,
         content={
             "error": "validation_error",
             "message": "请求参数校验失败",
-            "details": exc.errors(),
+            "details": details,
         },
     )
 
@@ -429,8 +463,8 @@ if __name__ == "__main__":
     import uvicorn
     uvicorn.run(
         "backend.main:app",
-        host="0.0.0.0",
-        port=8000,
+        host=SERVER_HOST,
+        port=SERVER_PORT,
         reload=True,
         reload_dirs=[str(BASE_DIR)],
     )

@@ -71,12 +71,20 @@ export function createSSEHandler(deps: SSEHandlerDeps): (e: BusEvent) => void {
 
       // ── Part 生命周期 ──────────────────────────────────────────────────────
       case 'part.created': {
-        const d = e.data as { part_id: string; part_type: string; message_id: string; agent: string }
+        const d = e.data as {
+          part_id: string; part_type: string; message_id: string; agent: string
+          tool_name?: string
+        }
+        // tool_call part 在创建时即携带 tool_name，避免执行期间显示「未知工具」
+        const initialContent: Record<string, unknown> =
+          d.part_type === 'tool_call' && d.tool_name
+            ? { tool_name: d.tool_name, status: 'pending' }
+            : {}
         addPart({
           id: d.part_id,
           message_id: d.message_id,
           type: d.part_type as MessagePart['type'],
-          content: {},
+          content: initialContent,
           status: 'streaming',
           agent: d.agent,
           streamBuffer: d.part_type === 'narrative' ? '' : undefined,

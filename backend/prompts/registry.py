@@ -123,21 +123,11 @@ class PromptRegistry:
         安全评估 condition 字段（表达式）。
 
         D18：此前用裸 `eval()`（即便清空 __builtins__，属性访问 / dunder 仍可能
-        被滥用）。改用 simpleeval 沙箱；simpleeval 不可用时降级为受限 eval
-        （清空 builtins）并记录一次告警，绝不静默放行任意代码。
+        被滥用）。改用 AST 白名单求值器，仅支持 state 查表、布尔与比较表达式。
         """
         try:
-            from simpleeval import simple_eval
-            return bool(simple_eval(condition, names={"state": state}))
-        except ImportError:
-            logger.warning(
-                "[PromptRegistry] simpleeval 未安装，condition 降级为受限 eval（建议安装 simpleeval）"
-            )
-            try:
-                return bool(eval(condition, {"__builtins__": {}}, {"state": state}))  # noqa: S307
-            except Exception:
-                logger.warning("[PromptRegistry] condition eval failed: %s — skipping fragment", condition)
-                return False
+            from ..utils.safe_condition import evaluate_condition_expr
+            return evaluate_condition_expr(condition, state)
         except Exception:
             logger.warning("[PromptRegistry] condition eval failed: %s — skipping fragment", condition)
             return False  # 条件求值失败时跳过，不注入

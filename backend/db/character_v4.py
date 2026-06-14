@@ -576,6 +576,21 @@ def migrate_v3_to_v4(v3_data: dict) -> dict:
     morale = int(psych.get("morale", 80))
     trauma = int(psych.get("trauma_level", psych.get("trauma", 0)))
 
+    # psyche_model：LLM 生成的字段，migrate 时必须保留（否则前端 psyche_model 为空）
+    pm_raw = v3_data.get("psyche_model", {}) or {}
+    psyche_model = {
+        "core_values":      pm_raw.get("core_values",
+                                       v3_data.get("core_values", [])),
+        "knowledge_scope":  pm_raw.get("knowledge_scope",
+                                       {"knows": [], "blind_spots": []}),
+        "capability_cap":   pm_raw.get("capability_cap",
+                                       {"combat": "", "tech": "", "social": "", "special_sense": ""}),
+        "behavior_patterns": pm_raw.get("behavior_patterns",
+                                        v3_data.get("behavior_patterns", "")),
+        "emotional_triggers": pm_raw.get("emotional_triggers",
+                                         v3_data.get("emotional_triggers", "")),
+    }
+
     # 物品迁移：inventory → loadout.equipped + 保留 inventory
     v3_items: list[Any] = v3_data.get("items", v3_data.get("inventory", [])) or []
     inventory: list[dict] = []
@@ -683,10 +698,12 @@ def migrate_v3_to_v4(v3_data: dict) -> dict:
             "emotion_state": "calm",
             "traumas": [],
             "beliefs": [],
-            "core_values": v3_data.get("core_values", []),
-            "behavior_patterns": v3_data.get("behavior_patterns", ""),
-            "emotional_triggers": v3_data.get("emotional_triggers", ""),
+            "core_values":       psyche_model["core_values"],
+            "behavior_patterns": psyche_model["behavior_patterns"],
+            "emotional_triggers": psyche_model["emotional_triggers"],
         },
+        # 保留 psyche_model 供前端直接读取（前端 CharacterEditor 读的是此字段）
+        "psyche_model": psyche_model,
         "relationships":  relationships,
         "economy":        economy,
         "achievements":   v3_data.get("achievements", []),

@@ -4,6 +4,7 @@
   "version": "1.0.0",
   "description": "武侠江湖世界插件：修炼体系（炼体/筑基/金丹...）、内力运转、切磋挑战、8 维属性。",
   "type": "world_plugin",
+  "ext_type": "plugin",
   "min_engine_version": "0.1.0",
   "author": "built-in",
   "tags": ["wuxia", "cultivation", "martial-arts"],

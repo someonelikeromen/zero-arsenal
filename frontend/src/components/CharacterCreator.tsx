@@ -4,7 +4,7 @@
  * SSE 流式预览，支持手动编辑和重新生成
  */
 import React, { useEffect, useState } from 'react'
-import { api, CharacterTemplate } from '../lib/api'
+import { api, apiStreamFetch, parseApiErrorMessage, CharacterTemplate } from '../lib/api'
 import { notify } from '../stores/ui'
 import { requestConfirm } from '../stores/confirm'
 import { CharacterEditor } from './CharacterEditor'
@@ -66,6 +66,11 @@ function CreatorModal({ onClose, onSaved }: { onClose: () => void; onSaved: () =
   const [sseLog, setSseLog] = useState('')
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
+  const [availablePlugins, setAvailablePlugins] = useState<{ key: string; name: string }[]>([])
+
+  useEffect(() => {
+    api.listWorldPlugins().then(r => setAvailablePlugins(r.plugins)).catch(() => {})
+  }, [])
 
   const goStep = (s: WizardStep) => { setStep(s); setError('') }
 
@@ -74,7 +79,7 @@ function CreatorModal({ onClose, onSaved }: { onClose: () => void; onSaved: () =
     setGenerating(true)
     setError('')
     try {
-      const resp = await fetch('/api/characters/generate/questions', {
+      const resp = await apiStreamFetch('/characters/generate/questions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ plugin_key: worldPlugin, char_type: charType }),
@@ -112,8 +117,11 @@ function CreatorModal({ onClose, onSaved }: { onClose: () => void; onSaved: () =
     if (mode === 'quiz') {
       goStep(2)
       loadQuestions()
+    } else if (mode === 'background' && !background.trim()) {
+      setError('请填写背景描述')
     } else {
-      goStep(2)
+      goStep(3)
+      generateCharacter()
     }
   }
 
@@ -154,7 +162,7 @@ function CreatorModal({ onClose, onSaved }: { onClose: () => void; onSaved: () =
         canon_source: canonSource,
         first_message: firstMessage,
       }
-      const resp = await fetch('/api/characters/generate', {
+      const resp = await apiStreamFetch('/characters/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -178,7 +186,16 @@ function CreatorModal({ onClose, onSaved }: { onClose: () => void; onSaved: () =
         }
       }
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : '生成失败')
+      const raw = e instanceof Error ? e.message : '生成失败'
+      if (raw.includes('Failed to fetch') || raw.includes('ECONNREFUSED') || raw.includes('NetworkError')) {
+        setError('无法连接后端，请确认 backend 已启动（端口见项目根目录 .env 的 PORT，当前默认 8001）')
+      } else if (raw.includes('403') || raw.includes('401')) {
+        setError('API 鉴权失败，请检查设置中的 API Token')
+      } else if (raw.includes('→ 500:')) {
+        setError(`角色生成时服务端出错，请点「重试」。${parseApiErrorMessage(raw)}`)
+      } else {
+        setError(parseApiErrorMessage(raw))
+      }
     } finally {
       setGenerating(false)
     }
@@ -248,8 +265,8 @@ function CreatorModal({ onClose, onSaved }: { onClose: () => void; onSaved: () =
                   placeholder="性别（可选）" />
                 <select value={worldPlugin} onChange={e => setWorldPlugin(e.target.value)}
                   className="flex-1 bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm focus:outline-none">
-                  {['crossover', 'wuxia', 'infinite_arsenal', 'muv_luv', 'gundam_seed'].map(p => (
-                    <option key={p}>{p}</option>
+                  {availablePlugins.map(p => (
+                    <option key={p.key} value={p.key}>{p.name || p.key}</option>
                   ))}
                 </select>
               </div>
@@ -363,24 +380,20 @@ function CreatorModal({ onClose, onSaved }: { onClose: () => void; onSaved: () =
             </div>
           )}
 
-          {/* Step 2: 其他模式（背景/快速）— 直接进步骤3时过渡 */}
-          {step === 2 && mode !== 'quiz' && (
-            <div className="text-center text-zinc-500 text-sm py-6">
-              {generating ? '准备生成...' : (
-                <button onClick={() => { goStep(3); generateCharacter() }}
-                  className="bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-2 rounded text-sm">
-                  开始生成
-                </button>
-              )}
-            </div>
-          )}
-
           {/* Step 3: 生成中 */}
           {step === 3 && (
             <div className="text-center py-8 space-y-3">
-              <div className="text-3xl animate-pulse">⚙️</div>
-              <p className="text-sm text-zinc-300">{sseLog || '角色生成中...'}</p>
-              {error && <p className="text-xs text-red-400">{error}</p>}
+              <div className={`text-3xl ${generating ? 'animate-pulse' : ''}`}>⚙️</div>
+              <p className="text-sm text-zinc-300">{sseLog || (generating ? '角色生成中...' : '等待生成')}</p>
+              {error && (
+                <div className="space-y-2">
+                  <p className="text-xs text-red-400">{error}</p>
+                  <button onClick={() => generateCharacter()} disabled={generating}
+                    className="bg-indigo-600 hover:bg-indigo-500 disabled:bg-zinc-700 text-white px-4 py-1.5 rounded text-xs">
+                    重试
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
@@ -415,17 +428,20 @@ function CreatorModal({ onClose, onSaved }: { onClose: () => void; onSaved: () =
 // ── 模板编辑 Modal（复用 CharacterEditor）─────────────────────────────────────
 function EditModal({ cid, onClose, onSaved }: { cid: string; onClose: () => void; onSaved: () => void }) {
   const [data, setData] = useState<Record<string, unknown> | null>(null)
-  const [name, setName] = useState('')
   const [worldPlugin, setWorldPlugin] = useState('crossover')
+  const [availablePlugins, setAvailablePlugins] = useState<{ key: string; name: string }[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    api.listWorldPlugins().then(r => setAvailablePlugins(r.plugins)).catch(() => {})
+  }, [])
 
   useEffect(() => {
     (async () => {
       try {
         const res = await api.getCharacterTemplate(cid)
         setData(res.data_json || {})
-        setName(res.name)
         setWorldPlugin(res.plugin_key)
       } catch (e) {
         notify.error(`加载模板失败：${e instanceof Error ? e.message : String(e)}`)
@@ -440,7 +456,11 @@ function EditModal({ cid, onClose, onSaved }: { cid: string; onClose: () => void
     if (!data) return
     setSaving(true)
     try {
-      await api.updateCharacterTemplate(cid, { name: (data.name as string) || name, plugin_key: worldPlugin, data_json: data })
+      await api.updateCharacterTemplate(cid, {
+        name: (data.name as string) || '未命名',
+        plugin_key: worldPlugin,
+        data_json: { ...data, plugin_key: worldPlugin },
+      })
       notify.success('已保存模板修改')
       onSaved()
       onClose()
@@ -453,24 +473,57 @@ function EditModal({ cid, onClose, onSaved }: { cid: string; onClose: () => void
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-zinc-900 border border-zinc-700 rounded-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between p-4 border-b border-zinc-800">
+      <div className="bg-zinc-900 border border-zinc-700 rounded-xl w-full max-w-lg max-h-[90vh] flex flex-col">
+        {/* 顶栏 */}
+        <div className="flex items-center justify-between p-4 border-b border-zinc-800 shrink-0">
           <h3 className="font-semibold">编辑人物模板</h3>
-          <button onClick={onClose} className="text-zinc-500 hover:text-zinc-300">×</button>
+          <div className="flex items-center gap-2">
+            {availablePlugins.length > 0 && (
+              <select value={worldPlugin} onChange={e => setWorldPlugin(e.target.value)}
+                className="bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-xs focus:outline-none">
+                {availablePlugins.map(p => (
+                  <option key={p.key} value={p.key}>{p.name || p.key}</option>
+                ))}
+              </select>
+            )}
+            <button onClick={onClose} className="text-zinc-500 hover:text-zinc-300 text-lg leading-none">×</button>
+          </div>
         </div>
-        <div className="p-4">
+        {/* 内容 */}
+        <div className="overflow-y-auto flex-1 p-4">
           {loading ? (
             <div className="text-center text-zinc-500 text-sm py-8">加载中...</div>
           ) : data ? (
             <div className="space-y-4">
+              {/* 背景描述编辑 */}
+              {((data.meta as Record<string, unknown>)?.background || (data as Record<string, unknown>).background) && (
+                <div>
+                  <label className="text-xs text-zinc-400 block mb-1">背景描述 background</label>
+                  <textarea
+                    value={((data.meta as Record<string, unknown>)?.background as string) || (data as Record<string, unknown>).background as string || ''}
+                    onChange={e => setData({
+                      ...data,
+                      meta: { ...((data.meta as Record<string, unknown>) || {}), background: e.target.value }
+                    })}
+                    rows={3}
+                    className="w-full bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-xs resize-none focus:outline-none"
+                    placeholder="角色背景描述..."
+                  />
+                </div>
+              )}
               <CharacterEditor data={data} onChange={setData} />
-              <button onClick={save} disabled={saving}
-                className="w-full bg-indigo-600 hover:bg-indigo-500 disabled:bg-zinc-700 text-white py-2 rounded text-sm">
-                {saving ? '保存中...' : '保存修改'}
-              </button>
             </div>
           ) : null}
         </div>
+        {/* 底部保存栏 */}
+        {data && (
+          <div className="shrink-0 p-4 border-t border-zinc-800">
+            <button onClick={save} disabled={saving}
+              className="w-full bg-indigo-600 hover:bg-indigo-500 disabled:bg-zinc-700 text-white py-2 rounded text-sm">
+              {saving ? '保存中...' : '保存修改'}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   )
@@ -480,6 +533,23 @@ function EditModal({ cid, onClose, onSaved }: { cid: string; onClose: () => void
 function CharacterCard({ char, onEdit, onClone, onDelete }: {
   char: CharacterTemplate; onEdit: () => void; onClone: () => void; onDelete: () => void
 }) {
+  const handleExport = async () => {
+    try {
+      const res = await apiStreamFetch(`/characters/${char.id}/export-png`, { method: 'GET' })
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${char.name || char.id}.png`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(url)
+    } catch (e) {
+      notify.error(`导出失败：${e instanceof Error ? e.message : String(e)}`)
+    }
+  }
+
   return (
     <div className="bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 flex items-center gap-3 group cursor-pointer hover:border-zinc-600"
       onClick={onEdit}>
@@ -496,8 +566,10 @@ function CharacterCard({ char, onEdit, onClone, onDelete }: {
         </p>
       </div>
       <div className="flex gap-2 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
-        <a href={api.exportCharacterPngUrl(char.id)} download
-          className="text-xs text-zinc-400 hover:text-zinc-200" title="导出为 PNG 角色卡">导出</a>
+        <button onClick={onEdit}
+          className="text-xs text-indigo-400 hover:text-indigo-300">编辑</button>
+        <button onClick={handleExport}
+          className="text-xs text-zinc-400 hover:text-zinc-200" title="导出为 PNG 角色卡">导出</button>
         <button onClick={onClone} className="text-xs text-zinc-400 hover:text-zinc-200">克隆</button>
         <button onClick={onDelete} className="text-xs text-red-500 hover:text-red-400">删除</button>
       </div>

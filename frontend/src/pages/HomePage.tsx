@@ -42,6 +42,7 @@ function SessionsTab({ onSelectSession, onNavigate }: {
 }) {
   const [worlds, setWorlds] = useState<World[]>([])
   const [characters, setCharacters] = useState<CharacterTemplate[]>([])
+  const [plugins, setPlugins] = useState<{ key: string; name: string }[]>([])
   const [title, setTitle] = useState('')
   const [worldPlugin, setWorldPlugin] = useState('crossover')
   const [selectedWorldId, setSelectedWorldId] = useState('')
@@ -52,7 +53,6 @@ function SessionsTab({ onSelectSession, onNavigate }: {
   useEffect(() => {
     api.listWorlds().then(r => {
       setWorlds(r.worlds)
-      // 最近使用默认（localStorage）
       const last = localStorage.getItem(LS_WORLD)
       if (last && r.worlds.some(w => w.id === last)) setSelectedWorldId(last)
     }).catch(() => {})
@@ -60,6 +60,9 @@ function SessionsTab({ onSelectSession, onNavigate }: {
       setCharacters(r.characters)
       const last = localStorage.getItem(LS_CHAR)
       if (last && r.characters.some(c => c.id === last)) setSelectedCharId(last)
+    }).catch(() => {})
+    api.listWorldPlugins().then(r => {
+      setPlugins(r.plugins)
     }).catch(() => {})
   }, [])
 
@@ -83,8 +86,6 @@ function SessionsTab({ onSelectSession, onNavigate }: {
       setCreating(false)
     }
   }
-
-  const WORLD_PLUGINS = ['crossover', 'wuxia', 'infinite_arsenal', 'muv_luv', 'gundam_seed']
 
   return (
     <div className="max-w-3xl mx-auto space-y-6 pt-2">
@@ -113,7 +114,7 @@ function SessionsTab({ onSelectSession, onNavigate }: {
             <label className="text-xs text-zinc-400 mb-1 block">世界插件</label>
             <select value={worldPlugin} onChange={e => setWorldPlugin(e.target.value)}
               className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm focus:outline-none focus:border-indigo-500">
-              {WORLD_PLUGINS.map(p => <option key={p} value={p}>{p}</option>)}
+              {plugins.map(p => <option key={p.key} value={p.key}>{p.name || p.key}</option>)}
             </select>
           </div>
         </div>
@@ -140,7 +141,6 @@ function SessionsTab({ onSelectSession, onNavigate }: {
                   className={`text-left rounded border p-2.5 ${selectedWorldId === w.id ? 'border-indigo-500 bg-indigo-600/10' : 'border-zinc-700 hover:border-zinc-500'}`}>
                   <div className="flex items-center gap-1.5">
                     <span className="text-sm font-medium truncate">{w.name}</span>
-                    <span className="text-[10px] bg-zinc-700 text-zinc-400 px-1 rounded shrink-0">{w.plugin_key}</span>
                   </div>
                   <div className="text-xs text-zinc-500 line-clamp-2 mt-0.5">{w.description || '（无描述）'}</div>
                 </button>

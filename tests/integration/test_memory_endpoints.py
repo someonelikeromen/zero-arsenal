@@ -3,7 +3,7 @@
 改为真实 HTTP 集成测试，对运行中的后端发出实际请求验证端点行为。
 
 运行前提：
-  - 后端已启动在 BACKEND_URL（默认 http://127.0.0.1:8000）
+  - 后端已启动在 BACKEND_URL（默认 http://127.0.0.1:8001）
   - 或设置环境变量 BACKEND_URL
 
 跳过条件（非 CI 强制失败）：
@@ -19,7 +19,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-BACKEND_URL = os.environ.get("BACKEND_URL", "http://127.0.0.1:8000")
+BACKEND_URL = os.environ.get("BACKEND_URL", "http://127.0.0.1:8001")
 
 
 # ── 工具函数 ─────────────────────────────────────────────────────────────────

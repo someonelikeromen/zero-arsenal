@@ -11,7 +11,7 @@
 
 | 项目 | 值 |
 |------|-----|
-| 后端地址 | `http://127.0.0.1:8000` |
+| 后端地址 | `http://127.0.0.1:8001` |
 | 前端地址 | `http://localhost:5174` |
 | LLM Provider | DeepSeek (`deepseek-chat`) |
 | 数据库 | SQLite `backend/data/zero_arsenal.db` |

@@ -2,6 +2,7 @@
  * SSE 客户端 — 带 Last-Event-ID 续传与指数退避重连
  * 参考 opencode SSE 客户端设计
  */
+import { apiHeaders, apiSseUrl } from './api'
 
 export interface BusEvent {
   type: string
@@ -58,11 +59,11 @@ export class SSEClient {
   }
 
   private _buildUrl(): string {
-    const url = `/api/sessions/${this.sessionId}/events`
+    const path = `/sessions/${this.sessionId}/events`
     if (this.lastEventId) {
-      return `${url}?last_event_id=${encodeURIComponent(this.lastEventId)}`
+      return apiSseUrl(`${path}?last_event_id=${encodeURIComponent(this.lastEventId)}`)
     }
-    return url
+    return apiSseUrl(path)
   }
 
   private _connect(): void {
@@ -134,7 +135,7 @@ export class SSEClient {
     try {
       const res = await fetch(this._buildUrl(), {
         method: 'GET',
-        headers: { Accept: 'text/event-stream' },
+        headers: apiHeaders({ Accept: 'text/event-stream' }, false),
         signal: ctrl.signal,
       })
       // 立即中断流式响应体，仅取状态码

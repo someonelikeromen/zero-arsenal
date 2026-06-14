@@ -16,7 +16,7 @@ from ..db.audit import append_turn_anchor
 
 logger = logging.getLogger(__name__)
 
-CHAPTER_TURN_THRESHOLD = 20
+CHAPTER_TURN_THRESHOLD = 10
 
 
 CONSOLIDATE_SYSTEM = """\

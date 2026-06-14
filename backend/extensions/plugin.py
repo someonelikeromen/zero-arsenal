@@ -92,6 +92,9 @@ class Plugin:
     # ── 经济配置 ─────────────────────────────────────────────────────────────
     economy_config: Optional[EconomyConfig] = None
 
+    # ── 分类 ─────────────────────────────────────────────────────────────────
+    ext_type: str = "plugin"   # "plugin" | "world" | "companion"
+
     # ── 其他配置 ─────────────────────────────────────────────────────────────
     skills_dir: Optional[str] = None
     metadata: dict = field(default_factory=dict)
@@ -213,7 +216,7 @@ class PluginRegistry:
     def list_plugins(self) -> list[dict]:
         return [
             {"key": p.key, "name": p.name, "description": p.description,
-             "agent_profile": p.agent_profile}
+             "agent_profile": p.agent_profile, "ext_type": p.ext_type}
             for p in self._plugins.values()
         ]
 

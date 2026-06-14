@@ -3,6 +3,7 @@ SKILL.md 技能按需加载系统
 参考 pi agent/harness/skills.ts + opencode skill/ 的设计
 """
 import re
+import logging
 from pathlib import Path
 from dataclasses import dataclass, field
 from typing import Optional
@@ -11,6 +12,8 @@ try:
     import yaml
 except ImportError:
     yaml = None
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -165,14 +168,10 @@ class SkillRegistry:
         if skill.trigger != "auto" or not skill.condition:
             return False
         try:
-            # 限制可用内置，防止恶意代码
-            result = eval(  # noqa: S307
-                skill.condition,
-                {"__builtins__": {}},
-                {"state": state},
-            )
-            return bool(result)
-        except Exception:
+            from ..utils.safe_condition import evaluate_condition_expr
+            return evaluate_condition_expr(skill.condition, state)
+        except Exception as e:
+            logger.warning("[SkillRegistry] condition eval failed: %s — skipping skill %s", e, skill.name)
             return False
 
     def get_active_skills(self, phase: str, state: dict | None = None,

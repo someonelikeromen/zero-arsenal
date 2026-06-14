@@ -2,7 +2,7 @@
 
 本文档记录 ZeroArsenal 关键子系统的架构约束与**降级（degradation）行为**——即外部依赖缺失/失败时系统如何退化。理解这些边界对部署、调试与扩展开发至关重要。
 
-> 配套文档：设计细节见 `docs/design/`；占位/未实现清单见 `docs/STUB_ANALYSIS.md`；贡献规范见 `docs/CONTRIBUTING.md`。
+> 配套文档：设计细节见 `docs/design/`；当前修复核查以 `docs/FIX_VERIFICATION_2026-06.md` / `docs/PROGRESS.md` 为准；`docs/STUB_ANALYSIS.md` 与 `docs/review/*` 中的未实现描述多为历史快照；贡献规范见 `docs/CONTRIBUTING.md`。
 
 ---
 
@@ -108,7 +108,7 @@
 ## 8. 鉴权与限流
 
 - **鉴权**（`middleware/auth.py`）：未配置 `ZERO_ARSENAL_API_TOKEN` 时**完全放行**所有 `/api/*`（开发模式 = 无鉴权）。生产部署务必配置 token。
-- **限流**（`middleware/rate_limit.py`）：令牌桶状态**在进程内存**，多 worker 不共享；可通过 `ZERO_ARSENAL_RATE_ENABLED=0` 关闭。
+- **限流**（`middleware/rate_limit.py`）：令牌桶状态**在进程内存**，多 worker 不共享；**默认关闭**（`ZERO_ARSENAL_RATE_ENABLED` 缺省为 `0`），生产部署可设 `=1` 开启。
 
 ---
 

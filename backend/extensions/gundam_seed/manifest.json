@@ -4,6 +4,7 @@
   "version": "0.1.0",
   "description": "GUNDAM SEED 世界插件：宇宙世纪 CE71，血色情人节后时代，协调者与自然人的冲突。",
   "author": "ZeroArsenal",
+  "ext_type": "world",
   "world_keys": ["gundam_seed", "cosmic_era"],
   "capabilities": [
     "world_rules",

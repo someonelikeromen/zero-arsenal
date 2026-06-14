@@ -284,6 +284,18 @@ async def generate_opening(session_id: str, background_tasks: BackgroundTasks):
     )
 
     message_id = str(uuid.uuid4())
+    now = datetime.now().timestamp()
+    async with get_db() as db:
+        cnt_row = await (await db.execute(
+            "SELECT COUNT(*) as cnt FROM messages WHERE session_id=?", (session_id,)
+        )).fetchone()
+        cnt = cnt_row["cnt"] if cnt_row else 0
+        await db.execute(
+            "INSERT INTO messages (id, session_id, role, turn_index, content, message_type, phase, created_at) "
+            "VALUES (?, ?, 'assistant', ?, ?, 'opening', 'opening', ?)",
+            (message_id, session_id, cnt, directive, now),
+        )
+        await db.commit()
     background_tasks.add_task(_run_agent_pipeline, session_id, message_id, directive)
     return {
         "message_id": message_id,

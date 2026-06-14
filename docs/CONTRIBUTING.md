@@ -14,10 +14,10 @@ pip install -e "backend/[dev]"        # 安装含 dev 依赖（pytest 等）
 
 cp .env.example .env                  # 复制环境变量，至少填入一个 LLM API Key
 python -m backend.main                # 启动开发服务器
-# 或 uvicorn backend.main:app --reload
+# 或 uvicorn backend.main:app --reload --port 8001
 ```
 
-- API 文档：http://localhost:8000/docs
+- API 文档：http://localhost:8001/docs（默认 `PORT=8001`）
 - 各环境变量含义见 [`.env.example`](../.env.example) 中文注释。
 
 ### 1.2 前端（Node 18+）

@@ -7,7 +7,6 @@ E2E 测试：首页枢纽系统
 """
 import asyncio
 import json
-import time
 import os
 import sys
 import requests
@@ -17,8 +16,8 @@ import pytest
 
 pytestmark = pytest.mark.stub
 
-BACKEND = "http://127.0.0.1:8000"
-FRONTEND = "http://localhost:5175"
+BACKEND = os.environ.get("BACKEND_URL", "http://127.0.0.1:8001")
+FRONTEND = os.environ.get("FRONTEND_URL", "http://localhost:5173")
 SCREENSHOTS_DIR = os.path.join(os.path.dirname(__file__), "..", "screenshots")
 RUN_ID = datetime.now().strftime("%Y%m%d_%H%M%S")
 
@@ -76,7 +75,6 @@ def test_worlds_api():
 
 def test_character_templates_api():
     print("\n[API] Testing /api/characters ...")
-    time.sleep(1)  # avoid rate limiting
     char_data = {
         "name": "测试角色", "gender": "male", "tier": "T0",
         "plugin_key": "crossover", "background": "测试背景",
@@ -114,7 +112,6 @@ def test_character_templates_api():
 
 def test_assets_api():
     print("\n[API] Testing /api/assets ...")
-    time.sleep(2)  # avoid rate limiting
 
     # List NPCs (pre-existing)
     r = requests.get(f"{BACKEND}/api/assets/npcs", timeout=5)
@@ -122,7 +119,6 @@ def test_assets_api():
     npcs = r.json()["npcs"]
     print(f"  ✓ 列出NPC模板 ({len(npcs)} 个)")
 
-    time.sleep(1)
     # List items (pre-existing)
     r = requests.get(f"{BACKEND}/api/assets/items", timeout=5)
     assert r.status_code == 200, f"List items failed: {r.text}"
@@ -134,7 +130,6 @@ def test_assets_api():
 
 def test_prompts_api():
     print("\n[API] Testing /api/prompts ...")
-    time.sleep(2)  # avoid rate limiting
 
     # List prompts (triggers default creation)
     r = requests.get(f"{BACKEND}/api/prompts", timeout=5)
@@ -143,7 +138,6 @@ def test_prompts_api():
     print(f"  ✓ 列出提示词 ({len(prompts)} 条，含默认值)")
     assert len(prompts) >= 6, "Should have at least 6 default prompts"
 
-    time.sleep(1)
     # Filter by agent
     r = requests.get(f"{BACKEND}/api/prompts?agent=dm", timeout=5)
     assert r.status_code == 200, f"Filter prompts failed: {r.text}"
@@ -156,7 +150,6 @@ def test_prompts_api():
 
 def test_session_with_templates(wid: str, cid: str):
     print("\n[API] Testing session creation with templates ...")
-    time.sleep(2)  # avoid rate limiting
     # Create session using world template
     r = requests.post(f"{BACKEND}/api/sessions",
         json={"plugin_key": "crossover", "title": "模板测试会话",

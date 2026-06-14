@@ -196,10 +196,12 @@ async def list_skills():
 
 
 @router.get("/engine/extensions")
-async def list_extensions():
-    """列出所有已加载的 WorldPlugin 扩展。"""
+async def list_extensions(ext_type: str = "plugin"):
+    """列出已加载的扩展。ext_type=plugin 只返回行为包；ext_type=all 返回全部。"""
     from ...extensions import plugin_registry
     plugins = plugin_registry.list_plugins()
+    if ext_type != "all":
+        plugins = [p for p in plugins if p.get("ext_type", "plugin") == ext_type]
     return {"extensions": plugins, "count": len(plugins)}
 
 

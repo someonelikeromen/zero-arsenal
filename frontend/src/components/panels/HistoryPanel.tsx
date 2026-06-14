@@ -3,6 +3,7 @@
  * 设计文档 12 §4.6
  */
 import React, { useEffect, useState } from 'react'
+import { api, apiFetch } from '../../lib/api'
 import { notify } from '../../stores/ui'
 import { requestConfirm } from '../../stores/confirm'
 
@@ -52,9 +53,8 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({ sessionId }) => {
   useEffect(() => {
     if (!sessionId || tab !== 'dice') return
     setLoading(true)
-    fetch(`/api/sessions/${sessionId}/dice-history?limit=30`)
-      .then(r => r.json())
-      .then(d => setDiceHistory(d.history ?? d.rolls ?? []))
+    api.getDiceHistory(sessionId, 30)
+      .then(d => setDiceHistory((d.history ?? []) as DiceRecord[]))
       .catch((e) => notify.error(`加载骰子历史失败：${e}`))
       .finally(() => setLoading(false))
   }, [sessionId, tab])
@@ -63,8 +63,7 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({ sessionId }) => {
   useEffect(() => {
     if (!sessionId || tab !== 'messages') return
     setLoading(true)
-    fetch(`/api/sessions/${sessionId}/messages?limit=30`)
-      .then(r => r.json())
+    apiFetch<{ messages?: Record<string, unknown>[] }>(`/sessions/${sessionId}/messages?limit=30`)
       .then(d => {
         const list: MessageRecord[] = (d.messages ?? []).map((m: Record<string, unknown>) => ({
           id:          m.id as string,
@@ -91,24 +90,14 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({ sessionId }) => {
     setReverting(messageId)
     setRevertResult(null)
     try {
-      const resp = await fetch(`/api/sessions/${sessionId}/revert`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message_id: messageId }),
+      await api.revertToMessage(sessionId, messageId)
+      setRevertResult('回溯成功，请刷新页面查看效果')
+      notify.success('回溯成功，请刷新页面查看效果')
+      // 重新拉消息列表
+      setMessages(prev => {
+        const idx = prev.findIndex(m => m.id === messageId)
+        return idx >= 0 ? prev.slice(idx) : prev
       })
-      if (resp.ok) {
-        setRevertResult('回溯成功，请刷新页面查看效果')
-        notify.success('回溯成功，请刷新页面查看效果')
-        // 重新拉消息列表
-        setMessages(prev => {
-          const idx = prev.findIndex(m => m.id === messageId)
-          return idx >= 0 ? prev.slice(idx) : prev
-        })
-      } else {
-        const d = await resp.json().catch(() => ({}))
-        setRevertResult(`回溯失败：${d.detail ?? resp.status}`)
-        notify.error(`回溯失败：${d.detail ?? resp.status}`)
-      }
     } catch (e) {
       setRevertResult(`回溯失败：${e}`)
       notify.error(`回溯失败：${e}`)

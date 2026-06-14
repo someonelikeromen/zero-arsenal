@@ -5,6 +5,7 @@
 """
 import requests
 import json
+import os
 import time
 import sys
 
@@ -12,7 +13,7 @@ import pytest
 
 pytestmark = pytest.mark.stub
 
-BACKEND = "http://127.0.0.1:8000"
+BACKEND = os.environ.get("BACKEND_URL", "http://127.0.0.1:8001")
 
 
 def test_parse_document():

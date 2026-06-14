@@ -168,7 +168,7 @@
 ### 优化
 - [x] NarrativePart 改 store.subscribe 细粒度订阅 — `frontend/src/components/parts/{NarrativePart,ReasoningPart}.tsx` + `stores/story.ts` streamBuffers map（optimize · conf_b12；2026-06-04）
 - [x] IndexedDB 改 LRU 驱逐（当前时间过期）— `frontend/src/lib/*`（optimize · conf_b12）
-- [ ] 虚拟滚动实现 — `frontend/src/components/*`（optimize · T-M15）
+- [x] 虚拟滚动实现 — `frontend/src/components/MessageThread.tsx` 引入 `react-virtuoso` windowing（optimize · T-M15；2026-06-04 第二轮）
 - [x] 自动滚底不仅依赖 parts.length — `frontend/src/components/*`（optimize · NEW-C14-05）
 - [x] tool_loop MAX_ITER 与设计（20）对齐或更新文档 — `agents/tool_loop.py`（optimize · conf_b03）
 - [x] 外部 MCP 子 Agent `call_external_agent` + `asyncio.shield` 隔离（设计 §8.2/8.3）— `agents/*`（unwired · conf_b03）

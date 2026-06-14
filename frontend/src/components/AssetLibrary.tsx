@@ -11,13 +11,21 @@ import { requestConfirm } from '../stores/confirm'
 type AssetTab = 'npcs' | 'items'
 
 const ITEM_TYPES = ['equipment', 'consumable', 'artifact', 'material', 'misc']
-const WORLD_PLUGINS = ['crossover', 'wuxia', 'infinite_arsenal', 'muv_luv', 'gundam_seed']
+
+function usePluginList() {
+  const [plugins, setPlugins] = useState<{ key: string; name: string }[]>([])
+  useEffect(() => {
+    api.listWorldPlugins().then(r => setPlugins(r.plugins)).catch(() => {})
+  }, [])
+  return plugins
+}
 
 // ── NPC 表单 ──────────────────────────────────────────────────────────────────
 function NpcForm({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
   const [name, setName] = useState('')
   const [key, setKey] = useState('')
   const [plugin, setPlugin] = useState('crossover')
+  const availablePlugins = usePluginList()
   const [profile, setProfile] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -58,7 +66,7 @@ function NpcForm({ onClose, onSaved }: { onClose: () => void; onSaved: () => voi
               placeholder="唯一键（可选，自动生成）" />
             <select value={plugin} onChange={e => setPlugin(e.target.value)}
               className="flex-1 bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm focus:outline-none">
-              {WORLD_PLUGINS.map(p => <option key={p}>{p}</option>)}
+              {availablePlugins.map(p => <option key={p.key} value={p.key}>{p.name || p.key}</option>)}
             </select>
           </div>
           <textarea value={profile} onChange={e => setProfile(e.target.value)} rows={4}
@@ -82,6 +90,7 @@ function ItemForm({ onClose, onSaved }: { onClose: () => void; onSaved: () => vo
   const [name, setName] = useState('')
   const [itemType, setItemType] = useState('equipment')
   const [plugin, setPlugin] = useState('crossover')
+  const availablePlugins = usePluginList()
   const [desc, setDesc] = useState('')
   const [effects, setEffects] = useState('')
   const [tier, setTier] = useState('')
@@ -124,7 +133,7 @@ function ItemForm({ onClose, onSaved }: { onClose: () => void; onSaved: () => vo
             </select>
             <select value={plugin} onChange={e => setPlugin(e.target.value)}
               className="flex-1 bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm focus:outline-none">
-              {WORLD_PLUGINS.map(p => <option key={p}>{p}</option>)}
+              {availablePlugins.map(p => <option key={p.key} value={p.key}>{p.name || p.key}</option>)}
             </select>
           </div>
           <input value={tier} onChange={e => setTier(e.target.value)}

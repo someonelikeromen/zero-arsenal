@@ -21,8 +21,8 @@ pytestmark = pytest.mark.stub
 
 sys.stdout.reconfigure(encoding="utf-8")
 
-BACKEND_URL = "http://127.0.0.1:8000"
-FRONTEND_URL = "http://localhost:5174"
+BACKEND_URL = os.environ.get("BACKEND_URL", "http://127.0.0.1:8001")
+FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:5173")
 SCREENSHOT_DIR = pathlib.Path(__file__).parent.parent / "screenshots"
 SCREENSHOT_DIR.mkdir(exist_ok=True)
 

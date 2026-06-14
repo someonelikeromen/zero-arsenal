@@ -40,6 +40,15 @@ def _normalize_to_v4(data: dict, plugin_key: str, source: str = "") -> dict:
         sv = str(out.get("schema_version") or out.get("meta", {}).get("schema_version") or "0")
         if sv < "4":
             out = migrate_v3_to_v4(out)
+        # 兜底：确保 psyche_model 字段存在（前端直接读取此字段）
+        if not out.get("psyche_model"):
+            out = {**out, "psyche_model": {
+                "core_values": [],
+                "knowledge_scope": {"knows": [], "blind_spots": []},
+                "capability_cap": {"combat": "", "tech": "", "social": "", "special_sense": ""},
+                "behavior_patterns": "",
+                "emotional_triggers": "",
+            }}
         valid, errs = validate_character(out)
         if not valid:
             logger.warning("[characters%s] 角色卡 v4 校验未通过（保留数据）: %s",
@@ -100,13 +109,25 @@ _CHARACTER_SYSTEM = """你是一个 TRPG 角色建档专家。根据用户提供
 - 缺陷不能是变相优点（如"太完美"不算缺陷）
 - 创伤不能写成变强理由
 - 心理推断要具体，不美化
-- 初始道具只填背景明确提到的，不额外添加
 - 属性值范围 1-10，初始角色一般 3-6
+- 背景模式：必须从背景描述中主动推断并填充 psyche_model / skills / inventory / attributes
+
+背景推断规则（背景模式专用，不可省略）：
+- psyche_model.core_values：从背景的经历、选择、目标中提炼 2-3 条驱动行为的价值观
+- psyche_model.knowledge_scope.knows：背景中角色会知道的具体知识领域（职业/经历/世界观）
+- psyche_model.knowledge_scope.blind_spots：背景逻辑上角色不会知道的领域（反面/空白区）
+- psyche_model.capability_cap：根据背景职业/经历直接描述各维度上限，不能全部留空
+- psyche_model.behavior_patterns：1-2 句从背景动机中推断的惯常行为方式
+- psyche_model.emotional_triggers：背景中能引发失控/爆发的具体情境
+- skills：背景提到的职业/训练/爱好对应的技能，至少 2-4 条
+- inventory：背景明确提到或职业必备的道具/装备/服装，量力而为
+- attributes：根据背景职业/身体描述调整，不要全 5
 
 v4 JSON 格式：
 {{
   "name": "角色名",
   "plugin_key": "plugin_key值",
+  "schema_version": "4.0.0",
   "attributes": {{"strength":4,"dexterity":4,"intelligence":5,"will":4,"empathy":4}},
   "max_hp": 40,
   "current_hp": 40,
@@ -117,18 +138,20 @@ v4 JSON 格式：
   "economy": {{"points":100,"currency":0}},
   "psyche_model": {{
     "core_values": ["核心价值观1","核心价值观2"],
-    "knowledge_scope": {{"knows": ["已知事项"], "blind_spots": ["盲区/不知道的事"]}},
-    "capability_cap": {{"combat":"战斗能力上限描述","tech":"技术能力描述","social":"社交能力描述","special_sense":"特殊感知或null"}},
+    "knowledge_scope": {{"knows": ["已知事项1","已知事项2"], "blind_spots": ["盲区/不知道的事1"]}},
+    "capability_cap": {{"combat":"战斗能力上限描述","tech":"技术能力描述","social":"社交能力描述","special_sense":null}},
     "behavior_patterns": "1-2句典型行为模式",
     "emotional_triggers": "什么情况下会脱离常规反应"
   }},
-  "meta": {{"background":"背景简述","personality":"性格描述","flaws":["缺陷1"]}}
+  "meta": {{"schema_version":"4.0.0","background":"背景简述","personality":"性格描述","flaws":["缺陷1"]}}
 }}
 
 psyche_model 要求：
-- core_values 至少 2 条，具体且能驱动行为
-- knowledge_scope 区分角色「知道什么」和「不知道什么」，用于防止全知叙事
-- capability_cap 必须反映用户指定的能力倾向，不能各项平均堆高
+- core_values 至少 2 条，具体且能驱动行为（不能写"善良""正义"等空洞词）
+- knowledge_scope.knows 至少 3 条，来自背景的具体领域（如"机甲驾驶理论""19世纪欧洲史"）
+- knowledge_scope.blind_spots 至少 2 条，背景逻辑上的空白区（如"不懂现代电子技术"）
+- capability_cap 每个非 null 项写 1-2 句具体描述，不能全部留空字符串
+- behavior_patterns 和 emotional_triggers 必须有内容，不能是占位符文字
 只输出 JSON，不要其他文字。"""
 
 
@@ -315,6 +338,35 @@ async def export_character_png(cid: str):
 
 # ── SSE 生成端点 ──────────────────────────────────────────────────────────────
 
+def _sanitize_for_json(obj: object) -> object:
+    """移除孤立 surrogate，避免 json.dumps 后 .encode('utf-8') 抛 UnicodeEncodeError。"""
+    if isinstance(obj, str):
+        return obj.encode("utf-8", errors="surrogatepass").decode("utf-8", errors="replace")
+    if isinstance(obj, dict):
+        return {k: _sanitize_for_json(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_sanitize_for_json(v) for v in obj]
+    return obj
+
+
+def _sse_event(data: dict) -> bytes:
+    safe = _sanitize_for_json(data)
+    return f"data: {json.dumps(safe, ensure_ascii=False)}\n\n".encode("utf-8", errors="replace")
+
+
+async def _safe_sse(inner: AsyncIterator[bytes]) -> AsyncIterator[bytes]:
+    """兜底：生成器内未捕获异常 → SSE error 事件，避免 HTTP 500 截断流。"""
+    try:
+        async for chunk in inner:
+            yield chunk
+    except Exception as ex:
+        logger.exception("[characters] SSE stream uncaught error")
+        yield _sse_event({"type": "error", "message": str(ex)})
+
+
+_SSE_HEADERS = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
+
+
 @router.post("/characters/generate/questions")
 async def generate_questions(req: GenerateQuestionsRequest):
     """LLM → SSE 返回 5 道问卷题目。"""
@@ -326,7 +378,7 @@ async def generate_questions(req: GenerateQuestionsRequest):
     async def _stream() -> AsyncIterator[bytes]:
         full_text = ""
         try:
-            yield f"data: {json.dumps({'type': 'start'})}\n\n".encode()
+            yield _sse_event({"type": "start"})
 
             async def on_delta(d: str) -> None:
                 nonlocal full_text
@@ -344,12 +396,16 @@ async def generate_questions(req: GenerateQuestionsRequest):
                 logger.warning("[characters] 引导问题 JSON 解析失败，降级 questions=[]: %s", e)
                 questions = []
 
-            yield f"data: {json.dumps({'type': 'done', 'questions': questions}, ensure_ascii=False)}\n\n".encode()
+            yield _sse_event({"type": "done", "questions": questions})
         except Exception as ex:
-            yield f"data: {json.dumps({'type': 'error', 'message': str(ex)})}\n\n".encode()
+            logger.warning("[characters] generate/questions failed: %s", ex)
+            yield _sse_event({"type": "error", "message": str(ex)})
 
-    return StreamingResponse(_stream(), media_type="text/event-stream",
-                             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+    return StreamingResponse(
+        _safe_sse(_stream()),
+        media_type="text/event-stream",
+        headers=_SSE_HEADERS,
+    )
 
 
 @router.post("/characters/generate")
@@ -359,7 +415,7 @@ async def generate_character(req: GenerateCharacterRequest):
     async def _stream() -> AsyncIterator[bytes]:
         full_text = ""
         try:
-            yield f"data: {json.dumps({'type': 'start'})}\n\n".encode()
+            yield _sse_event({"type": "start"})
 
             # 异步构建 prompt（可能联网抓取原作上下文）
             messages = await _build_character_prompt(req)
@@ -389,9 +445,13 @@ async def generate_character(req: GenerateCharacterRequest):
             if req.first_message.strip():
                 char_data["first_message"] = req.first_message.strip()
 
-            yield f"data: {json.dumps({'type': 'done', 'character': char_data}, ensure_ascii=False)}\n\n".encode()
+            yield _sse_event({"type": "done", "character": char_data})
         except Exception as ex:
-            yield f"data: {json.dumps({'type': 'error', 'message': str(ex)})}\n\n".encode()
+            logger.warning("[characters] generate failed: %s", ex)
+            yield _sse_event({"type": "error", "message": str(ex)})
 
-    return StreamingResponse(_stream(), media_type="text/event-stream",
-                             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+    return StreamingResponse(
+        _safe_sse(_stream()),
+        media_type="text/event-stream",
+        headers=_SSE_HEADERS,
+    )

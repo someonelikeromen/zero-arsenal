@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { api } from '../lib/api'
+import { api, apiFetch, WikiPattern } from '../lib/api'
 import { notify, useUIStore } from '../stores/ui'
 
 interface Props {
@@ -73,11 +73,7 @@ function AgentsTab() {
   const [error, setError]     = useState('')
 
   useEffect(() => {
-    fetch('/api/config/llm-routes')
-      .then((r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`)
-        return r.json()
-      })
+    api.getLlmRoutes()
       .then((data) => {
         setRoutes((data.routes as Record<string, AgentProfile>) ?? {})
       })
@@ -178,11 +174,7 @@ function ToolsTab() {
   const [error, setError]     = useState('')
 
   useEffect(() => {
-    fetch('/api/tools')
-      .then((r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`)
-        return r.json()
-      })
+    apiFetch<{ tools?: Tool[] } | Tool[]>('/tools')
       .then((data) => {
         const list = Array.isArray(data) ? data : (data.tools ?? [])
         setTools(list)
@@ -228,11 +220,7 @@ function SkillsTab() {
   const [error, setError]     = useState('')
 
   useEffect(() => {
-    fetch('/api/engine/skills')
-      .then((r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`)
-        return r.json()
-      })
+    apiFetch<{ skills?: Skill[] } | Skill[]>('/engine/skills')
       .then((data) => {
         const list = Array.isArray(data) ? data : (data.skills ?? [])
         setSkills(list)
@@ -284,9 +272,8 @@ function LlmRoutesTab() {
   const [editForm, setEditForm] = useState<LLMRoute>({ provider: 'deepseek', model: 'deepseek-chat' })
 
   useEffect(() => {
-    fetch('/api/config/llm-routes')
-      .then(r => r.json())
-      .then(d => setRoutes(d.routes ?? {}))
+    api.getLlmRoutes()
+      .then(d => setRoutes((d.routes ?? {}) as Record<string, LLMRoute>))
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [])
@@ -300,15 +287,9 @@ function LlmRoutesTab() {
     if (!editAgent) return
     setSaving(editAgent)
     try {
-      const resp = await fetch('/api/config/llm-routes', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ agent: editAgent, ...editForm }),
-      })
-      if (resp.ok) {
-        setRoutes(prev => ({ ...prev, [editAgent]: { ...editForm } }))
-        setEditAgent(null)
-      }
+      await api.updateLlmRoute({ agent: editAgent, ...editForm })
+      setRoutes(prev => ({ ...prev, [editAgent]: { ...editForm } }))
+      setEditAgent(null)
     } finally {
       setSaving(null)
     }
@@ -434,8 +415,7 @@ function ApiKeysTab() {
   const [msg, setMsg]             = useState<{ ok: boolean; text: string } | null>(null)
 
   useEffect(() => {
-    fetch('/api/config/api-keys')
-      .then(r => r.json())
+    apiFetch<{ keys?: Record<string, KeyStatus> }>('/config/api-keys')
       .then(d => setKeys(d.keys ?? {}))
       .catch(() => {})
       .finally(() => setLoading(false))
@@ -446,12 +426,10 @@ function ApiKeysTab() {
     setSaving(provider)
     setMsg(null)
     try {
-      const res = await fetch('/api/config/api-keys', {
+      const data = await apiFetch<{ ok?: boolean; warning?: string }>('/config/api-keys', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ provider, api_key: editKey.trim() }),
       })
-      const data = await res.json() as { ok?: boolean; warning?: string }
       if (data.ok) {
         setKeys(prev => ({ ...prev, [provider]: { configured: true, preview: editKey.slice(0, 8) + '...' } }))
         setEditProvider(null)
@@ -650,7 +628,13 @@ function RulesTab() {
   const load = () => {
     setLoading(true)
     api.listEngineRules()
-      .then(d => setRules(d.rules ?? []))
+      .then(d => setRules((d.rules ?? []).map(rule => ({
+        id: rule.rule_id,
+        name: rule.title ?? rule.rule_id,
+        description: rule.description,
+        enabled: rule.enabled,
+        active: rule.enabled,
+      }))))
       .catch((e: Error) => setError(e.message))
       .finally(() => setLoading(false))
   }
@@ -788,6 +772,137 @@ function McpTab() {
 }
 
 
+// ── Wiki 模式配置 Tab ─────────────────────────────────────────────────────────
+
+function WikiPatternsTab() {
+  const [patterns, setPatterns] = useState<WikiPattern[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [dirty, setDirty] = useState(false)
+
+  const load = async () => {
+    setLoading(true)
+    setError('')
+    try {
+      const res = await api.getWikiPatterns()
+      setPatterns(res.patterns)
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => { load() }, [])
+
+  const update = (i: number, field: keyof WikiPattern, val: string | boolean | null) => {
+    setPatterns(prev => prev.map((p, idx) => idx === i ? { ...p, [field]: val } : p))
+    setDirty(true)
+  }
+
+  const addRow = () => {
+    setPatterns(prev => [...prev, { source: '', pattern: '', slug_transform: null, enabled: true, notes: '' }])
+    setDirty(true)
+  }
+
+  const removeRow = (i: number) => {
+    setPatterns(prev => prev.filter((_, idx) => idx !== i))
+    setDirty(true)
+  }
+
+  const save = async () => {
+    if (!patterns.every(p => p.source.trim() && p.pattern.trim())) {
+      notify.warning('所有行的 source 和 pattern 不能为空')
+      return
+    }
+    setSaving(true)
+    try {
+      await api.saveWikiPatterns(patterns)
+      notify.success('Wiki 模式已保存')
+      setDirty(false)
+    } catch (e: unknown) {
+      notify.error(`保存失败：${e instanceof Error ? e.message : String(e)}`)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (loading) return <LoadingRow />
+  if (error) return <ErrorRow msg={error} />
+
+  return (
+    <div className="space-y-3">
+      <p className="text-xs text-zinc-500">
+        智能发现 URL 功能从此列表生成候选链接。
+        <code className="text-zinc-400 mx-1">{'{name}'}</code> 替换为 URL 编码后的世界名，
+        <code className="text-zinc-400 mx-1">{'{slug}'}</code> 按 slug_transform 转换。
+      </p>
+
+      <div className="space-y-2">
+        {patterns.map((p, i) => (
+          <div key={i} className="bg-zinc-800 rounded-lg p-3 space-y-2">
+            <div className="flex items-center gap-2">
+              <input
+                value={p.source}
+                onChange={e => update(i, 'source', e.target.value)}
+                placeholder="来源名称（如 Fandom）"
+                className="w-28 bg-zinc-700 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              />
+              <input
+                value={p.pattern}
+                onChange={e => update(i, 'pattern', e.target.value)}
+                placeholder="https://{slug}.fandom.com/wiki/{name}"
+                className="flex-1 bg-zinc-700 rounded px-2 py-1 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              />
+              <label className="flex items-center gap-1 text-xs text-zinc-400 shrink-0">
+                <input type="checkbox" className="accent-indigo-500"
+                  checked={p.enabled} onChange={e => update(i, 'enabled', e.target.checked)} />
+                启用
+              </label>
+              <button onClick={() => removeRow(i)} className="text-red-500 hover:text-red-400 text-xs px-1 shrink-0">×</button>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] text-zinc-600 w-20 shrink-0">slug_transform</span>
+              <select
+                value={p.slug_transform ?? ''}
+                onChange={e => update(i, 'slug_transform', e.target.value || null)}
+                className="bg-zinc-700 rounded px-2 py-0.5 text-xs"
+              >
+                <option value="">无（直接 URL 编码）</option>
+                <option value="lowercase_hyphen">lowercase-hyphen</option>
+                <option value="lowercase_underscore">lowercase_underscore</option>
+              </select>
+              <input
+                value={p.notes}
+                onChange={e => update(i, 'notes', e.target.value)}
+                placeholder="备注（可选）"
+                className="flex-1 bg-zinc-700 rounded px-2 py-0.5 text-[11px] focus:outline-none"
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="flex gap-2 pt-1">
+        <button onClick={addRow}
+          className="text-xs text-zinc-400 hover:text-zinc-200 bg-zinc-800 hover:bg-zinc-700 px-3 py-1.5 rounded">
+          + 新增模式
+        </button>
+        <button onClick={save} disabled={saving || !dirty}
+          className="text-xs bg-indigo-600 hover:bg-indigo-500 disabled:bg-zinc-700 disabled:text-zinc-500 text-white px-4 py-1.5 rounded">
+          {saving ? '保存中...' : dirty ? '保存更改' : '已保存'}
+        </button>
+        <button onClick={() => { load(); setDirty(false) }}
+          className="text-xs text-zinc-500 hover:text-zinc-300 px-2 py-1.5">
+          重置
+        </button>
+      </div>
+    </div>
+  )
+}
+
+
 // ── 标签页定义 ────────────────────────────────────────────────────────────────
 
 type SettingsGroup = 'basic' | 'advanced' | 'experimental'
@@ -799,16 +914,17 @@ const GROUP_META: { id: SettingsGroup; label: string; hint: string }[] = [
 ]
 
 const TABS = [
-  { key: 'appearance', label: '外观',      group: 'basic',        component: AppearanceTab },
-  { key: 'agents',     label: '模型配置',  group: 'basic',        component: AgentsTab },
-  { key: 'apikeys',    label: 'API Keys',  group: 'basic',        component: ApiKeysTab },
-  { key: 'llm',        label: 'LLM 路由',  group: 'advanced',     component: LlmRoutesTab },
-  { key: 'extensions', label: '扩展管理',  group: 'advanced',     component: ExtensionsTab },
-  { key: 'rules',      label: '规则管理',  group: 'advanced',     component: RulesTab },
-  { key: 'tools',      label: '工具注册',  group: 'advanced',     component: ToolsTab },
-  { key: 'skills',     label: '技能库',    group: 'advanced',     component: SkillsTab },
-  { key: 'memory',     label: '记忆健康',  group: 'advanced',     component: MemoryHealthTab },
-  { key: 'mcp',        label: 'MCP 工具',  group: 'experimental', component: McpTab },
+  { key: 'appearance',   label: '外观',       group: 'basic',        component: AppearanceTab },
+  { key: 'agents',       label: '模型配置',   group: 'basic',        component: AgentsTab },
+  { key: 'apikeys',      label: 'API Keys',   group: 'basic',        component: ApiKeysTab },
+  { key: 'llm',          label: 'LLM 路由',   group: 'advanced',     component: LlmRoutesTab },
+  { key: 'extensions',   label: '扩展管理',   group: 'advanced',     component: ExtensionsTab },
+  { key: 'rules',        label: '规则管理',   group: 'advanced',     component: RulesTab },
+  { key: 'tools',        label: '工具注册',   group: 'advanced',     component: ToolsTab },
+  { key: 'skills',       label: '技能库',     group: 'advanced',     component: SkillsTab },
+  { key: 'memory',       label: '记忆健康',   group: 'advanced',     component: MemoryHealthTab },
+  { key: 'wiki_patterns',label: 'Wiki 模式',  group: 'advanced',     component: WikiPatternsTab },
+  { key: 'mcp',          label: 'MCP 工具',   group: 'experimental', component: McpTab },
 ] as const
 
 type TabKey = typeof TABS[number]['key']

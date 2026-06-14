@@ -676,7 +676,7 @@ async def get_parts(
 
         params.append(limit + 1)
         rows = await (await db.execute(
-            f"SELECT id, message_id, type, content, created_at, metadata "
+            f"SELECT id, message_id, type, content, status, agent, created_at, metadata "
             f"FROM message_parts WHERE {' AND '.join(where)} "
             f"ORDER BY created_at ASC LIMIT ?",
             params
@@ -692,7 +692,8 @@ async def get_parts(
                 d["content"] = json.loads(d["content"])
             except Exception:
                 pass
-            d["part_id"] = d.pop("id")
+            # 同时暴露 part_id（SSE 惯例）和 id（REST 惯例），保持兼容
+            d["part_id"] = d["id"]
 
     next_cursor: Optional[str] = None
     if has_more and items:
@@ -904,8 +905,11 @@ async def manual_consolidate(session_id: str, req: ConsolidateRequest = Consolid
     from ...agents.chronicler_agent import chronicler_agent_node
     from ...agents.state import TurnContext
 
+    async with get_db() as _db:
+        _sess = await _db.fetchone("SELECT plugin_key FROM sessions WHERE id=?", (session_id,))
+    _plugin_key = _sess["plugin_key"] if _sess else "crossover"
     ctx = TurnContext(session_id=session_id, user_input="[manual consolidate]",
-                      plugin_key="crossover", mode="plan")
+                      plugin_key=_plugin_key, mode="plan")
     if req.title:
         ctx.extra_context = {"override_title": req.title}
     if req.summary:
@@ -1272,7 +1276,7 @@ async def search_memory(session_id: str, q: str = "", top_k: int = 10,
 
     results_text = await memory_adapter.recall(
         session_id=session_id,
-        world_plugin=plugin_key_val,
+        plugin_key=plugin_key_val,
         query_text=q,
         viewer_agent=viewer_agent,
         top_k=top_k,

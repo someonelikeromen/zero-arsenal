@@ -382,6 +382,7 @@ async def _execute_one(
             await bus.publish_part_created(
                 ctx.session_id, _part_id, PartType.TOOL_CALL,
                 ctx.message_id or "", ctx.agent_name,
+                tool_name=name,
             )
     except Exception:
         pass

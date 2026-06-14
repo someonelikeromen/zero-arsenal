@@ -2,6 +2,7 @@
 
 > 范围：仅 `frontend/`。基准证据：`docs/review/def_c13.md`、`def_c14.md`、`conf_b09.md`、`REVIEW_TODO_2026-06.md`。
 > 构建验证：`npm install` + `npm run build`（tsc -b && vite build）均通过。
+> 状态说明：本报告 24-25 行保留第一轮历史结论；第二轮已完成 `react-virtuoso` 真窗口化与 NarrativePart/ReasoningPart 细粒度订阅，权威结论见 `docs/FIX_VERIFICATION_2026-06.md:100,113-118`。
 
 | item | status | evidence(file:line) | note |
 |---|---|---|---|
@@ -21,8 +22,8 @@
 | D21 · 升级 Tailwind 到 v4 | ✅真实实现 | `package.json:22-30`（`tailwindcss ^4.1`、新增 `@tailwindcss/postcss ^4.1`、移除 autoprefixer）、`postcss.config.js`、`src/index.css:1-4`（`@import "tailwindcss"` + `@config`）、`tailwind.config.js` | 构建产出 CSS 49.11 kB，样式正常生成 |
 | D22 · IndexedDB 改 LRU 驱逐 | ✅真实实现 | `frontend/src/lib/idb.ts:44-118`（`STORE_LIMITS`、`enforceLimit` 按 `ts` 升序驱逐、`idbTouch` 读时刷新 last-access；getSession/getCharacter/getPartsBySession 触碰） | 由「仅时间过期」升级为「时间过期 + LRU（最后访问）」；`sse_cursor:` 续传游标不被驱逐 |
 | 前端优化 · 自动滚底不仅依赖 parts.length（NEW-C14-05） | ✅真实实现 | `frontend/src/components/MessageThread.tsx:55-77,90`（贴底判定 `nearBottomRef` + 流式增量签名 `streamSignature` 触发滚动） | 用户上翻历史时不被强拉到底；流式增量持续跟随 |
-| 前端优化 · 虚拟滚动注释/实现（T-M15） | ⚠️部分 | `frontend/src/components/MessageThread.tsx:1-6`（注释改为「全量渲染」） | 未引入 react-window/virtuoso 真正窗口化（避免新增依赖/破坏渲染，按「保持安全」取舍）；仅修正误导性注释并改进滚动跟随 |
-| 前端优化 · NarrativePart 细粒度订阅（conf_b12） | ❌未实现 | — | 本批次未触及 NarrativePart 的 store.subscribe 细粒度订阅改造；与构建无关，留待后续 |
+| 前端优化 · 虚拟滚动注释/实现（T-M15） | ✅第二轮完成 | `frontend/src/components/MessageThread.tsx`（`react-virtuoso` windowing + `followOutput`） | 第一轮曾标 ⚠️；第二轮已引入 `react-virtuoso` 真窗口化 |
+| 前端优化 · NarrativePart 细粒度订阅（conf_b12） | ✅第二轮完成 | `frontend/src/stores/story.ts`、`frontend/src/components/parts/{NarrativePart,ReasoningPart}.tsx` | 第一轮曾标 ❌；第二轮已改为 `streamBuffers` 细粒度订阅 |
 
 ## 构建结果
 
@@ -41,8 +42,8 @@ dist/assets/index-Bq56gnZq.js   494.66 kB │ gzip: 145.17 kB
 
 退出码 0；唯一告警为 vite 的 `idb.ts` 同时被静态/动态 import 的分包提示（非错误，story.ts 既有的静态 `cache` 引用所致，不影响产物）。
 
-## 说明（部分/未实现项）
+## 说明（历史项已闭环）
 
-- **T-M15（虚拟滚动）标 ⚠️部分**：仅在不引入第三方库、不改变现有 DOM 渲染契约的前提下修正了误导注释并增强了滚动跟随；真正的列表虚拟化需新增依赖（react-window 等），为避免破坏 PartRenderer 的全量挂载假设，按任务「保持安全」原则未做，标记为部分完成。
-- **conf_b12 / NarrativePart 细粒度订阅标 ❌**：属 P3 优化项，本批次聚焦 P0/P1/P2 与指定项；未改动以免影响流式渲染稳定性。
-- 其余 14 项均为真实实现并随 `npm run build` 通过编译。
+- **T-M15（虚拟滚动）**：第一轮为部分实现；第二轮已引入 `react-virtuoso` 完成窗口化。
+- **conf_b12 / NarrativePart 细粒度订阅**：第一轮未实现；第二轮已通过 `streamBuffers` map 完成细粒度订阅。
+- 当前前端还新增统一鉴权封装：组件/页面不再直接 `fetch('/api/...')`，普通请求走 `apiFetch`，流式请求走 `apiStreamFetch`，SSE 由 `apiSseUrl` 处理 token query。

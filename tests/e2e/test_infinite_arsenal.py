@@ -10,6 +10,7 @@
 标注 stub；CI 以 `-m "not stub"` 排除（见 STUB_ANALYSIS T05）。
 """
 import json
+import os
 import sys
 import time
 import pathlib
@@ -22,7 +23,7 @@ pytestmark = pytest.mark.stub
 
 sys.stdout.reconfigure(encoding="utf-8")
 
-BACKEND  = "http://127.0.0.1:8000"
+BACKEND  = os.environ.get("BACKEND_URL", "http://127.0.0.1:8001")
 SS_DIR   = pathlib.Path(__file__).parent.parent / "screenshots"
 SS_DIR.mkdir(exist_ok=True)
 TS       = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -223,7 +224,7 @@ def test_browser_ui(sid: str):
         pytest.skip("playwright 未安装，跳过浏览器测试")
         return
 
-    frontend = "http://localhost:5174"
+    frontend = os.environ.get("FRONTEND_URL", "http://localhost:5173")
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         page = browser.new_page(viewport={"width": 1440, "height": 900})

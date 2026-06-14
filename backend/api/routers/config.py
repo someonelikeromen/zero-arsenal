@@ -90,10 +90,12 @@ async def memory_health():
 # ── WorldPlugin / AgentProfile / 文风 ────────────────────────────────────────
 
 @router.get("/config/world-plugins")
-async def list_plugin_keys():
-    """列出所有已注册的世界插件。"""
+async def list_plugin_keys(ext_type: str = "plugin"):
+    """列出已注册的插件。ext_type=plugin 只返回行为包；ext_type=all 返回全部。"""
     from ...extensions import plugin_registry
     plugins = plugin_registry.list_plugins()
+    if ext_type != "all":
+        plugins = [p for p in plugins if p.get("ext_type", "plugin") == ext_type]
     result = []
     for info in plugins:
         plug = plugin_registry.get(info["key"])
@@ -277,6 +279,70 @@ async def get_api_keys():
     env_path = Path(__file__).parent.parent.parent.parent / ".env"
     return {"keys": result, "env_file": str(env_path)}
 
+
+# ── Wiki 候选 URL 模式管理 ────────────────────────────────────────────────────
+
+class WikiPatternItem(BaseModel):
+    source: str
+    pattern: str
+    slug_transform: Optional[str] = None
+    enabled: bool = True
+    notes: str = ""
+
+
+@router.get("/config/wiki-patterns")
+async def get_wiki_patterns():
+    """返回当前所有 wiki 候选 URL 模式（含禁用的）。"""
+    from ...utils.web_scraper import list_wiki_patterns
+    return {"patterns": list_wiki_patterns(), "total": len(list_wiki_patterns())}
+
+
+@router.put("/config/wiki-patterns")
+async def replace_wiki_patterns(patterns: list[WikiPatternItem]):
+    """整体替换 wiki 模式列表（PUT 覆盖）。"""
+    from ...utils.web_scraper import save_wiki_patterns
+    data = [p.model_dump() for p in patterns]
+    ok = save_wiki_patterns(data)
+    if not ok:
+        raise HTTPException(500, "wiki_patterns.json 写入失败")
+    return {"ok": True, "total": len(data)}
+
+
+@router.post("/config/wiki-patterns")
+async def add_wiki_pattern(item: WikiPatternItem):
+    """追加一条 wiki 模式。若同 source 已存在则更新。"""
+    from ...utils.web_scraper import list_wiki_patterns, save_wiki_patterns
+    patterns = list_wiki_patterns()
+    existing = next((p for p in patterns if p.get("source") == item.source), None)
+    new_item = item.model_dump()
+    if existing:
+        existing.update(new_item)
+        action = "updated"
+    else:
+        patterns.append(new_item)
+        action = "added"
+    ok = save_wiki_patterns(patterns)
+    if not ok:
+        raise HTTPException(500, "wiki_patterns.json 写入失败")
+    return {"ok": True, "action": action, "source": item.source}
+
+
+@router.delete("/config/wiki-patterns/{source}")
+async def delete_wiki_pattern(source: str):
+    """按 source 名称删除（或禁用）一条 wiki 模式。"""
+    from ...utils.web_scraper import list_wiki_patterns, save_wiki_patterns
+    patterns = list_wiki_patterns()
+    before = len(patterns)
+    patterns = [p for p in patterns if p.get("source") != source]
+    if len(patterns) == before:
+        raise HTTPException(404, f"未找到 source='{source}' 的 wiki 模式")
+    ok = save_wiki_patterns(patterns)
+    if not ok:
+        raise HTTPException(500, "wiki_patterns.json 写入失败")
+    return {"ok": True, "deleted": source}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 
 @router.put("/config/api-keys")
 async def update_api_key(req: ApiKeyUpdateRequest):

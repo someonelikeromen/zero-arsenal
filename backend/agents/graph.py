@@ -110,15 +110,17 @@ async def parallel_npc_world_node(ctx: TurnContext) -> TurnContext:
 
 async def chronicler_wrapper(ctx: TurnContext) -> TurnContext:
     """
-    按需执行 ChroniclerAgent：
-    - should_consolidate 为 True 时执行章节固化并触发 on_chapter_end Hook
-    - 否则直接透传 ctx 至 END
+    每轮均调用 ChroniclerAgent 写入 turn anchor。
+    节点内部判断是否达到阈值并执行章节固化。
+    固化发生时触发 on_chapter_end Hook。
     """
     from .agent_span import agent_span
     async with agent_span(ctx, "chronicler"):
-        if await should_consolidate(ctx.session_id):
-            result = await chronicler_agent_node(ctx)
-            # 触发 on_chapter_end Hook
+        # 调用前记录是否即将固化，用于事后触发 Hook
+        will_consolidate = await should_consolidate(ctx.session_id)
+        # 每轮均调用节点以写入 turn anchor（节点内部自行决定是否固化）
+        result = await chronicler_agent_node(ctx)
+        if will_consolidate:
             try:
                 from ..hooks import hook_manager, HookEvent
                 await hook_manager.fire(HookEvent.on_chapter_end, {
@@ -128,9 +130,7 @@ async def chronicler_wrapper(ctx: TurnContext) -> TurnContext:
                 })
             except Exception as e:
                 _log.warning("[chronicler] on_chapter_end hook failed: %s", e)
-            return result
-        return ctx
-    # M-09：with 块内两条分支均已 return，此处原 `return ctx` 不可达，已删除。
+        return result
 
 
 # ── 行动选项节点 ──────────────────────────────────────────────────────────────

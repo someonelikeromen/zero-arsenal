@@ -157,6 +157,10 @@ def load_extension(bundle: ExtensionBundle) -> LoadedExtension:
                     if isinstance(obj, type) and name.endswith("Plugin"):
                         loaded.plugin = obj()
                         break
+            # 将 manifest 中的 ext_type 同步到 Plugin 实例
+            if loaded.plugin is not None:
+                ext_type = bundle.manifest.get("ext_type", "plugin")
+                loaded.plugin.ext_type = ext_type
         except Exception as e:
             logger.warning(f"[ExtLoader] {bundle.ext_id}/plugin.py 加载失败: {e}")
 

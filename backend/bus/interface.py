@@ -78,12 +78,16 @@ class IEventBus(abc.ABC):
     async def publish_part_created(
         self, session_id: str, part_id: str, part_type: str,
         message_id: str, agent: str,
+        tool_name: str | None = None,
     ) -> None:
         from .event_bus import BusEvent, EventType
+        data: dict = {"part_id": part_id, "part_type": part_type,
+                      "message_id": message_id, "agent": agent}
+        if tool_name is not None:
+            data["tool_name"] = tool_name
         await self.publish(BusEvent(
             type=EventType.PART_CREATED, session_id=session_id,
-            data={"part_id": part_id, "part_type": part_type,
-                  "message_id": message_id, "agent": agent},
+            data=data,
         ))
 
     async def publish_part_delta(

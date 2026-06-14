@@ -3,6 +3,38 @@
  */
 
 const BASE = '/api'
+const TOKEN_STORAGE_KEY = 'zero_arsenal_api_token'
+
+export function getApiToken(): string {
+  if (typeof window === 'undefined') return ''
+  return window.localStorage.getItem(TOKEN_STORAGE_KEY) || window.localStorage.getItem('ZERO_ARSENAL_API_TOKEN') || ''
+}
+
+export function setApiToken(token: string): void {
+  if (typeof window === 'undefined') return
+  if (token.trim()) window.localStorage.setItem(TOKEN_STORAGE_KEY, token.trim())
+  else window.localStorage.removeItem(TOKEN_STORAGE_KEY)
+}
+
+export function apiHeaders(init?: HeadersInit, json = true): HeadersInit {
+  // 使用小写 key，避免与 new Headers(init).entries() 产生 Content-Type/content-type 重复
+  const headers: Record<string, string> = json ? { 'content-type': 'application/json' } : {}
+  if (init) Object.assign(headers, Object.fromEntries(new Headers(init).entries()))
+  const token = getApiToken()
+  if (token && !headers.Authorization) headers.Authorization = `Bearer ${token}`
+  return headers
+}
+
+export function apiUrl(path: string): string {
+  return `${BASE}${path}`
+}
+
+export function apiSseUrl(path: string): string {
+  const token = getApiToken()
+  if (!token) return apiUrl(path)
+  const sep = path.includes('?') ? '&' : '?'
+  return apiUrl(`${path}${sep}access_token=${encodeURIComponent(token)}`)
+}
 
 export interface Session {
   session_id: string
@@ -92,15 +124,44 @@ export interface RollRequest {
  * （NEW-C13-03）。导出供 stores 直接调用。
  */
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json', ...init?.headers },
+  const body = init?.body
+  const isForm = typeof FormData !== 'undefined' && body instanceof FormData
+  const res = await fetch(apiUrl(path), {
     ...init,
+    headers: apiHeaders(init?.headers, !isForm),
   })
   if (!res.ok) {
     const text = await res.text()
     throw new Error(`API ${path} → ${res.status}: ${text}`)
   }
   return res.json() as Promise<T>
+}
+
+/** 从 apiFetch/apiStreamFetch 抛出的 `API path → status: body` 错误中提取可读信息 */
+export function parseApiErrorMessage(raw: string): string {
+  const jsonStart = raw.indexOf('{')
+  if (jsonStart >= 0) {
+    try {
+      const payload = JSON.parse(raw.slice(jsonStart)) as { message?: string; error?: string }
+      if (payload.message) return payload.message
+      if (payload.error) return payload.error
+    } catch { /* ignore */ }
+  }
+  return raw
+}
+
+export async function apiStreamFetch(path: string, init?: RequestInit): Promise<Response> {
+  const body = init?.body
+  const isForm = typeof FormData !== 'undefined' && body instanceof FormData
+  const res = await fetch(apiUrl(path), {
+    ...init,
+    headers: apiHeaders(init?.headers, !isForm),
+  })
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(`API ${path} → ${res.status}: ${text}`)
+  }
+  return res
 }
 
 export const api = {
@@ -201,8 +262,8 @@ export const api = {
     apiFetch<{ removed_tools: string[]; count: number }>(`/mcp/${serverId}`, { method: 'DELETE' }),
 
   // ── 引擎规则 ───────────────────────────────────────────────────────────────
-  listExtensions: () =>
-    apiFetch<{ extensions: Array<{ key: string; name: string; description?: string; agent_profile?: string }>; count: number }>('/engine/extensions'),
+  listExtensions: (extType = 'plugin') =>
+    apiFetch<{ extensions: Array<{ key: string; name: string; description?: string; agent_profile?: string; ext_type?: string }>; count: number }>(`/engine/extensions?ext_type=${extType}`),
   listEngineRules: () =>
     apiFetch<{ rules: Array<{ rule_id: string; title?: string; description?: string; trigger?: string; applicable_agents?: string[]; priority?: number; enabled?: boolean }>; count: number }>('/engine/rules'),
   activateRule: (ruleId: string, enabled: boolean) =>
@@ -318,8 +379,8 @@ export const api = {
     apiFetch<{ ok: boolean; memory: Record<string, unknown> }>('/system/memory-health'),
 
   // Config API (11 §5)
-  listWorldPlugins: () =>
-    apiFetch<{ plugins: unknown[]; total: number }>('/config/world-plugins'),
+  listWorldPlugins: (extType = 'plugin') =>
+    apiFetch<{ plugins: Array<{ key: string; name: string; description?: string; ext_type?: string }>; total: number }>(`/config/world-plugins?ext_type=${extType}`),
 
   // Sessions with cursor pagination
   listSessionsPaged: (status = 'active', limit = 20, cursor?: string, worldPlugin?: string) => {
@@ -411,11 +472,11 @@ export const api = {
     const form = new FormData()
     form.append('file', file)
     const q = worldPlugin ? `?plugin_key=${worldPlugin}` : ''
-    const res = await fetch(`${BASE}/characters/import-png${q}`, { method: 'POST', body: form })
+    const res = await apiStreamFetch(`/characters/import-png${q}`, { method: 'POST', body: form })
     if (!res.ok) throw new Error(`导入失败 ${res.status}: ${await res.text()}`)
     return res.json() as Promise<{ character_id: string; name: string }>
   },
-  exportCharacterPngUrl: (cid: string) => `${BASE}/characters/${cid}/export-png`,
+  exportCharacterPngUrl: (cid: string) => apiUrl(`/characters/${cid}/export-png`),
 
   // ── 全局资产库 ─────────────────────────────────────────────────────────────
   listNpcTemplates: (worldPlugin?: string) => {
@@ -468,6 +529,30 @@ export const api = {
     apiFetch<{ ok: boolean; total: number }>('/scraper-rules', { method: 'PUT', body: JSON.stringify(rules) }),
   reloadScraperRules: () =>
     apiFetch<{ ok: boolean; total: number; enabled: number }>('/scraper-rules/reload', { method: 'POST' }),
+
+  // ── Wiki 模式管理 ────────────────────────────────────────────────────────────
+  getWikiPatterns: () =>
+    apiFetch<{ patterns: WikiPattern[]; total: number }>('/config/wiki-patterns'),
+  saveWikiPatterns: (patterns: WikiPattern[]) =>
+    apiFetch<{ ok: boolean; total: number }>('/config/wiki-patterns', { method: 'PUT', body: JSON.stringify(patterns) }),
+  addWikiPattern: (item: WikiPattern) =>
+    apiFetch<{ ok: boolean; action: string; source: string }>('/config/wiki-patterns', { method: 'POST', body: JSON.stringify(item) }),
+  deleteWikiPattern: (source: string) =>
+    apiFetch<{ ok: boolean; deleted: string }>(`/config/wiki-patterns/${encodeURIComponent(source)}`, { method: 'DELETE' }),
+
+  // ── 世界 URL 智能发现 ────────────────────────────────────────────────────────
+  suggestUrls: (worldName: string, hints: string[] = []) =>
+    apiFetch<{ candidates: Array<{ source: string; url: string; label: string }>; total: number }>(
+      '/worlds/suggest-urls',
+      { method: 'POST', body: JSON.stringify({ world_name: worldName, hints }) }
+    ),
+
+  // ── 档案修订（SSE，返回 Response 供调用方读 stream）────────────────────────
+  refineLore: (wid: string, sourceText: string, archiveIds: string[] = []) =>
+    apiStreamFetch(`/worlds/${wid}/refine-lore`, {
+      method: 'POST',
+      body: JSON.stringify({ source_text: sourceText, archive_ids: archiveIds }),
+    }),
 }
 
 // ── 新增类型 ─────────────────────────────────────────────────────────────────
@@ -540,6 +625,14 @@ export interface ScraperRule {
   content_selectors: string[]
   wait_ms: number
   max_chars: number
+  enabled: boolean
+  notes: string
+}
+
+export interface WikiPattern {
+  source: string
+  pattern: string
+  slug_transform: string | null
   enabled: boolean
   notes: string
 }
